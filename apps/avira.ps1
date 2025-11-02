@@ -1,14 +1,14 @@
 ﻿<#
 .SYNOPSIS
-    Installs Avira Antivirus.
+    Installs Avira Security.
 
 .DESCRIPTION
-    This script installs Avira Antivirus using winget package manager.
+    This script installs Avira Security using winget package manager (Microsoft Store version).
 
 .NOTES
     File Name      : avira.ps1
     Author         : myTech.Today
-    Version        : 1.0.0
+    Version        : 1.1.0
     Copyright      : (c) 2025 myTech.Today. All rights reserved.
 #>
 
@@ -18,22 +18,22 @@ param()
 $ErrorActionPreference = 'Stop'
 
 try {
-    Write-Host "Installing Avira Antivirus..." -ForegroundColor Cyan
-    
+    Write-Host "Installing Avira Security..." -ForegroundColor Cyan
+
     # Check if winget is available
     $wingetCmd = Get-Command winget -ErrorAction SilentlyContinue
     if (-not $wingetCmd) {
         Write-Host "  ❌ winget not found. Please install App Installer from Microsoft Store." -ForegroundColor Red
         exit 1
     }
-    
-    # Install using winget
-    Write-Host "  Installing via winget..." -ForegroundColor Yellow
-    
-    $result = winget install --id Avira.Avira --silent --accept-source-agreements --accept-package-agreements 2>&1
-    
+
+    # Install using winget (Microsoft Store version)
+    Write-Host "  Installing via winget (Microsoft Store)..." -ForegroundColor Yellow
+
+    $result = winget install --id XPFD23M0L795KD --silent --accept-source-agreements --accept-package-agreements 2>&1
+
     if ($LASTEXITCODE -eq 0) {
-        Write-Host "  ✅ Avira Antivirus installed successfully!" -ForegroundColor Green
+        Write-Host "  ✅ Avira Security installed successfully!" -ForegroundColor Green
         exit 0
     }
     else {
@@ -43,7 +43,7 @@ try {
     }
 }
 catch {
-    Write-Host "Error installing Avira Antivirus: $_" -ForegroundColor Red
+    Write-Host "Error installing Avira Security: $_" -ForegroundColor Red
     exit 1
 }
 
