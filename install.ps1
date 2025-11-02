@@ -1090,6 +1090,9 @@ function Install-MissingApplications {
     $duration = $endTime - $startTime
     $totalMinutes = [Math]::Round($duration.TotalMinutes, 1)
 
+    Write-Verbose "Installation batch completed in $totalMinutes minutes"
+    Write-Verbose "Installed: $successCount, Skipped: $skippedCount, Failed: $failCount"
+
     # Installation Summary
     Write-Host "`n╔════════════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
     Write-Host "║                     INSTALLATION SUMMARY                           ║" -ForegroundColor Cyan
@@ -1102,6 +1105,7 @@ function Install-MissingApplications {
     Write-Host "╚════════════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
 
     Write-Log "Installation complete. Installed: $successCount, Skipped: $skippedCount, Failed: $failCount, Duration: $totalMinutes minutes" -Level INFO
+    Write-Verbose "Installation summary logged to: $script:LogFile"
 }
 
 function Install-MonthlyUpdateTask {
