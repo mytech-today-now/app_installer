@@ -362,16 +362,146 @@ function Write-Output {
     }
 }
 
+function Install-WingetOnWindows10 {
+    <#
+    .SYNOPSIS
+        Installs winget (Windows Package Manager) on Windows 10 systems.
+
+    .DESCRIPTION
+        Downloads and installs the latest version of winget from Microsoft's official GitHub repository.
+        Also installs required dependencies (VCLibs and UI.Xaml).
+        Only runs on Windows 10 systems.
+    #>
+    [CmdletBinding()]
+    param()
+
+    try {
+        # Check if running on Windows 10
+        $osVersion = [System.Environment]::OSVersion.Version
+        $isWindows10 = $osVersion.Major -eq 10 -and $osVersion.Build -lt 22000
+
+        if (-not $isWindows10) {
+            Write-Log "Not running on Windows 10, skipping winget installation" -Level INFO
+            return $false
+        }
+
+        Write-Output "Detected Windows 10. Installing winget (Windows Package Manager)..." -Color ([System.Drawing.Color]::Cyan)
+        Write-Log "Installing winget on Windows 10" -Level INFO
+
+        $tempDir = Join-Path $env:TEMP "winget_install"
+        if (-not (Test-Path $tempDir)) {
+            New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
+        }
+
+        # Install VCLibs dependency
+        Write-Output "  Downloading VCLibs dependency..." -Color ([System.Drawing.Color]::Gray)
+        $vcLibsUrl = "https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx"
+        $vcLibsPath = Join-Path $tempDir "Microsoft.VCLibs.x64.14.00.Desktop.appx"
+        Invoke-WebRequest -Uri $vcLibsUrl -OutFile $vcLibsPath -UseBasicParsing
+        Write-Output "  Installing VCLibs..." -Color ([System.Drawing.Color]::Gray)
+        Add-AppxPackage -Path $vcLibsPath -ErrorAction SilentlyContinue
+
+        # Install UI.Xaml dependency
+        Write-Output "  Downloading UI.Xaml dependency..." -Color ([System.Drawing.Color]::Gray)
+        $uiXamlUrl = "https://github.com/microsoft/microsoft-ui-xaml/releases/download/v2.8.6/Microsoft.UI.Xaml.2.8.x64.appx"
+        $uiXamlPath = Join-Path $tempDir "Microsoft.UI.Xaml.2.8.x64.appx"
+        Invoke-WebRequest -Uri $uiXamlUrl -OutFile $uiXamlPath -UseBasicParsing
+        Write-Output "  Installing UI.Xaml..." -Color ([System.Drawing.Color]::Gray)
+        Add-AppxPackage -Path $uiXamlPath -ErrorAction SilentlyContinue
+
+        # Get latest winget release
+        Write-Output "  Fetching latest winget release information..." -Color ([System.Drawing.Color]::Gray)
+        $apiUrl = "https://api.github.com/repos/microsoft/winget-cli/releases/latest"
+        $release = Invoke-RestMethod -Uri $apiUrl -UseBasicParsing
+        $msixBundleUrl = ($release.assets | Where-Object { $_.name -like "*.msixbundle" }).browser_download_url
+
+        if (-not $msixBundleUrl) {
+            Write-Log "Failed to find winget msixbundle in latest release" -Level ERROR
+            Write-Output "  [X] Failed to find winget download URL" -Color ([System.Drawing.Color]::Red)
+            return $false
+        }
+
+        # Download and install winget
+        Write-Output "  Downloading winget..." -Color ([System.Drawing.Color]::Gray)
+        $wingetPath = Join-Path $tempDir "Microsoft.DesktopAppInstaller.msixbundle"
+        Invoke-WebRequest -Uri $msixBundleUrl -OutFile $wingetPath -UseBasicParsing
+
+        Write-Output "  Installing winget..." -Color ([System.Drawing.Color]::Gray)
+        Add-AppxPackage -Path $wingetPath
+
+        # Cleanup
+        Remove-Item -Path $tempDir -Recurse -Force -ErrorAction SilentlyContinue
+
+        # Verify installation
+        Start-Sleep -Seconds 2
+        $wingetInstalled = $null -ne (Get-Command winget -ErrorAction SilentlyContinue)
+
+        if ($wingetInstalled) {
+            Write-Output "  [OK] winget installed successfully!" -Color ([System.Drawing.Color]::Green)
+            Write-Log "winget installed successfully on Windows 10" -Level SUCCESS
+            return $true
+        }
+        else {
+            Write-Output "  [X] winget installation completed but command not found" -Color ([System.Drawing.Color]::Red)
+            Write-Log "winget installation completed but command not available" -Level WARNING
+            return $false
+        }
+    }
+    catch {
+        Write-Log "Failed to install winget: $($_.Exception.Message)" -Level ERROR
+        Write-Output "  [X] Failed to install winget: $($_.Exception.Message)" -Color ([System.Drawing.Color]::Red)
+        return $false
+    }
+}
+
 function Test-WingetAvailable {
     [CmdletBinding()]
     param()
-    
+
     try {
         $wingetPath = Get-Command winget -ErrorAction Stop
         return $true
     }
     catch {
         Write-Log "Winget is not available on this system" -Level WARNING
+        return $false
+    }
+}
+
+function Ensure-WingetAvailable {
+    <#
+    .SYNOPSIS
+        Ensures winget is available, installing it on Windows 10 if necessary.
+
+    .DESCRIPTION
+        Checks if winget is available. If not and running on Windows 10,
+        automatically downloads and installs winget.
+    #>
+    [CmdletBinding()]
+    param()
+
+    if (Test-WingetAvailable) {
+        return $true
+    }
+
+    # Check if running on Windows 10
+    $osVersion = [System.Environment]::OSVersion.Version
+    $isWindows10 = $osVersion.Major -eq 10 -and $osVersion.Build -lt 22000
+
+    if ($isWindows10) {
+        Write-Output "winget not found. Attempting to install on Windows 10..." -Color ([System.Drawing.Color]::Yellow)
+        $installed = Install-WingetOnWindows10
+
+        if ($installed) {
+            return $true
+        }
+        else {
+            Write-Output "Failed to install winget automatically. Please install 'App Installer' from Microsoft Store." -Color ([System.Drawing.Color]::Red)
+            return $false
+        }
+    }
+    else {
+        Write-Output "winget not found. Please install 'App Installer' from Microsoft Store." -Color ([System.Drawing.Color]::Red)
         return $false
     }
 }
@@ -1240,6 +1370,11 @@ try {
     # Now we can use Write-Output since WebBrowser exists
     Write-Output "=== myTech.Today Application Installer GUI v$script:ScriptVersion ===" -Color ([System.Drawing.Color]::Blue)
     Write-Output "Initializing..." -Color ([System.Drawing.Color]::Gray)
+
+    # Ensure winget is available (install on Windows 10 if needed)
+    Write-Host "`n[i] Checking for winget availability..." -ForegroundColor Cyan
+    Ensure-WingetAvailable | Out-Null
+    Write-Host "[OK] winget check complete" -ForegroundColor Green
 
     # Initial load - detect installed applications
     Write-Host "`n[i] Detecting installed applications..." -ForegroundColor Cyan
