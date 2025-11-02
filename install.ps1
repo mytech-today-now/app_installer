@@ -811,6 +811,7 @@ function Install-Application {
         if (Test-Path $scriptPath) {
             # Use custom installation script
             Write-Log "Using custom script: $scriptPath" -Level INFO
+            Write-Verbose "Using custom installation script: $scriptPath"
 
             # Update progress for individual app
             if ($TotalCount -gt 0) {
@@ -822,7 +823,9 @@ function Install-Application {
             }
 
             Write-Host "  [1/2] 🔍 Using custom installation script..." -ForegroundColor Gray
+            Write-Verbose "Executing script: $scriptPath"
             & $scriptPath
+            Write-Verbose "Custom script completed with exit code: $LASTEXITCODE"
 
             if ($TotalCount -gt 0) {
                 Write-Progress -Activity "Installing $($App.Name)" `
@@ -840,6 +843,7 @@ function Install-Application {
             # Use winget for installation
             if (Test-WingetAvailable) {
                 Write-Log "Installing via winget: $($App.WingetId)" -Level INFO
+                Write-Verbose "Installing $($App.Name) using winget ID: $($App.WingetId)"
 
                 # Phase 1: Checking
                 if ($TotalCount -gt 0) {
@@ -850,6 +854,7 @@ function Install-Application {
                         -Id 2
                 }
                 Write-Host "  [1/3] 🔍 Checking for existing installation..." -ForegroundColor Gray
+                Write-Verbose "Checking if $($App.Name) is already installed..."
                 Start-Sleep -Milliseconds 500
 
                 # Phase 2: Downloading/Installing
@@ -861,8 +866,14 @@ function Install-Application {
                         -Id 2
                 }
                 Write-Host "  [2/3] 📦 Downloading and installing package..." -ForegroundColor Yellow
+                Write-Verbose "Executing: winget install --id $($App.WingetId) --silent --accept-source-agreements --accept-package-agreements"
 
                 $result = winget install --id $App.WingetId --silent --accept-source-agreements --accept-package-agreements 2>&1
+
+                Write-Verbose "winget exit code: $LASTEXITCODE"
+                if ($result) {
+                    Write-Verbose "winget output: $result"
+                }
 
                 if ($LASTEXITCODE -eq 0) {
                     # Phase 3: Complete

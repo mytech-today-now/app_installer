@@ -661,6 +661,61 @@ function Get-InstalledApplications {
     return $installedApps
 }
 
+function Show-ToastNotification {
+    <#
+    .SYNOPSIS
+        Shows a Windows Toast notification using native Windows.UI.Notifications API.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Title,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Message,
+
+        [Parameter(Mandatory = $false)]
+        [ValidateSet('Info', 'Success', 'Warning', 'Error')]
+        [string]$Type = 'Info'
+    )
+
+    try {
+        # Load required assemblies for Toast notifications
+        [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
+        [Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] | Out-Null
+
+        # Define the app ID (use PowerShell's app ID)
+        $appId = '{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\WindowsPowerShell\v1.0\powershell.exe'
+
+        # Create the toast XML
+        $toastXml = @"
+<toast>
+    <visual>
+        <binding template="ToastGeneric">
+            <text>$([System.Security.SecurityElement]::Escape($Title))</text>
+            <text>$([System.Security.SecurityElement]::Escape($Message))</text>
+        </binding>
+    </visual>
+    <audio silent="false"/>
+</toast>
+"@
+
+        # Load the XML
+        $xml = New-Object Windows.Data.Xml.Dom.XmlDocument
+        $xml.LoadXml($toastXml)
+
+        # Create and show the toast
+        $toast = [Windows.UI.Notifications.ToastNotification]::new($xml)
+        [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($appId).Show($toast)
+
+        Write-Log "Toast notification shown: $Title - $Message" -Level INFO
+    }
+    catch {
+        # Silently fail if toast notifications aren't available
+        Write-Log "Failed to show toast notification: $($_.Exception.Message)" -Level WARNING
+    }
+}
+
 #endregion Helper Functions
 
 #region Installation Functions
@@ -1657,6 +1712,14 @@ function Install-SelectedApplications {
         $script:StatusLabel.ForeColor = if ($failCount -eq 0) { [System.Drawing.Color]::Green } else { [System.Drawing.Color]::Orange }
         [System.Windows.Forms.Application]::DoEvents()
     }
+
+    # Show Windows Toast notification
+    $toastTitle = "Installation Complete"
+    $toastMessage = "Successfully installed $successCount of $($checkedItems.Count) applications in $totalMinutes minutes"
+    if ($failCount -gt 0) {
+        $toastMessage += "`n$failCount installation(s) failed"
+    }
+    Show-ToastNotification -Title $toastTitle -Message $toastMessage -Type $(if ($failCount -eq 0) { 'Success' } else { 'Warning' })
 
     [System.Windows.Forms.MessageBox]::Show(
         "Installation complete!`n`nSuccessful: $successCount`nFailed: $failCount`nTotal Time: $totalMinutes minutes",
