@@ -8,7 +8,7 @@
 
 The **App Installer** is a comprehensive PowerShell application installer system designed for automated Windows setup. It provides both a modern **graphical user interface (GUI)** and a traditional **command-line interface** for installing and managing **93 essential applications** with real-time status tracking, version detection, and centralized logging.
 
-![App Installer GUI](https://mytech.today/wp-content/uploads/2025/10/summary_tab.jpeg)
+![App Installer GUI](https://mytech.today/wp-content/uploads/2025/11/install-gui.ps1_.jpeg)
 
 ## Features
 
