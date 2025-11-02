@@ -943,6 +943,7 @@ function Install-AllApplications {
     param()
 
     Write-Log "Installing all applications..." -Level INFO
+    Write-Verbose "Starting installation of all $($script:Applications.Count) applications"
     Write-Host "`n+===================================================================+" -ForegroundColor Cyan
     Write-Host "|                    Installing All Applications                    |" -ForegroundColor Cyan
     Write-Host "+===================================================================+" -ForegroundColor Cyan
@@ -954,9 +955,13 @@ function Install-AllApplications {
     $startTime = Get-Date
     $installationTimes = @()  # Track individual installation times for ETA
 
+    Write-Verbose "Total applications to install: $totalCount"
+
     foreach ($app in $script:Applications) {
         $currentIndex++
         $appStartTime = Get-Date
+
+        Write-Verbose "[$currentIndex/$totalCount] Starting installation of $($app.Name)"
 
         $result = Install-Application -App $app -CurrentIndex $currentIndex -TotalCount $totalCount
 
@@ -993,6 +998,9 @@ function Install-AllApplications {
     $duration = $endTime - $startTime
     $totalMinutes = [Math]::Round($duration.TotalMinutes, 1)
 
+    Write-Verbose "Installation batch completed in $totalMinutes minutes"
+    Write-Verbose "Success rate: $([Math]::Round(($successCount / $totalCount) * 100, 1))%"
+
     # Installation Summary
     Write-Host "`n╔════════════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
     Write-Host "║                     INSTALLATION SUMMARY                           ║" -ForegroundColor Cyan
@@ -1004,6 +1012,7 @@ function Install-AllApplications {
     Write-Host "╚════════════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
 
     Write-Log "Installation complete. Success: $successCount, Failed: $failCount, Duration: $totalMinutes minutes" -Level INFO
+    Write-Verbose "Installation summary logged to: $script:LogFile"
 }
 
 function Install-MissingApplications {
