@@ -650,6 +650,26 @@ function Get-InstalledApplications {
                 }
             }
         }
+
+        # Special handling: Check for Chrome Remote Desktop shortcut
+        # If app is installed but shortcut is missing, create it
+        if ($installedApps.ContainsKey("Chrome Remote Desktop")) {
+            $shortcutPath = "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Chrome Remote Desktop.lnk"
+            if (-not (Test-Path $shortcutPath)) {
+                Write-Log "Chrome Remote Desktop is installed but shortcut is missing - will create it" -Level INFO
+                $shortcutCreated = New-WebApplicationShortcut `
+                    -ShortcutName "Chrome Remote Desktop" `
+                    -Url "https://remotedesktop.google.com/access" `
+                    -Description "Configure and access Chrome Remote Desktop"
+
+                if ($shortcutCreated) {
+                    Write-Log "Created missing shortcut for Chrome Remote Desktop" -Level SUCCESS
+                }
+            }
+            else {
+                Write-Log "Chrome Remote Desktop shortcut already exists" -Level INFO
+            }
+        }
     }
     catch {
         Write-Log "Error detecting installed applications: $($_.Exception.Message)" -Level WARNING
@@ -849,6 +869,106 @@ function Get-WingetErrorMessage {
     }
 }
 
+function New-WebApplicationShortcut {
+    <#
+    .SYNOPSIS
+        Creates a Start Menu shortcut that opens a URL in the default browser.
+
+    .DESCRIPTION
+        Creates a .lnk shortcut file in the Start Menu that opens a specified URL.
+        Attempts to use Chrome browser if available, otherwise falls back to default browser.
+
+    .PARAMETER ShortcutName
+        The name of the shortcut (without .lnk extension).
+
+    .PARAMETER Url
+        The URL to open when the shortcut is clicked.
+
+    .PARAMETER Description
+        Optional description for the shortcut.
+
+    .PARAMETER IconPath
+        Optional path to an icon file. If not specified, uses the browser's icon.
+
+    .OUTPUTS
+        Boolean indicating success or failure.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ShortcutName,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Url,
+
+        [Parameter(Mandatory = $false)]
+        [string]$Description = "",
+
+        [Parameter(Mandatory = $false)]
+        [string]$IconPath = ""
+    )
+
+    try {
+        # Create shortcut in Start Menu (all users)
+        $startMenuPath = "$env:ProgramData\Microsoft\Windows\Start Menu\Programs"
+        $shortcutPath = Join-Path $startMenuPath "$ShortcutName.lnk"
+
+        # Check if shortcut already exists
+        if (Test-Path $shortcutPath) {
+            Write-Log "Shortcut already exists: $shortcutPath" -Level INFO
+            return $true
+        }
+
+        # Find Chrome browser installation
+        $chromePaths = @(
+            "${env:ProgramFiles}\Google\Chrome\Application\chrome.exe",
+            "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe",
+            "${env:LocalAppData}\Google\Chrome\Application\chrome.exe"
+        )
+
+        $chromePath = $null
+        foreach ($path in $chromePaths) {
+            if (Test-Path $path) {
+                $chromePath = $path
+                break
+            }
+        }
+
+        # If Chrome not found, use default browser (via URL protocol)
+        if (-not $chromePath) {
+            Write-Log "Chrome not found, shortcut will use default browser" -Level WARN
+            $targetPath = "explorer.exe"
+            $arguments = $Url
+            $iconLocation = "$env:SystemRoot\System32\SHELL32.dll,14"  # Internet icon
+        }
+        else {
+            $targetPath = $chromePath
+            $arguments = "--new-window `"$Url`""
+            $iconLocation = if ($IconPath -and (Test-Path $IconPath)) { $IconPath } else { $chromePath }
+        }
+
+        # Create WScript.Shell COM object
+        $shell = New-Object -ComObject WScript.Shell
+        $shortcut = $shell.CreateShortcut($shortcutPath)
+        $shortcut.TargetPath = $targetPath
+        $shortcut.Arguments = $arguments
+        $shortcut.Description = if ($Description) { $Description } else { "Open $ShortcutName" }
+        $shortcut.IconLocation = $iconLocation
+        $shortcut.WorkingDirectory = Split-Path $targetPath -Parent
+        $shortcut.Save()
+
+        # Release COM object
+        [System.Runtime.Interopservices.Marshal]::ReleaseComObject($shell) | Out-Null
+
+        Write-Log "Created Start Menu shortcut: $shortcutPath" -Level SUCCESS
+        return $true
+    }
+    catch {
+        Write-Log "Failed to create shortcut for ${ShortcutName}: ${_}" -Level ERROR
+        return $false
+    }
+}
+
 function Install-Application {
     [CmdletBinding()]
     param(
@@ -886,20 +1006,55 @@ function Install-Application {
             }
 
             & $scriptPath
+            $scriptExitCode = $LASTEXITCODE
 
             # Hide secondary progress bar
             if ($script:AppProgressBar) {
                 $script:AppProgressBar.Visible = $false
             }
 
-            # Update status - success
-            if ($script:StatusLabel) {
-                $script:StatusLabel.Text = "[OK] $($App.Name) installed successfully!"
-                $script:StatusLabel.ForeColor = [System.Drawing.Color]::Green
-                [System.Windows.Forms.Application]::DoEvents()
-            }
+            # Check exit code from custom script
+            if ($scriptExitCode -eq 0) {
+                Write-Log "$($App.Name) installed successfully via custom script" -Level SUCCESS
 
-            return $true
+                # Update status - success
+                if ($script:StatusLabel) {
+                    $script:StatusLabel.Text = "[OK] $($App.Name) installed successfully!"
+                    $script:StatusLabel.ForeColor = [System.Drawing.Color]::Green
+                    [System.Windows.Forms.Application]::DoEvents()
+                }
+
+                # Create Start Menu shortcut for Chrome Remote Desktop
+                if ($App.Name -eq "Chrome Remote Desktop") {
+                    Write-Log "Creating Start Menu shortcut for Chrome Remote Desktop..." -Level INFO
+                    $shortcutCreated = New-WebApplicationShortcut `
+                        -ShortcutName "Chrome Remote Desktop" `
+                        -Url "https://remotedesktop.google.com/access" `
+                        -Description "Configure and access Chrome Remote Desktop"
+
+                    if ($shortcutCreated) {
+                        Write-Output "  [OK] Start Menu shortcut created" -Color ([System.Drawing.Color]::Green)
+                    }
+                    else {
+                        Write-Output "  [WARN] Could not create Start Menu shortcut" -Color ([System.Drawing.Color]::Orange)
+                    }
+                }
+
+                return $true
+            }
+            else {
+                $errorMessage = Get-WingetErrorMessage -ExitCode $scriptExitCode
+                Write-Log "$($App.Name) installation failed via custom script: $errorMessage (Exit code: $scriptExitCode)" -Level ERROR
+
+                # Update status - failed
+                if ($script:StatusLabel) {
+                    $script:StatusLabel.Text = "[FAIL] $($App.Name) - $errorMessage"
+                    $script:StatusLabel.ForeColor = [System.Drawing.Color]::Red
+                    [System.Windows.Forms.Application]::DoEvents()
+                }
+
+                return $false
+            }
         }
         elseif ($App.WingetId) {
             # Use winget for installation
@@ -930,6 +1085,22 @@ function Install-Application {
                         $script:StatusLabel.Text = "[OK] $($App.Name) installed successfully!"
                         $script:StatusLabel.ForeColor = [System.Drawing.Color]::Green
                         [System.Windows.Forms.Application]::DoEvents()
+                    }
+
+                    # Create Start Menu shortcut for Chrome Remote Desktop
+                    if ($App.Name -eq "Chrome Remote Desktop") {
+                        Write-Log "Creating Start Menu shortcut for Chrome Remote Desktop..." -Level INFO
+                        $shortcutCreated = New-WebApplicationShortcut `
+                            -ShortcutName "Chrome Remote Desktop" `
+                            -Url "https://remotedesktop.google.com/access" `
+                            -Description "Configure and access Chrome Remote Desktop"
+
+                        if ($shortcutCreated) {
+                            Write-Output "  [OK] Start Menu shortcut created" -Color ([System.Drawing.Color]::Green)
+                        }
+                        else {
+                            Write-Output "  [WARN] Could not create Start Menu shortcut" -Color ([System.Drawing.Color]::Orange)
+                        }
                     }
 
                     return $true
