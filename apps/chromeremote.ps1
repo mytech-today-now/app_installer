@@ -30,16 +30,17 @@ try {
     # Install using winget
     Write-Host "  Installing via winget..." -ForegroundColor Yellow
 
-    $result = winget install --id Google.ChromeRemoteDesktop --silent --accept-source-agreements --accept-package-agreements 2>&1
+    $result = winget install --id Google.ChromeRemoteDesktopHost --silent --accept-source-agreements --accept-package-agreements 2>&1
+    $exitCode = $LASTEXITCODE
 
-    if ($LASTEXITCODE -eq 0) {
+    if ($exitCode -eq 0) {
         Write-Host "  [OK] Chrome Remote Desktop installed successfully!" -ForegroundColor Green
         exit 0
     }
     else {
-        Write-Host "  [X] Installation failed with exit code: $LASTEXITCODE" -ForegroundColor Red
+        Write-Host "  [X] Installation failed with exit code: $exitCode" -ForegroundColor Red
         Write-Host "  $result" -ForegroundColor Gray
-        exit 1
+        exit $exitCode
     }
 }
 catch {
