@@ -334,7 +334,7 @@ $script:Applications = @(
     # Remote Desktop
     [PSCustomObject]@{ Name = "TeamViewer"; ScriptName = "teamviewer.ps1"; WingetId = "TeamViewer.TeamViewer"; Category = "Remote Desktop"; Description = "Remote access and support software" }
     [PSCustomObject]@{ Name = "AnyDesk"; ScriptName = "anydesk.ps1"; WingetId = "AnyDeskSoftwareGmbH.AnyDesk"; Category = "Remote Desktop"; Description = "Fast remote desktop application" }
-    [PSCustomObject]@{ Name = "Chrome Remote Desktop"; ScriptName = "chromeremote.ps1"; WingetId = "Google.ChromeRemoteDesktop"; Category = "Remote Desktop"; Description = "Remote access via Chrome browser" }
+    [PSCustomObject]@{ Name = "Chrome Remote Desktop"; ScriptName = "chromeremote.ps1"; WingetId = "Google.ChromeRemoteDesktopHost"; Category = "Remote Desktop"; Description = "Remote access via Chrome browser" }
     [PSCustomObject]@{ Name = "TightVNC"; ScriptName = "tightvnc.ps1"; WingetId = "GlavSoft.TightVNC"; Category = "Remote Desktop"; Description = "Remote desktop control software" }
     # Backup & Recovery
     [PSCustomObject]@{ Name = "Veeam Agent FREE"; ScriptName = "veeam.ps1"; WingetId = "Veeam.Agent.Windows"; Category = "Backup"; Description = "Free backup and recovery solution" }
@@ -769,6 +769,135 @@ function Show-Menu {
     return $menuItems
 }
 
+function Get-WingetErrorMessage {
+    <#
+    .SYNOPSIS
+        Converts winget exit codes to human-readable error messages.
+
+    .PARAMETER ExitCode
+        The winget exit code to interpret.
+
+    .OUTPUTS
+        String containing the error description.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [int]$ExitCode
+    )
+
+    # Common winget exit codes
+    # Reference: https://github.com/microsoft/winget-cli/blob/master/doc/windows/package-manager/winget/returnCodes.md
+    switch ($ExitCode) {
+        0 { return "Success" }
+        -1978335189 { return "Package not found in source" }
+        -1978335212 { return "No applicable installer found (wrong architecture or installer type)" }
+        -1978335191 { return "Package already installed" }
+        -1978335192 { return "File not found" }
+        -1978335193 { return "Missing dependency" }
+        -1978335194 { return "Invalid manifest" }
+        -1978335195 { return "Download failed" }
+        -1978335196 { return "Installation failed" }
+        -1978335197 { return "Installer hash mismatch" }
+        -1978335198 { return "User cancelled" }
+        -1978335199 { return "Already installed (different version)" }
+        -1978335200 { return "Reboot required" }
+        -1978335201 { return "Contact support" }
+        -1978335202 { return "Invalid parameter" }
+        -1978335203 { return "System not supported" }
+        -1978335204 { return "Download size exceeded" }
+        -1978335205 { return "Invalid license" }
+        -1978335206 { return "Package agreement required" }
+        -1978335207 { return "Source agreement required" }
+        -1978335208 { return "Blocked by policy" }
+        -1978335209 { return "Installer failed" }
+        -1978335210 { return "Installer timeout" }
+        -1978335211 { return "Installer cancelled" }
+        -1978335213 { return "Update not applicable" }
+        -1978335214 { return "No uninstall string" }
+        -1978335215 { return "Uninstaller failed" }
+        -1978335216 { return "Package in use" }
+        -1978335217 { return "Invalid state" }
+        -1978335218 { return "Custom error" }
+        -1978335219 { return "Configuration error" }
+        -1978335220 { return "Validation failed" }
+        -1978335221 { return "Upgrade failed" }
+        -1978335222 { return "Downgrade not allowed" }
+        -1978335223 { return "Pin exists" }
+        -1978335224 { return "Unpin failed" }
+        -1978335225 { return "Unknown version" }
+        -1978335226 { return "Unsupported source" }
+        -1978335227 { return "Unsupported argument" }
+        -1978335228 { return "Multiple matches found" }
+        -1978335229 { return "Invalid table" }
+        -1978335230 { return "Upgrade not available" }
+        -1978335231 { return "Not supported" }
+        -1978335232 { return "Blocked by group policy" }
+        -1978335233 { return "Experimental feature disabled" }
+        -1978335234 { return "Repair not supported" }
+        -1978335235 { return "Repair failed" }
+        -1978335236 { return "Dependencies validation failed" }
+        -1978335237 { return "Missing resource" }
+        -1978335238 { return "Invalid authentication" }
+        -1978335239 { return "Authentication failed" }
+        -1978335240 { return "Package streaming failed" }
+        -1978335241 { return "Service unavailable" }
+        -1978335242 { return "Blocked by meter" }
+        -1978335243 { return "Needs admin" }
+        -1978335244 { return "App shutdown failed" }
+        -1978335245 { return "Install location required" }
+        -1978335246 { return "Archive extraction failed" }
+        -1978335247 { return "Certificate validation failed" }
+        -1978335248 { return "Portable install failed" }
+        -1978335249 { return "Portable package already exists" }
+        -1978335250 { return "Portable symlink path in use" }
+        -1978335251 { return "Portable package not found" }
+        -1978335252 { return "Portable reparse point already exists" }
+        -1978335253 { return "Portable package in use" }
+        -1978335254 { return "Portable data cleanup failed" }
+        -1978335255 { return "Portable write access denied" }
+        -1978335256 { return "Checksum mismatch" }
+        -1978335257 { return "Customization required" }
+        -1978335258 { return "Configuration file invalid" }
+        -1978335259 { return "Configuration unit not found" }
+        -1978335260 { return "Configuration unit failed" }
+        -1978335261 { return "Configuration unit multiple matches" }
+        -1978335262 { return "Configuration unit invoke failed" }
+        -1978335263 { return "Configuration unit settings invalid" }
+        -1978335264 { return "Configuration unit import failed" }
+        -1978335265 { return "Configuration unit assert failed" }
+        -1978335266 { return "Configuration unit test failed" }
+        -1978335267 { return "Configuration unit get failed" }
+        -1978335268 { return "Configuration unit dependency not found" }
+        -1978335269 { return "Configuration unit has unsatisfied dependencies" }
+        -1978335270 { return "Configuration unit not supported" }
+        -1978335271 { return "Configuration unit multiple instances" }
+        -1978335272 { return "Configuration unit timeout" }
+        -1978335273 { return "Configuration parse error" }
+        -1978335274 { return "Configuration database corrupted" }
+        -1978335275 { return "Configuration history database corrupted" }
+        -1978335276 { return "Configuration file schema validation failed" }
+        -1978335277 { return "Configuration unit returned duplicate identifier" }
+        -1978335278 { return "Configuration unit import module failed" }
+        -1978335279 { return "Configuration unit invoke get failed" }
+        -1978335280 { return "Configuration unit invoke test failed" }
+        -1978335281 { return "Configuration unit invoke set failed" }
+        -1978335282 { return "Configuration unit module conflict" }
+        -1978335283 { return "Configuration unit import security risk" }
+        -1978335284 { return "Configuration unit invoke disabled" }
+        -1978335285 { return "Configuration processing cancelled" }
+        -1978335286 { return "Configuration queue full" }
+        -1978335287 { return "Configuration set dependency cycle" }
+        -1978335288 { return "Configuration set apply failed" }
+        -1978335289 { return "Configuration set prerequisite failed" }
+        -1978335290 { return "Configuration set semantic validation failed" }
+        -1978335291 { return "Configuration set dependency unsatisfied" }
+        -1978335292 { return "Configuration set read only" }
+        -1978335293 { return "Configuration set invalid state" }
+        default { return "Unknown error (Exit code: $ExitCode)" }
+    }
+}
+
 function Install-Application {
     <#
     .SYNOPSIS
@@ -822,7 +951,7 @@ function Install-Application {
                     -Id 2
             }
 
-            Write-Host "  [1/2] 🔍 Using custom installation script..." -ForegroundColor Gray
+            Write-Host "  [1/2] [CHECK] Using custom installation script..." -ForegroundColor Gray
             Write-Verbose "Executing script: $scriptPath"
             & $scriptPath
             Write-Verbose "Custom script completed with exit code: $LASTEXITCODE"
@@ -836,7 +965,7 @@ function Install-Application {
                     -Completed
             }
 
-            Write-Host "  [2/2] ✅ Installation complete!" -ForegroundColor Green
+            Write-Host "  [2/2] [OK] Installation complete!" -ForegroundColor Green
             return $true
         }
         elseif ($App.WingetId) {
@@ -853,7 +982,7 @@ function Install-Application {
                         -ParentId 1 `
                         -Id 2
                 }
-                Write-Host "  [1/3] 🔍 Checking for existing installation..." -ForegroundColor Gray
+                Write-Host "  [1/3] [CHECK] Checking for existing installation..." -ForegroundColor Gray
                 Write-Verbose "Checking if $($App.Name) is already installed..."
                 Start-Sleep -Milliseconds 500
 
@@ -865,7 +994,7 @@ function Install-Application {
                         -ParentId 1 `
                         -Id 2
                 }
-                Write-Host "  [2/3] 📦 Downloading and installing package..." -ForegroundColor Yellow
+                Write-Host "  [2/3] [INSTALL] Downloading and installing package..." -ForegroundColor Yellow
                 Write-Verbose "Executing: winget install --id $($App.WingetId) --silent --accept-source-agreements --accept-package-agreements"
 
                 $result = winget install --id $App.WingetId --silent --accept-source-agreements --accept-package-agreements 2>&1
@@ -887,7 +1016,7 @@ function Install-Application {
                     }
 
                     Write-Log "$($App.Name) installed successfully" -Level SUCCESS
-                    Write-Host "  [3/3] ✅ $($App.Name) installed successfully!" -ForegroundColor Green
+                    Write-Host "  [3/3] [OK] $($App.Name) installed successfully!" -ForegroundColor Green
                     return $true
                 }
                 else {
@@ -900,20 +1029,25 @@ function Install-Application {
                             -Completed
                     }
 
-                    Write-Log "$($App.Name) installation failed: $result" -Level ERROR
-                    Write-Host "  [3/3] ❌ Installation failed. Check log for details." -ForegroundColor Red
+                    $errorMessage = Get-WingetErrorMessage -ExitCode $LASTEXITCODE
+                    Write-Log "$($App.Name) installation failed: $errorMessage (Exit code: $LASTEXITCODE)" -Level ERROR
+                    Write-Host "  [3/3] [FAIL] Installation failed: $errorMessage" -ForegroundColor Red
+                    Write-Host "         Exit code: $LASTEXITCODE" -ForegroundColor Red
+                    if ($result) {
+                        Write-Host "         Details: $result" -ForegroundColor Red
+                    }
                     return $false
                 }
             }
             else {
                 Write-Log "winget not available, cannot install $($App.Name)" -Level ERROR
-                Write-Host "  ❌ winget not available. Please install App Installer from Microsoft Store." -ForegroundColor Red
+                Write-Host "  [ERROR] winget not available. Please install App Installer from Microsoft Store." -ForegroundColor Red
                 return $false
             }
         }
         else {
             Write-Log "No installation method available for $($App.Name)" -Level WARNING
-            Write-Host "  ⚠️ No installation method configured for $($App.Name)" -ForegroundColor Yellow
+            Write-Host "  [WARN] No installation method configured for $($App.Name)" -ForegroundColor Yellow
             Write-Host "  Custom script required: $scriptPath" -ForegroundColor Yellow
             return $false
         }
@@ -929,7 +1063,7 @@ function Install-Application {
         }
 
         Write-Log "Error installing $($App.Name): $_" -Level ERROR
-        Write-Host "  ❌ Error: $_" -ForegroundColor Red
+        Write-Host "  [ERROR] Error: $_" -ForegroundColor Red
         return $false
     }
 }
@@ -978,7 +1112,7 @@ function Install-AllApplications {
             $etaMinutes = [Math]::Round($etaSeconds / 60, 1)
 
             if ($remainingApps -gt 0) {
-                Write-Host "  ⏱️  Estimated time remaining: $etaMinutes minutes ($remainingApps apps left)" -ForegroundColor DarkGray
+                Write-Host "  [TIME] Estimated time remaining: $etaMinutes minutes ($remainingApps apps left)" -ForegroundColor DarkGray
             }
         }
 
@@ -1006,9 +1140,9 @@ function Install-AllApplications {
     Write-Host "║                     INSTALLATION SUMMARY                           ║" -ForegroundColor Cyan
     Write-Host "╠════════════════════════════════════════════════════════════════════╣" -ForegroundColor Cyan
     Write-Host "║  Total Applications: $totalCount" -ForegroundColor White
-    Write-Host "║  ✅ Successful: $successCount" -ForegroundColor Green
-    Write-Host "║  ❌ Failed: $failCount" -ForegroundColor Red
-    Write-Host "║  ⏱️  Total Time: $totalMinutes minutes" -ForegroundColor White
+    Write-Host "║  [OK] Successful: $successCount" -ForegroundColor Green
+    Write-Host "║  [FAIL] Failed: $failCount" -ForegroundColor Red
+    Write-Host "║  [TIME] Total Time: $totalMinutes minutes" -ForegroundColor White
     Write-Host "╚════════════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
 
     Write-Log "Installation complete. Success: $successCount, Failed: $failCount, Duration: $totalMinutes minutes" -Level INFO
@@ -1041,7 +1175,7 @@ function Install-MissingApplications {
         $currentIndex++
 
         if ($installedApps.ContainsKey($app.Name)) {
-            Write-Host "`n⏭️  Skipping $($app.Name) - Already installed ($($installedApps[$app.Name]))" -ForegroundColor Gray
+            Write-Host "`n[SKIP] Skipping $($app.Name) - Already installed ($($installedApps[$app.Name]))" -ForegroundColor Gray
             $skippedCount++
 
             # Update progress for skipped apps
@@ -1069,7 +1203,7 @@ function Install-MissingApplications {
                 $etaMinutes = [Math]::Round($etaSeconds / 60, 1)
 
                 if ($remainingApps -gt 0) {
-                    Write-Host "  ⏱️  Estimated time remaining: $etaMinutes minutes ($remainingApps apps left)" -ForegroundColor DarkGray
+                    Write-Host "  [TIME] Estimated time remaining: $etaMinutes minutes ($remainingApps apps left)" -ForegroundColor DarkGray
                 }
             }
 
@@ -1098,10 +1232,10 @@ function Install-MissingApplications {
     Write-Host "║                     INSTALLATION SUMMARY                           ║" -ForegroundColor Cyan
     Write-Host "╠════════════════════════════════════════════════════════════════════╣" -ForegroundColor Cyan
     Write-Host "║  Total Applications: $totalCount" -ForegroundColor White
-    Write-Host "║  ✅ Installed: $successCount" -ForegroundColor Green
-    Write-Host "║  ⏭️  Skipped: $skippedCount" -ForegroundColor Gray
-    Write-Host "║  ❌ Failed: $failCount" -ForegroundColor Red
-    Write-Host "║  ⏱️  Total Time: $totalMinutes minutes" -ForegroundColor White
+    Write-Host "║  [OK] Installed: $successCount" -ForegroundColor Green
+    Write-Host "║  [SKIP] Skipped: $skippedCount" -ForegroundColor Gray
+    Write-Host "║  [FAIL] Failed: $failCount" -ForegroundColor Red
+    Write-Host "║  [TIME] Total Time: $totalMinutes minutes" -ForegroundColor White
     Write-Host "╚════════════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
 
     Write-Log "Installation complete. Installed: $successCount, Skipped: $skippedCount, Failed: $failCount, Duration: $totalMinutes minutes" -Level INFO
@@ -1208,7 +1342,7 @@ $wingetAvailable = Ensure-WingetAvailable
 
 if (-not $wingetAvailable) {
     Write-Log "winget is not available on this system" -Level WARNING
-    Write-Host "`n⚠️  WARNING: winget (Windows Package Manager) is not available." -ForegroundColor Yellow
+    Write-Host "`n[WARN] WARNING: winget (Windows Package Manager) is not available." -ForegroundColor Yellow
     Write-Host "   Many applications require winget for installation." -ForegroundColor Yellow
     Write-Host ""
 
