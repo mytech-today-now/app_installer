@@ -1,17 +1,22 @@
 <#
 .SYNOPSIS
-    Menu-driven application installer for automated Windows setup.
+    Advanced CLI application installer for automated Windows setup with multi-select capabilities.
 
 .DESCRIPTION
-    This script provides a comprehensive menu-driven interface for installing and managing
+    This script provides a comprehensive command-line interface for installing and managing
     multiple applications on Windows systems. Features include:
     - Interactive menu with installation status display
+    - Multi-select capability (e.g., "1,3,5-10" to select multiple apps)
+    - Category-based selection (e.g., "C:Browsers" to select all browsers)
+    - Range selection (e.g., "1-5,10-15" to select ranges)
     - Version detection for installed applications
     - Selective installation (individual apps, all apps, or only missing apps)
+    - Real-time progress tracking with ETA during batch installations
     - Centralized logging to C:\mytech.today\logs\
-    - Support for 93 applications via winget and custom installers
+    - Support for 158 applications via winget and custom installers
     - Error handling with fallback solutions
     - Automatic winget installation on Windows 10
+    - Chrome Remote Desktop shortcut auto-repair
 
 .PARAMETER Action
     The action to perform. Valid values: Menu, InstallAll, InstallMissing, Status
@@ -36,12 +41,28 @@
     .\install.ps1 -AppName "Chrome"
     Installs only Google Chrome
 
+.EXAMPLE
+    Interactive menu: Enter "1,3,5"
+    Installs applications #1, #3, and #5
+
+.EXAMPLE
+    Interactive menu: Enter "1-10"
+    Installs applications #1 through #10
+
+.EXAMPLE
+    Interactive menu: Enter "C:Browsers"
+    Installs all applications in the Browsers category
+
+.EXAMPLE
+    Interactive menu: Enter "1-5,10,15-20"
+    Installs applications #1-5, #10, and #15-20
+
 .NOTES
     File Name      : install.ps1
     Author         : myTech.Today
     Prerequisite   : PowerShell 5.1 or later, Administrator privileges
     Copyright      : (c) 2025 myTech.Today. All rights reserved.
-    Version        : 1.3.7
+    Version        : 1.4.0
 
 .LINK
     https://github.com/mytech-today-now/PowerShellScripts
@@ -61,7 +82,7 @@ param(
 #Requires -RunAsAdministrator
 
 # Script variables
-$script:ScriptVersion = '1.3.7'
+$script:ScriptVersion = '1.4.0'
 $script:OriginalScriptPath = $PSScriptRoot
 $script:SystemInstallPath = "$env:SystemDrive\mytech.today\app_installer"
 $script:ScriptPath = $script:SystemInstallPath  # Will be updated after copy
@@ -777,8 +798,13 @@ function Show-Menu {
         }
     }
 
+    Write-Host ""
     Write-Host "  [Actions]" -ForegroundColor Magenta
     Write-Host "    1-$($menuItems.Count). Install Specific Application (type number)" -ForegroundColor Cyan
+    Write-Host "    Multi-Select: Type numbers separated by commas or spaces (e.g., '1,3,5' or '1 3 5')" -ForegroundColor Cyan
+    Write-Host "    Range Select: Type number ranges (e.g., '1-5' or '10-15,20-25')" -ForegroundColor Cyan
+    Write-Host "    Category: Type 'C:CategoryName' (e.g., 'C:Browsers' or 'C:Development')" -ForegroundColor Cyan
+    Write-Host ""
     Write-Host "    A. Install All Applications" -ForegroundColor Yellow
     Write-Host "    M. Install Missing Applications Only" -ForegroundColor Yellow
     Write-Host "    S. Show Status Only" -ForegroundColor Yellow
@@ -786,7 +812,174 @@ function Show-Menu {
     Write-Host "    Q. Quit" -ForegroundColor Yellow
     Write-Host ""
 
-    return $menuItems
+    return @{
+        MenuItems = $menuItems
+        Categories = $categories
+        InstalledApps = $installedApps
+    }
+}
+
+function Parse-SelectionInput {
+    <#
+    .SYNOPSIS
+        Parses user input for multi-select, range select, or category selection.
+
+    .PARAMETER Input
+        The user's input string.
+
+    .PARAMETER MenuItems
+        Hashtable of menu items (index -> app object).
+
+    .PARAMETER Categories
+        Array of category groups.
+
+    .OUTPUTS
+        Array of application objects to install.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Input,
+
+        [Parameter(Mandatory = $true)]
+        [hashtable]$MenuItems,
+
+        [Parameter(Mandatory = $true)]
+        [array]$Categories
+    )
+
+    $selectedApps = @()
+
+    # Check for category selection (C:CategoryName)
+    if ($Input -match '^C:(.+)$') {
+        $categoryName = $matches[1].Trim()
+        $category = $Categories | Where-Object { $_.Name -like "*$categoryName*" } | Select-Object -First 1
+
+        if ($category) {
+            Write-Host "`nSelected category: $($category.Name)" -ForegroundColor Green
+            $selectedApps = $category.Group | Sort-Object Name
+        }
+        else {
+            Write-Host "`nCategory '$categoryName' not found." -ForegroundColor Red
+            Write-Host "Available categories:" -ForegroundColor Yellow
+            $Categories | ForEach-Object { Write-Host "  - $($_.Name)" -ForegroundColor Gray }
+        }
+        return $selectedApps
+    }
+
+    # Parse comma or space-separated numbers and ranges
+    $Input = $Input -replace '\s+', ',' # Replace spaces with commas
+    $parts = $Input -split ',' | Where-Object { $_ -ne '' }
+
+    foreach ($part in $parts) {
+        $part = $part.Trim()
+
+        # Check for range (e.g., "1-5")
+        if ($part -match '^(\d+)-(\d+)$') {
+            $start = [int]$matches[1]
+            $end = [int]$matches[2]
+
+            if ($start -gt $end) {
+                $temp = $start
+                $start = $end
+                $end = $temp
+            }
+
+            for ($i = $start; $i -le $end; $i++) {
+                if ($MenuItems.ContainsKey($i)) {
+                    $selectedApps += $MenuItems[$i]
+                }
+            }
+        }
+        # Check for single number
+        elseif ($part -match '^\d+$') {
+            $index = [int]$part
+            if ($MenuItems.ContainsKey($index)) {
+                $selectedApps += $MenuItems[$index]
+            }
+            else {
+                Write-Host "Invalid selection: $index" -ForegroundColor Red
+            }
+        }
+        else {
+            Write-Host "Invalid input: $part" -ForegroundColor Red
+        }
+    }
+
+    # Remove duplicates
+    $selectedApps = $selectedApps | Select-Object -Unique
+
+    return $selectedApps
+}
+
+function Install-SelectedApplications {
+    <#
+    .SYNOPSIS
+        Installs multiple selected applications with progress tracking.
+
+    .PARAMETER Apps
+        Array of application objects to install.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [array]$Apps
+    )
+
+    if ($Apps.Count -eq 0) {
+        Write-Host "`nNo applications selected." -ForegroundColor Yellow
+        return
+    }
+
+    Write-Host "`n+===================================================================+" -ForegroundColor Cyan
+    Write-Host "|                    Installing Selected Applications                |" -ForegroundColor Cyan
+    Write-Host "+===================================================================+" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "Applications to install: $($Apps.Count)" -ForegroundColor Yellow
+    Write-Host ""
+
+    foreach ($app in $Apps) {
+        Write-Host "  - $($app.Name)" -ForegroundColor White
+    }
+
+    Write-Host ""
+    Write-Host "Proceed with installation? (Y/N): " -NoNewline -ForegroundColor Yellow
+    $confirm = Read-Host
+
+    if ($confirm -ne 'Y' -and $confirm -ne 'y') {
+        Write-Host "Installation cancelled." -ForegroundColor Yellow
+        return
+    }
+
+    $currentIndex = 0
+    $successCount = 0
+    $failCount = 0
+
+    foreach ($app in $Apps) {
+        $currentIndex++
+        Write-Host ""
+        Write-Host "+-------------------------------------------------------------------+" -ForegroundColor Cyan
+        Write-Host "| Installing [$currentIndex/$($Apps.Count)]: $($app.Name)" -ForegroundColor Cyan
+        Write-Host "+-------------------------------------------------------------------+" -ForegroundColor Cyan
+
+        $result = Install-Application -App $app
+        if ($result) {
+            $successCount++
+        }
+        else {
+            $failCount++
+        }
+    }
+
+    Write-Host ""
+    Write-Host "+===================================================================+" -ForegroundColor Cyan
+    Write-Host "|                    Installation Summary                           |" -ForegroundColor Cyan
+    Write-Host "+===================================================================+" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "  Total:     $($Apps.Count)" -ForegroundColor White
+    Write-Host "  Success:   $successCount" -ForegroundColor Green
+    Write-Host "  Failed:    $failCount" -ForegroundColor $(if ($failCount -gt 0) { "Red" } else { "Gray" })
+    Write-Host ""
 }
 
 function Get-WingetErrorMessage {
@@ -1046,12 +1239,12 @@ function Install-Application {
             -Id 1
     }
 
-    Write-Host "`n╔════════════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-    Write-Host "║  Installing: $($App.Name)" -ForegroundColor Cyan
+    Write-Host "`n+====================================================================+" -ForegroundColor Cyan
+    Write-Host "|  Installing: $($App.Name)" -ForegroundColor Cyan
     if ($TotalCount -gt 0) {
-        Write-Host "║  Progress: $CurrentIndex of $TotalCount ($percentComplete%)" -ForegroundColor Cyan
+        Write-Host "|  Progress: $CurrentIndex of $TotalCount ($percentComplete%)" -ForegroundColor Cyan
     }
-    Write-Host "╚════════════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
+    Write-Host "+====================================================================+" -ForegroundColor Cyan
 
     try {
         # Check if custom script exists
@@ -1304,14 +1497,14 @@ function Install-AllApplications {
     Write-Verbose "Success rate: $([Math]::Round(($successCount / $totalCount) * 100, 1))%"
 
     # Installation Summary
-    Write-Host "`n╔════════════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-    Write-Host "║                     INSTALLATION SUMMARY                           ║" -ForegroundColor Cyan
-    Write-Host "╠════════════════════════════════════════════════════════════════════╣" -ForegroundColor Cyan
-    Write-Host "║  Total Applications: $totalCount" -ForegroundColor White
-    Write-Host "║  [OK] Successful: $successCount" -ForegroundColor Green
-    Write-Host "║  [FAIL] Failed: $failCount" -ForegroundColor Red
-    Write-Host "║  [TIME] Total Time: $totalMinutes minutes" -ForegroundColor White
-    Write-Host "╚════════════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
+    Write-Host "`n+====================================================================+" -ForegroundColor Cyan
+    Write-Host "|                     INSTALLATION SUMMARY                           |" -ForegroundColor Cyan
+    Write-Host "+====================================================================+" -ForegroundColor Cyan
+    Write-Host "|  Total Applications: $totalCount" -ForegroundColor White
+    Write-Host "|  [OK] Successful: $successCount" -ForegroundColor Green
+    Write-Host "|  [FAIL] Failed: $failCount" -ForegroundColor Red
+    Write-Host "|  [TIME] Total Time: $totalMinutes minutes" -ForegroundColor White
+    Write-Host "+====================================================================+" -ForegroundColor Cyan
 
     Write-Log "Installation complete. Success: $successCount, Failed: $failCount, Duration: $totalMinutes minutes" -Level INFO
     Write-Verbose "Installation summary logged to: $script:LogFile"
@@ -1396,15 +1589,15 @@ function Install-MissingApplications {
     Write-Verbose "Installed: $successCount, Skipped: $skippedCount, Failed: $failCount"
 
     # Installation Summary
-    Write-Host "`n╔════════════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-    Write-Host "║                     INSTALLATION SUMMARY                           ║" -ForegroundColor Cyan
-    Write-Host "╠════════════════════════════════════════════════════════════════════╣" -ForegroundColor Cyan
-    Write-Host "║  Total Applications: $totalCount" -ForegroundColor White
-    Write-Host "║  [OK] Installed: $successCount" -ForegroundColor Green
-    Write-Host "║  [SKIP] Skipped: $skippedCount" -ForegroundColor Gray
-    Write-Host "║  [FAIL] Failed: $failCount" -ForegroundColor Red
-    Write-Host "║  [TIME] Total Time: $totalMinutes minutes" -ForegroundColor White
-    Write-Host "╚════════════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
+    Write-Host "`n+====================================================================+" -ForegroundColor Cyan
+    Write-Host "|                     INSTALLATION SUMMARY                           |" -ForegroundColor Cyan
+    Write-Host "+====================================================================+" -ForegroundColor Cyan
+    Write-Host "|  Total Applications: $totalCount" -ForegroundColor White
+    Write-Host "|  [OK] Installed: $successCount" -ForegroundColor Green
+    Write-Host "|  [SKIP] Skipped: $skippedCount" -ForegroundColor Gray
+    Write-Host "|  [FAIL] Failed: $failCount" -ForegroundColor Red
+    Write-Host "|  [TIME] Total Time: $totalMinutes minutes" -ForegroundColor White
+    Write-Host "+====================================================================+" -ForegroundColor Cyan
 
     Write-Log "Installation complete. Installed: $successCount, Skipped: $skippedCount, Failed: $failCount, Duration: $totalMinutes minutes" -Level INFO
     Write-Verbose "Installation summary logged to: $script:LogFile"
@@ -1530,22 +1723,12 @@ try {
         'Menu' {
             # Interactive menu mode
             do {
-                $menuItems = Show-Menu
-                Write-Host "Enter your choice (number or letter): " -NoNewline -ForegroundColor White
+                $menuData = Show-Menu
+                Write-Host "Enter your choice: " -NoNewline -ForegroundColor White
                 $choice = Read-Host
 
-                if ($choice -match '^\d+$') {
-                    $index = [int]$choice
-                    if ($menuItems.ContainsKey($index)) {
-                        Install-Application -App $menuItems[$index]
-                        Read-KeySafe
-                    }
-                    else {
-                        Write-Host "Invalid selection." -ForegroundColor Red
-                        Read-KeySafe
-                    }
-                }
-                elseif ($choice -eq 'A') {
+                # Handle single letter commands
+                if ($choice -eq 'A') {
                     Install-AllApplications
                     Read-KeySafe
                 }
@@ -1560,6 +1743,31 @@ try {
                 elseif ($choice -eq 'Q') {
                     Write-Log "User exited application" -Level INFO
                     break
+                }
+                # Handle single number (backward compatibility)
+                elseif ($choice -match '^\d+$') {
+                    $index = [int]$choice
+                    if ($menuData.MenuItems.ContainsKey($index)) {
+                        Install-Application -App $menuData.MenuItems[$index]
+                        Read-KeySafe
+                    }
+                    else {
+                        Write-Host "Invalid selection." -ForegroundColor Red
+                        Read-KeySafe
+                    }
+                }
+                # Handle multi-select, range, or category selection
+                elseif ($choice -match '[\d,\-\s]|^C:') {
+                    $selectedApps = Parse-SelectionInput -Input $choice -MenuItems $menuData.MenuItems -Categories $menuData.Categories
+
+                    if ($selectedApps.Count -gt 0) {
+                        Install-SelectedApplications -Apps $selectedApps
+                        Read-KeySafe
+                    }
+                    else {
+                        Write-Host "No valid applications selected." -ForegroundColor Red
+                        Read-KeySafe
+                    }
                 }
                 else {
                     Write-Host "Invalid choice." -ForegroundColor Red
@@ -1607,12 +1815,12 @@ Write-Host "  serving businesses and individuals in the Barrington, IL area" -Fo
 Write-Host "  and throughout Chicagoland." -ForegroundColor White
 Write-Host ""
 Write-Host "  We specialize in:" -ForegroundColor Green
-Write-Host "    - IT Consulting & Support" -ForegroundColor Gray
+Write-Host "    - IT Consulting and Support" -ForegroundColor Gray
 Write-Host "    - Custom PowerShell Automation" -ForegroundColor Gray
 Write-Host "    - Infrastructure Optimization" -ForegroundColor Gray
 Write-Host "    - Cloud Integration (Azure, AWS, Microsoft 365)" -ForegroundColor Gray
-Write-Host "    - System Administration & Security" -ForegroundColor Gray
-Write-Host "    - Database Management & Custom Development" -ForegroundColor Gray
+Write-Host "    - System Administration and Security" -ForegroundColor Gray
+Write-Host "    - Database Management and Custom Development" -ForegroundColor Gray
 Write-Host ""
 Write-Host "  Contact Us:" -ForegroundColor Yellow
 Write-Host "    Email:   sales@mytech.today" -ForegroundColor White
