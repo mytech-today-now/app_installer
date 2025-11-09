@@ -13,7 +13,7 @@
     - Selective installation (individual apps, all apps, or only missing apps)
     - Real-time progress tracking with ETA during batch installations
     - Centralized logging to C:\mytech.today\logs\
-    - Support for 158 applications via winget and custom installers
+    - Support for 271 applications via winget and custom installers
     - Error handling with fallback solutions
     - Automatic winget installation on Windows 10
     - Chrome Remote Desktop shortcut auto-repair
@@ -212,6 +212,9 @@ $script:Applications = @(
     [PSCustomObject]@{ Name = "Waterfox"; ScriptName = "waterfox.ps1"; WingetId = "Waterfox.Waterfox"; Category = "Browsers"; Description = "Privacy-focused Firefox-based browser" }
     [PSCustomObject]@{ Name = "Chromium"; ScriptName = "chromium.ps1"; WingetId = "Hibbiki.Chromium"; Category = "Browsers"; Description = "Open-source base for Chrome" }
     [PSCustomObject]@{ Name = "Pale Moon"; ScriptName = "palemoon.ps1"; WingetId = "MoonchildProductions.PaleMoon"; Category = "Browsers"; Description = "Lightweight Firefox-based browser" }
+    [PSCustomObject]@{ Name = "Ungoogled Chromium"; ScriptName = "ungoogledchromium.ps1"; WingetId = "eloston.ungoogled-chromium"; Category = "Browsers"; Description = "Chrome without Google integration" }
+    [PSCustomObject]@{ Name = "Midori Browser"; ScriptName = "midori.ps1"; WingetId = "AstianInc.Midori"; Category = "Browsers"; Description = "Lightweight and fast web browser" }
+    [PSCustomObject]@{ Name = "Min Browser"; ScriptName = "min.ps1"; WingetId = "Min.Min"; Category = "Browsers"; Description = "Minimal, fast web browser" }
     # Development Tools
     [PSCustomObject]@{ Name = "Visual Studio Code"; ScriptName = "vscode.ps1"; WingetId = "Microsoft.VisualStudioCode"; Category = "Development"; Description = "Powerful code editor with extensions" }
     [PSCustomObject]@{ Name = "Notepad++"; ScriptName = "notepadplusplus.ps1"; WingetId = "Notepad++.Notepad++"; Category = "Development"; Description = "Lightweight text and code editor" }
@@ -236,6 +239,9 @@ $script:Applications = @(
     [PSCustomObject]@{ Name = "HeidiSQL"; ScriptName = "heidisql.ps1"; WingetId = "HeidiSQL.HeidiSQL"; Category = "Development"; Description = "Lightweight MySQL/MariaDB client" }
     [PSCustomObject]@{ Name = "Vagrant"; ScriptName = "vagrant.ps1"; WingetId = "Hashicorp.Vagrant"; Category = "Development"; Description = "Development environment manager" }
     [PSCustomObject]@{ Name = "Windows Terminal"; ScriptName = "windowsterminal.ps1"; WingetId = "Microsoft.WindowsTerminal"; Category = "Development"; Description = "Modern terminal with tabs and themes" }
+    [PSCustomObject]@{ Name = "Vim"; ScriptName = "vim.ps1"; WingetId = "vim.vim"; Category = "Development"; Description = "Highly configurable text editor" }
+    [PSCustomObject]@{ Name = "CMake"; ScriptName = "cmake.ps1"; WingetId = "Kitware.CMake"; Category = "Development"; Description = "Cross-platform build system generator" }
+    [PSCustomObject]@{ Name = "Lazygit"; ScriptName = "lazygit.ps1"; WingetId = "JesseDuffield.lazygit"; Category = "Development"; Description = "Terminal UI for git commands" }
     # Productivity
     [PSCustomObject]@{ Name = "LibreOffice"; ScriptName = "libreoffice.ps1"; WingetId = "TheDocumentFoundation.LibreOffice"; Category = "Productivity"; Description = "Free office suite with Writer, Calc, Impress" }
     [PSCustomObject]@{ Name = "Apache OpenOffice"; ScriptName = "openoffice.ps1"; WingetId = "Apache.OpenOffice"; Category = "Productivity"; Description = "Open-source office productivity suite" }
@@ -250,6 +256,16 @@ $script:Applications = @(
     [PSCustomObject]@{ Name = "Zotero"; ScriptName = "zotero.ps1"; WingetId = "DigitalScholar.Zotero"; Category = "Productivity"; Description = "Research citation and bibliography manager" }
     [PSCustomObject]@{ Name = "FreeMind"; ScriptName = "freemind.ps1"; WingetId = "FreeMind.FreeMind"; Category = "Productivity"; Description = "Mind mapping and brainstorming tool" }
     [PSCustomObject]@{ Name = "XMind"; ScriptName = "xmind.ps1"; WingetId = "XMind.XMind"; Category = "Productivity"; Description = "Professional mind mapping software" }
+    [PSCustomObject]@{ Name = "WPS Office"; ScriptName = "wpsoffice.ps1"; WingetId = "Kingsoft.WPSOffice"; Category = "Productivity"; Description = "Free office suite alternative" }
+    [PSCustomObject]@{ Name = "PDF24 Creator"; ScriptName = "pdf24.ps1"; WingetId = "geeksoftwareGmbH.PDF24Creator"; Category = "Productivity"; Description = "PDF creation and editing tools" }
+    [PSCustomObject]@{ Name = "Typora"; ScriptName = "typora.ps1"; WingetId = "Typora.Typora"; Category = "Productivity"; Description = "Minimalist markdown editor" }
+    [PSCustomObject]@{ Name = "Toggl Track"; ScriptName = "toggltrack.ps1"; WingetId = "Toggl.TogglTrack"; Category = "Productivity"; Description = "Time tracking and productivity tool" }
+    [PSCustomObject]@{ Name = "Clockify"; ScriptName = "clockify.ps1"; WingetId = "Clockify.Clockify"; Category = "Productivity"; Description = "Free time tracking software" }
+    [PSCustomObject]@{ Name = "Evernote"; ScriptName = "evernote.ps1"; WingetId = "Evernote.Evernote"; Category = "Productivity"; Description = "Note-taking and organization app" }
+    [PSCustomObject]@{ Name = "Simplenote"; ScriptName = "simplenote.ps1"; WingetId = "Automattic.Simplenote"; Category = "Productivity"; Description = "Simple, lightweight note-taking" }
+    [PSCustomObject]@{ Name = "Trello"; ScriptName = "trello.ps1"; WingetId = "Trello.Trello"; Category = "Productivity"; Description = "Visual project management boards" }
+    [PSCustomObject]@{ Name = "ClickUp"; ScriptName = "clickup.ps1"; WingetId = "ClickUp.ClickUp"; Category = "Productivity"; Description = "All-in-one productivity platform" }
+    [PSCustomObject]@{ Name = "Todoist"; ScriptName = "todoist.ps1"; WingetId = "Doist.Todoist"; Category = "Productivity"; Description = "Task management and to-do lists" }
     # Media & Creative
     [PSCustomObject]@{ Name = "VLC Media Player"; ScriptName = "vlc.ps1"; WingetId = "VideoLAN.VLC"; Category = "Media"; Description = "Versatile media player for all formats" }
     [PSCustomObject]@{ Name = "OBS Studio"; ScriptName = "obs.ps1"; WingetId = "OBSProject.OBSStudio"; Category = "Media"; Description = "Live streaming and screen recording" }
@@ -274,6 +290,9 @@ $script:Applications = @(
     [PSCustomObject]@{ Name = "iTunes"; ScriptName = "itunes.ps1"; WingetId = "Apple.iTunes"; Category = "Media"; Description = "Media player and library manager" }
     [PSCustomObject]@{ Name = "MediaInfo"; ScriptName = "mediainfo.ps1"; WingetId = "MediaArea.MediaInfo"; Category = "Media"; Description = "Technical metadata viewer for media files" }
     [PSCustomObject]@{ Name = "MKVToolNix"; ScriptName = "mkvtoolnix.ps1"; WingetId = "MoritzBunkus.MKVToolNix"; Category = "Media"; Description = "Matroska video file editor" }
+    [PSCustomObject]@{ Name = "DaVinci Resolve"; ScriptName = "davinciresolve.ps1"; WingetId = "Blackmagic.DaVinciResolve"; Category = "Media"; Description = "Professional video editing software" }
+    [PSCustomObject]@{ Name = "Tenacity"; ScriptName = "tenacity.ps1"; WingetId = "Tenacity.Tenacity"; Category = "Media"; Description = "Multi-track audio editor fork of Audacity" }
+    [PSCustomObject]@{ Name = "Blender"; ScriptName = "blender-media.ps1"; WingetId = "BlenderFoundation.Blender"; Category = "Media"; Description = "3D creation suite with video editing" }
     # Utilities
     [PSCustomObject]@{ Name = "PowerToys"; ScriptName = "powertoys.ps1"; WingetId = "Microsoft.PowerToys"; Category = "Utilities"; Description = "Windows system utilities by Microsoft" }
     [PSCustomObject]@{ Name = "Everything"; ScriptName = "everything.ps1"; WingetId = "voidtools.Everything"; Category = "Utilities"; Description = "Instant file search engine" }
@@ -296,6 +315,16 @@ $script:Applications = @(
     [PSCustomObject]@{ Name = "Belarc Advisor"; ScriptName = "belarc.ps1"; WingetId = $null; Category = "Utilities"; Description = "System profile and security status" }
     [PSCustomObject]@{ Name = "O&O ShutUp10"; ScriptName = "shutup10.ps1"; WingetId = $null; Category = "Utilities"; Description = "Windows privacy settings manager" }
     [PSCustomObject]@{ Name = "FileMail Desktop"; ScriptName = "filemail.ps1"; WingetId = $null; Category = "Utilities"; Description = "Large file transfer service" }
+    [PSCustomObject]@{ Name = "BleachBit"; ScriptName = "bleachbit.ps1"; WingetId = "BleachBit.BleachBit"; Category = "Utilities"; Description = "System cleaner and privacy tool" }
+    [PSCustomObject]@{ Name = "Rufus"; ScriptName = "rufus.ps1"; WingetId = "Rufus.Rufus"; Category = "Utilities"; Description = "Bootable USB drive creator" }
+    [PSCustomObject]@{ Name = "Ventoy"; ScriptName = "ventoy.ps1"; WingetId = "Ventoy.Ventoy"; Category = "Utilities"; Description = "Multiboot USB solution" }
+    [PSCustomObject]@{ Name = "Balena Etcher"; ScriptName = "balenaetcher.ps1"; WingetId = "Balena.Etcher"; Category = "Utilities"; Description = "Flash OS images to SD cards and USB drives" }
+    [PSCustomObject]@{ Name = "CPU-Z"; ScriptName = "cpuz.ps1"; WingetId = "CPUID.CPU-Z"; Category = "Utilities"; Description = "CPU and system information utility" }
+    [PSCustomObject]@{ Name = "CrystalDiskMark"; ScriptName = "crystaldiskmark.ps1"; WingetId = "CrystalDewWorld.CrystalDiskMark"; Category = "Utilities"; Description = "Disk benchmark utility" }
+    [PSCustomObject]@{ Name = "HWMonitor"; ScriptName = "hwmonitor.ps1"; WingetId = "CPUID.HWMonitor"; Category = "Utilities"; Description = "Hardware monitoring program" }
+    [PSCustomObject]@{ Name = "MSI Afterburner"; ScriptName = "msiafterburner.ps1"; WingetId = "Guru3D.Afterburner"; Category = "Utilities"; Description = "Graphics card overclocking utility" }
+    [PSCustomObject]@{ Name = "Lightshot"; ScriptName = "lightshot.ps1"; WingetId = "Skillbrains.Lightshot"; Category = "Utilities"; Description = "Screenshot tool with instant sharing" }
+    [PSCustomObject]@{ Name = "Process Hacker"; ScriptName = "processhacker.ps1"; WingetId = "ProcessHacker.ProcessHacker"; Category = "Utilities"; Description = "Advanced task manager alternative" }
     # Security
     [PSCustomObject]@{ Name = "Bitwarden"; ScriptName = "bitwarden.ps1"; WingetId = "Bitwarden.Bitwarden"; Category = "Security"; Description = "Open-source password manager" }
     [PSCustomObject]@{ Name = "KeePass"; ScriptName = "keepass.ps1"; WingetId = "DominikReichl.KeePass"; Category = "Security"; Description = "Secure password database manager" }
@@ -306,6 +335,9 @@ $script:Applications = @(
     [PSCustomObject]@{ Name = "AVG AntiVirus Free"; ScriptName = "avg.ps1"; WingetId = "AVG.AVG"; Category = "Security"; Description = "Free antivirus protection" }
     [PSCustomObject]@{ Name = "Avast Free Antivirus"; ScriptName = "avast.ps1"; WingetId = "Avast.Avast.Free"; Category = "Security"; Description = "Comprehensive free antivirus" }
     [PSCustomObject]@{ Name = "Sophos Home"; ScriptName = "sophos.ps1"; WingetId = "Sophos.SophosHome"; Category = "Security"; Description = "Enterprise-grade home security" }
+    [PSCustomObject]@{ Name = "KeePassXC"; ScriptName = "keepassxc.ps1"; WingetId = "KeePassXCTeam.KeePassXC"; Category = "Security"; Description = "Cross-platform password manager" }
+    [PSCustomObject]@{ Name = "NordPass"; ScriptName = "nordpass.ps1"; WingetId = "NordSecurity.NordPass"; Category = "Security"; Description = "Secure password manager by NordVPN" }
+    [PSCustomObject]@{ Name = "Proton Pass"; ScriptName = "protonpass.ps1"; WingetId = "Proton.ProtonPass"; Category = "Security"; Description = "Encrypted password manager by Proton" }
     # Communication
     [PSCustomObject]@{ Name = "Discord"; ScriptName = "discord.ps1"; WingetId = "Discord.Discord"; Category = "Communication"; Description = "Voice, video, and text chat platform" }
     [PSCustomObject]@{ Name = "Zoom"; ScriptName = "zoom.ps1"; WingetId = "Zoom.Zoom"; Category = "Communication"; Description = "Video conferencing and meetings" }
@@ -315,6 +347,12 @@ $script:Applications = @(
     [PSCustomObject]@{ Name = "Telegram Desktop"; ScriptName = "telegram.ps1"; WingetId = "Telegram.TelegramDesktop"; Category = "Communication"; Description = "Fast, secure messaging app" }
     [PSCustomObject]@{ Name = "Signal"; ScriptName = "signal.ps1"; WingetId = "OpenWhisperSystems.Signal"; Category = "Communication"; Description = "Privacy-focused encrypted messaging" }
     [PSCustomObject]@{ Name = "Thunderbird"; ScriptName = "thunderbird.ps1"; WingetId = "Mozilla.Thunderbird"; Category = "Communication"; Description = "Open-source email client" }
+    [PSCustomObject]@{ Name = "WhatsApp Desktop"; ScriptName = "whatsapp.ps1"; WingetId = "WhatsApp.WhatsApp"; Category = "Communication"; Description = "Desktop messaging application" }
+    [PSCustomObject]@{ Name = "Viber"; ScriptName = "viber.ps1"; WingetId = "Viber.Viber"; Category = "Communication"; Description = "Free calls and messages" }
+    [PSCustomObject]@{ Name = "Element"; ScriptName = "element.ps1"; WingetId = "Element.Element"; Category = "Communication"; Description = "Secure decentralized messaging" }
+    [PSCustomObject]@{ Name = "Jitsi Meet"; ScriptName = "jitsimeet.ps1"; WingetId = "Jitsi.Meet"; Category = "Communication"; Description = "Secure video conferencing" }
+    [PSCustomObject]@{ Name = "Rocket.Chat"; ScriptName = "rocketchat.ps1"; WingetId = "RocketChat.RocketChat"; Category = "Communication"; Description = "Open-source team communication" }
+    [PSCustomObject]@{ Name = "Mattermost Desktop"; ScriptName = "mattermost.ps1"; WingetId = "Mattermost.MattermostDesktop"; Category = "Communication"; Description = "Secure team collaboration platform" }
     # 3D & CAD
     [PSCustomObject]@{ Name = "Blender"; ScriptName = "blender.ps1"; WingetId = "BlenderFoundation.Blender"; Category = "3D & CAD"; Description = "3D modeling, animation, and rendering" }
     [PSCustomObject]@{ Name = "FreeCAD"; ScriptName = "freecad.ps1"; WingetId = "FreeCAD.FreeCAD"; Category = "3D & CAD"; Description = "Parametric 3D CAD modeler" }
@@ -323,6 +361,9 @@ $script:Applications = @(
     [PSCustomObject]@{ Name = "OpenSCAD"; ScriptName = "openscad.ps1"; WingetId = "OpenSCAD.OpenSCAD"; Category = "3D & CAD"; Description = "Script-based 3D CAD modeler" }
     [PSCustomObject]@{ Name = "Wings 3D"; ScriptName = "wings3d.ps1"; WingetId = "Wings3D.Wings3D"; Category = "3D & CAD"; Description = "Polygon mesh modeling tool" }
     [PSCustomObject]@{ Name = "Sweet Home 3D"; ScriptName = "sweethome3d.ps1"; WingetId = "eTeks.SweetHome3D"; Category = "3D & CAD"; Description = "Interior design and floor planning" }
+    [PSCustomObject]@{ Name = "Dust3D"; ScriptName = "dust3d.ps1"; WingetId = "Dust3D.Dust3D"; Category = "3D & CAD"; Description = "3D modeling software" }
+    [PSCustomObject]@{ Name = "MeshLab"; ScriptName = "meshlab.ps1"; WingetId = "ISTI.MeshLab"; Category = "3D & CAD"; Description = "3D mesh processing system" }
+    [PSCustomObject]@{ Name = "Slic3r"; ScriptName = "slic3r.ps1"; WingetId = "Slic3r.Slic3r"; Category = "3D & CAD"; Description = "3D printing toolbox" }
     # Networking
     [PSCustomObject]@{ Name = "Wireshark"; ScriptName = "wireshark.ps1"; WingetId = "WiresharkFoundation.Wireshark"; Category = "Networking"; Description = "Network protocol analyzer" }
     [PSCustomObject]@{ Name = "Nmap"; ScriptName = "nmap.ps1"; WingetId = "Insecure.Nmap"; Category = "Networking"; Description = "Network discovery and security scanner" }
@@ -330,11 +371,24 @@ $script:Applications = @(
     [PSCustomObject]@{ Name = "PuTTY"; ScriptName = "putty.ps1"; WingetId = "PuTTY.PuTTY"; Category = "Networking"; Description = "SSH and telnet client" }
     [PSCustomObject]@{ Name = "Advanced IP Scanner"; ScriptName = "advancedipscanner.ps1"; WingetId = "Famatech.AdvancedIPScanner"; Category = "Networking"; Description = "Fast network scanner for Windows" }
     [PSCustomObject]@{ Name = "Fing CLI"; ScriptName = "fing.ps1"; WingetId = "Fing.Fing"; Category = "Networking"; Description = "Network scanning and troubleshooting" }
+    [PSCustomObject]@{ Name = "GlassWire"; ScriptName = "glasswire.ps1"; WingetId = "GlassWire.GlassWire"; Category = "Networking"; Description = "Network security monitor and firewall" }
+    [PSCustomObject]@{ Name = "NetLimiter"; ScriptName = "netlimiter.ps1"; WingetId = "Locktime.NetLimiter"; Category = "Networking"; Description = "Internet traffic control tool" }
+    [PSCustomObject]@{ Name = "TCPView"; ScriptName = "tcpview.ps1"; WingetId = "Microsoft.Sysinternals.TCPView"; Category = "Networking"; Description = "Network connection viewer" }
+    [PSCustomObject]@{ Name = "Fiddler Classic"; ScriptName = "fiddlerclassic.ps1"; WingetId = "Telerik.Fiddler.Classic"; Category = "Networking"; Description = "Web debugging proxy tool" }
+    [PSCustomObject]@{ Name = "SoftPerfect Network Scanner"; ScriptName = "softperfectscanner.ps1"; WingetId = "SoftPerfect.NetworkScanner"; Category = "Networking"; Description = "Multi-threaded IP and NetBIOS scanner" }
+    [PSCustomObject]@{ Name = "NetSetMan"; ScriptName = "netsetman.ps1"; WingetId = "NetSetMan.NetSetMan"; Category = "Networking"; Description = "Network settings manager" }
+    [PSCustomObject]@{ Name = "Npcap"; ScriptName = "npcap.ps1"; WingetId = "Nmap.Npcap"; Category = "Networking"; Description = "Packet capture library for Windows" }
+    [PSCustomObject]@{ Name = "Charles Proxy"; ScriptName = "charlesproxy.ps1"; WingetId = "XK72.Charles"; Category = "Networking"; Description = "HTTP proxy and monitor" }
     # Runtime Environments
     [PSCustomObject]@{ Name = "Java Runtime Environment"; ScriptName = "java.ps1"; WingetId = "Oracle.JavaRuntimeEnvironment"; Category = "Runtime"; Description = "Java application runtime" }
     [PSCustomObject]@{ Name = ".NET Desktop Runtime 6"; ScriptName = "dotnet6.ps1"; WingetId = "Microsoft.DotNet.DesktopRuntime.6"; Category = "Runtime"; Description = ".NET 6 desktop application runtime" }
     [PSCustomObject]@{ Name = ".NET Desktop Runtime 8"; ScriptName = "dotnet8.ps1"; WingetId = "Microsoft.DotNet.DesktopRuntime.8"; Category = "Runtime"; Description = ".NET 8 desktop application runtime" }
     [PSCustomObject]@{ Name = "Visual C++ Redistributable"; ScriptName = "vcredist.ps1"; WingetId = "Microsoft.VCRedist.2015+.x64"; Category = "Runtime"; Description = "Microsoft C++ runtime libraries" }
+    [PSCustomObject]@{ Name = "Go Programming Language"; ScriptName = "golang.ps1"; WingetId = "GoLang.Go"; Category = "Runtime"; Description = "Go programming language runtime" }
+    [PSCustomObject]@{ Name = "Rust"; ScriptName = "rust.ps1"; WingetId = "Rustlang.Rust.MSVC"; Category = "Runtime"; Description = "Rust programming language toolchain" }
+    [PSCustomObject]@{ Name = "PHP"; ScriptName = "php.ps1"; WingetId = "PHP.PHP"; Category = "Runtime"; Description = "PHP scripting language runtime" }
+    [PSCustomObject]@{ Name = "Microsoft OpenJDK 17"; ScriptName = "openjdk17.ps1"; WingetId = "Microsoft.OpenJDK.17"; Category = "Runtime"; Description = "Microsoft build of OpenJDK 17" }
+    [PSCustomObject]@{ Name = "Microsoft OpenJDK 21"; ScriptName = "openjdk21.ps1"; WingetId = "Microsoft.OpenJDK.21"; Category = "Runtime"; Description = "Microsoft build of OpenJDK 21" }
     # Writing & Screenwriting
     [PSCustomObject]@{ Name = "Trelby"; ScriptName = "trelby.ps1"; WingetId = $null; Category = "Writing"; Description = "Screenplay writing software" }
     [PSCustomObject]@{ Name = "KIT Scenarist"; ScriptName = "kitscenarist.ps1"; WingetId = $null; Category = "Writing"; Description = "Screenwriting and story development" }
@@ -342,40 +396,102 @@ $script:Applications = @(
     [PSCustomObject]@{ Name = "FocusWriter"; ScriptName = "focuswriter.ps1"; WingetId = "GottCode.FocusWriter"; Category = "Writing"; Description = "Distraction-free writing environment" }
     [PSCustomObject]@{ Name = "Manuskript"; ScriptName = "manuskript.ps1"; WingetId = "TheologicalElucidations.Manuskript"; Category = "Writing"; Description = "Novel writing and organization tool" }
     [PSCustomObject]@{ Name = "yWriter"; ScriptName = "ywriter.ps1"; WingetId = "Spacejock.yWriter"; Category = "Writing"; Description = "Word processor for novelists" }
+    [PSCustomObject]@{ Name = "Celtx"; ScriptName = "celtx.ps1"; WingetId = "Celtx.Celtx"; Category = "Writing"; Description = "Screenwriting and production software" }
+    [PSCustomObject]@{ Name = "bibisco"; ScriptName = "bibisco.ps1"; WingetId = "bibisco.bibisco"; Category = "Writing"; Description = "Novel writing software" }
+    [PSCustomObject]@{ Name = "Scribus"; ScriptName = "scribus.ps1"; WingetId = "Scribus.Scribus"; Category = "Writing"; Description = "Desktop publishing software" }
+    [PSCustomObject]@{ Name = "Grammarly"; ScriptName = "grammarly.ps1"; WingetId = "Grammarly.Grammarly"; Category = "Writing"; Description = "Writing assistant and grammar checker" }
+    [PSCustomObject]@{ Name = "Hemingway Editor"; ScriptName = "hemingwayeditor.ps1"; WingetId = $null; Category = "Writing"; Description = "Writing improvement and readability tool" }
     # Gaming
     [PSCustomObject]@{ Name = "Steam"; ScriptName = "steam.ps1"; WingetId = "Valve.Steam"; Category = "Gaming"; Description = "Digital game distribution platform" }
     [PSCustomObject]@{ Name = "Epic Games Launcher"; ScriptName = "epicgames.ps1"; WingetId = "EpicGames.EpicGamesLauncher"; Category = "Gaming"; Description = "Epic Games store and launcher" }
     [PSCustomObject]@{ Name = "GOG Galaxy"; ScriptName = "goggalaxy.ps1"; WingetId = "GOG.Galaxy"; Category = "Gaming"; Description = "DRM-free game launcher" }
     [PSCustomObject]@{ Name = "EA App"; ScriptName = "eaapp.ps1"; WingetId = "ElectronicArts.EADesktop"; Category = "Gaming"; Description = "Electronic Arts game platform" }
+    [PSCustomObject]@{ Name = "Ubisoft Connect"; ScriptName = "ubisoftconnect.ps1"; WingetId = "Ubisoft.Connect"; Category = "Gaming"; Description = "Ubisoft game launcher and store" }
+    [PSCustomObject]@{ Name = "Battle.net"; ScriptName = "battlenet.ps1"; WingetId = "Blizzard.BattleNet"; Category = "Gaming"; Description = "Blizzard game launcher" }
+    [PSCustomObject]@{ Name = "Itch.io"; ScriptName = "itchio.ps1"; WingetId = "ItchIo.Itch"; Category = "Gaming"; Description = "Indie game marketplace and launcher" }
     # Cloud Storage
     [PSCustomObject]@{ Name = "Google Drive"; ScriptName = "googledrive.ps1"; WingetId = "Google.GoogleDrive"; Category = "Cloud Storage"; Description = "Cloud storage and file sync by Google" }
     [PSCustomObject]@{ Name = "Dropbox"; ScriptName = "dropbox.ps1"; WingetId = "Dropbox.Dropbox"; Category = "Cloud Storage"; Description = "Cloud file storage and sharing" }
     [PSCustomObject]@{ Name = "OneDrive"; ScriptName = "onedrive.ps1"; WingetId = "Microsoft.OneDrive"; Category = "Cloud Storage"; Description = "Microsoft cloud storage service" }
     [PSCustomObject]@{ Name = "MEGA"; ScriptName = "mega.ps1"; WingetId = "Mega.MEGASync"; Category = "Cloud Storage"; Description = "Secure cloud storage with encryption" }
+    [PSCustomObject]@{ Name = "pCloud"; ScriptName = "pcloud.ps1"; WingetId = "pCloud.pCloudDrive"; Category = "Cloud Storage"; Description = "Secure cloud storage solution" }
+    [PSCustomObject]@{ Name = "Sync.com"; ScriptName = "sync.ps1"; WingetId = "Sync.Sync"; Category = "Cloud Storage"; Description = "Zero-knowledge encrypted cloud storage" }
+    [PSCustomObject]@{ Name = "Box"; ScriptName = "box.ps1"; WingetId = "Box.Box"; Category = "Cloud Storage"; Description = "Cloud content management and file sharing" }
     # Remote Desktop
     [PSCustomObject]@{ Name = "TeamViewer"; ScriptName = "teamviewer.ps1"; WingetId = "TeamViewer.TeamViewer"; Category = "Remote Desktop"; Description = "Remote access and support software" }
     [PSCustomObject]@{ Name = "AnyDesk"; ScriptName = "anydesk.ps1"; WingetId = "AnyDeskSoftwareGmbH.AnyDesk"; Category = "Remote Desktop"; Description = "Fast remote desktop application" }
     [PSCustomObject]@{ Name = "Chrome Remote Desktop"; ScriptName = "chromeremote.ps1"; WingetId = "Google.ChromeRemoteDesktopHost"; Category = "Remote Desktop"; Description = "Remote access via Chrome browser" }
     [PSCustomObject]@{ Name = "TightVNC"; ScriptName = "tightvnc.ps1"; WingetId = "GlavSoft.TightVNC"; Category = "Remote Desktop"; Description = "Remote desktop control software" }
+    [PSCustomObject]@{ Name = "RustDesk"; ScriptName = "rustdesk.ps1"; WingetId = "RustDesk.RustDesk"; Category = "Remote Desktop"; Description = "Open-source remote desktop software" }
+    [PSCustomObject]@{ Name = "UltraVNC"; ScriptName = "ultravnc.ps1"; WingetId = "uvncbvba.UltraVnc"; Category = "Remote Desktop"; Description = "Powerful remote PC access software" }
+    [PSCustomObject]@{ Name = "Parsec"; ScriptName = "parsec.ps1"; WingetId = "Parsec.Parsec"; Category = "Remote Desktop"; Description = "Low-latency remote desktop for gaming" }
     # Backup & Recovery
     [PSCustomObject]@{ Name = "Veeam Agent FREE"; ScriptName = "veeam.ps1"; WingetId = "Veeam.Agent.Windows"; Category = "Backup"; Description = "Free backup and recovery solution" }
     [PSCustomObject]@{ Name = "Macrium Reflect Free"; ScriptName = "macrium.ps1"; WingetId = "Macrium.ReflectFree"; Category = "Backup"; Description = "Disk imaging and cloning tool" }
     [PSCustomObject]@{ Name = "EaseUS Todo Backup Free"; ScriptName = "easeus.ps1"; WingetId = "EASEUSAG.EaseUSTodoBackupFree"; Category = "Backup"; Description = "Backup and disaster recovery" }
     [PSCustomObject]@{ Name = "Duplicati"; ScriptName = "duplicati.ps1"; WingetId = "Duplicati.Duplicati"; Category = "Backup"; Description = "Encrypted backup to cloud storage" }
+    [PSCustomObject]@{ Name = "Cobian Backup"; ScriptName = "cobianbackup.ps1"; WingetId = "CobianSoft.CobianBackup"; Category = "Backup"; Description = "Multi-threaded backup application" }
+    [PSCustomObject]@{ Name = "FreeFileSync"; ScriptName = "freefilesync.ps1"; WingetId = "FreeFileSync.FreeFileSync"; Category = "Backup"; Description = "File synchronization and backup" }
+    [PSCustomObject]@{ Name = "Syncthing"; ScriptName = "syncthing.ps1"; WingetId = "Syncthing.Syncthing"; Category = "Backup"; Description = "Continuous file synchronization" }
     # Education
     [PSCustomObject]@{ Name = "Anki"; ScriptName = "anki.ps1"; WingetId = "Anki.Anki"; Category = "Education"; Description = "Flashcard-based learning system" }
     [PSCustomObject]@{ Name = "GeoGebra"; ScriptName = "geogebra.ps1"; WingetId = "GeoGebra.Classic"; Category = "Education"; Description = "Interactive math and geometry software" }
     [PSCustomObject]@{ Name = "Stellarium"; ScriptName = "stellarium.ps1"; WingetId = "Stellarium.Stellarium"; Category = "Education"; Description = "Planetarium and astronomy software" }
     [PSCustomObject]@{ Name = "MuseScore"; ScriptName = "musescore.ps1"; WingetId = "Musescore.Musescore"; Category = "Education"; Description = "Music notation and composition" }
+    [PSCustomObject]@{ Name = "Moodle Desktop"; ScriptName = "moodle.ps1"; WingetId = "Moodle.MoodleDesktop"; Category = "Education"; Description = "Learning management system client" }
+    [PSCustomObject]@{ Name = "Scratch Desktop"; ScriptName = "scratch.ps1"; WingetId = "MIT.Scratch"; Category = "Education"; Description = "Visual programming for kids" }
+    [PSCustomObject]@{ Name = "Celestia"; ScriptName = "celestia.ps1"; WingetId = "CelestiaProject.Celestia"; Category = "Education"; Description = "3D space simulation software" }
     # Finance
     [PSCustomObject]@{ Name = "GnuCash"; ScriptName = "gnucash.ps1"; WingetId = "GnuCash.GnuCash"; Category = "Finance"; Description = "Personal and small business accounting" }
     [PSCustomObject]@{ Name = "HomeBank"; ScriptName = "homebank.ps1"; WingetId = "HomeBank.HomeBank"; Category = "Finance"; Description = "Personal finance management" }
     [PSCustomObject]@{ Name = "Money Manager Ex"; ScriptName = "moneymanagerex.ps1"; WingetId = "MoneyManagerEx.MoneyManagerEx"; Category = "Finance"; Description = "Easy-to-use finance tracker" }
+    [PSCustomObject]@{ Name = "KMyMoney"; ScriptName = "kmymoney.ps1"; WingetId = "KDE.KMyMoney"; Category = "Finance"; Description = "Personal finance manager" }
+    [PSCustomObject]@{ Name = "Skrooge"; ScriptName = "skrooge.ps1"; WingetId = "KDE.Skrooge"; Category = "Finance"; Description = "Personal finances manager" }
+    [PSCustomObject]@{ Name = "Firefly III Desktop"; ScriptName = "fireflyiii.ps1"; WingetId = "mtoensing.FireflyIIIDesktop"; Category = "Finance"; Description = "Personal finance manager desktop client" }
+    [PSCustomObject]@{ Name = "Buddi"; ScriptName = "buddi.ps1"; WingetId = $null; Category = "Finance"; Description = "Personal finance and budgeting software" }
+    [PSCustomObject]@{ Name = "AceMoney Lite"; ScriptName = "acemoneylite.ps1"; WingetId = $null; Category = "Finance"; Description = "Personal finance management tool" }
+    [PSCustomObject]@{ Name = "Actual Budget"; ScriptName = "actualbudget.ps1"; WingetId = "ActualBudget.ActualBudget"; Category = "Finance"; Description = "Local-first personal finance tool" }
     # Shortcuts & Maintenance
     [PSCustomObject]@{ Name = "Grok AI Shortcuts"; ScriptName = "grok-shortcuts.ps1"; WingetId = $null; Category = "Shortcuts"; Description = "Quick access to Grok AI assistant" }
     [PSCustomObject]@{ Name = "ChatGPT Shortcuts"; ScriptName = "chatgpt-shortcuts.ps1"; WingetId = $null; Category = "Shortcuts"; Description = "Quick access to ChatGPT" }
     [PSCustomObject]@{ Name = "dictation.io Shortcut"; ScriptName = "dictation-shortcut.ps1"; WingetId = $null; Category = "Shortcuts"; Description = "Web-based voice dictation tool" }
     [PSCustomObject]@{ Name = "Uninstall McAfee"; ScriptName = "uninstall-mcafee.ps1"; WingetId = $null; Category = "Maintenance"; Description = "Remove McAfee software completely" }
+    [PSCustomObject]@{ Name = "PowerToys"; ScriptName = "powertoys.ps1"; WingetId = "Microsoft.PowerToys"; Category = "Shortcuts"; Description = "Windows system utilities and productivity tools" }
+    [PSCustomObject]@{ Name = "Manage Restore Points"; ScriptName = "managerestorepoints.ps1"; WingetId = $null; Category = "Maintenance"; Description = "Automated Windows System Restore Point management" }
+    [PSCustomObject]@{ Name = "AutoHotkey"; ScriptName = "autohotkey.ps1"; WingetId = "AutoHotkey.AutoHotkey"; Category = "Shortcuts"; Description = "Automation scripting language for Windows" }
+    [PSCustomObject]@{ Name = "Everything"; ScriptName = "everything.ps1"; WingetId = "voidtools.Everything"; Category = "Shortcuts"; Description = "Instant file search utility" }
+    # Mockups & Wireframe
+    [PSCustomObject]@{ Name = "Figma"; ScriptName = "figma.ps1"; WingetId = "Figma.Figma"; Category = "Mockups & Wireframe"; Description = "Collaborative interface design tool" }
+    [PSCustomObject]@{ Name = "Penpot"; ScriptName = "penpot.ps1"; WingetId = "Penpot.Penpot"; Category = "Mockups & Wireframe"; Description = "Open-source design and prototyping platform" }
+    [PSCustomObject]@{ Name = "Draw.io Desktop"; ScriptName = "drawio.ps1"; WingetId = "JGraph.Draw"; Category = "Mockups & Wireframe"; Description = "Diagramming and wireframing tool" }
+    [PSCustomObject]@{ Name = "Lunacy"; ScriptName = "lunacy.ps1"; WingetId = "Icons8.Lunacy"; Category = "Mockups & Wireframe"; Description = "Free graphic design software" }
+    [PSCustomObject]@{ Name = "Pencil Project"; ScriptName = "pencilproject.ps1"; WingetId = "Pencil.Pencil"; Category = "Mockups & Wireframe"; Description = "GUI prototyping tool" }
+    [PSCustomObject]@{ Name = "Akira"; ScriptName = "akira.ps1"; WingetId = $null; Category = "Mockups & Wireframe"; Description = "Native Linux design tool" }
+    [PSCustomObject]@{ Name = "Quant-UX"; ScriptName = "quantux.ps1"; WingetId = $null; Category = "Mockups & Wireframe"; Description = "Prototyping and usability testing" }
+    # Video Editing
+    [PSCustomObject]@{ Name = "Lightworks"; ScriptName = "lightworks.ps1"; WingetId = "LWKS.Lightworks"; Category = "Video Editing"; Description = "Professional video editing software" }
+    [PSCustomObject]@{ Name = "VSDC Free Video Editor"; ScriptName = "vsdcvideoeditor.ps1"; WingetId = "FlashIntegro.VSDCFreeVideoEditor"; Category = "Video Editing"; Description = "Non-linear video editing suite" }
+    [PSCustomObject]@{ Name = "Olive Video Editor"; ScriptName = "olivevideoeditor.ps1"; WingetId = "OliveTeam.OliveVideoEditor"; Category = "Video Editing"; Description = "Free non-linear video editor" }
+    [PSCustomObject]@{ Name = "VidCutter"; ScriptName = "vidcutter.ps1"; WingetId = "OzmosisGames.VidCutter"; Category = "Video Editing"; Description = "Simple video trimming and cutting" }
+    [PSCustomObject]@{ Name = "LosslessCut"; ScriptName = "losslesscut.ps1"; WingetId = "mifi.losslesscut"; Category = "Video Editing"; Description = "Lossless video and audio trimmer" }
+    [PSCustomObject]@{ Name = "Flowblade"; ScriptName = "flowblade.ps1"; WingetId = $null; Category = "Video Editing"; Description = "Multitrack non-linear video editor" }
+    [PSCustomObject]@{ Name = "Cinelerra"; ScriptName = "cinelerra.ps1"; WingetId = $null; Category = "Video Editing"; Description = "Advanced video editing and compositing" }
+    # Audio Production
+    [PSCustomObject]@{ Name = "Cakewalk by BandLab"; ScriptName = "cakewalk.ps1"; WingetId = "BandLab.Cakewalk"; Category = "Audio Production"; Description = "Professional digital audio workstation" }
+    [PSCustomObject]@{ Name = "LMMS"; ScriptName = "lmms.ps1"; WingetId = "LMMS.LMMS"; Category = "Audio Production"; Description = "Free music production software" }
+    [PSCustomObject]@{ Name = "Ardour"; ScriptName = "ardour.ps1"; WingetId = "Ardour.Ardour"; Category = "Audio Production"; Description = "Professional DAW for recording and editing" }
+    [PSCustomObject]@{ Name = "Ocenaudio"; ScriptName = "ocenaudio.ps1"; WingetId = "Ocenaudio.Ocenaudio"; Category = "Audio Production"; Description = "Easy-to-use audio editor" }
+    [PSCustomObject]@{ Name = "Reaper"; ScriptName = "reaper.ps1"; WingetId = "Cockos.REAPER"; Category = "Audio Production"; Description = "Digital audio production application" }
+    [PSCustomObject]@{ Name = "Mixxx"; ScriptName = "mixxx.ps1"; WingetId = "Mixxx.Mixxx"; Category = "Audio Production"; Description = "Free DJ mixing software" }
+    [PSCustomObject]@{ Name = "Hydrogen"; ScriptName = "hydrogen.ps1"; WingetId = "Hydrogen.Hydrogen"; Category = "Audio Production"; Description = "Advanced drum machine and sequencer" }
+    # Screen Recording & Streaming
+    [PSCustomObject]@{ Name = "Streamlabs Desktop"; ScriptName = "streamlabsdesktop.ps1"; WingetId = "Streamlabs.StreamlabsOBS"; Category = "Screen Recording"; Description = "Live streaming software for content creators" }
+    [PSCustomObject]@{ Name = "FlashBack Express"; ScriptName = "flashbackexpress.ps1"; WingetId = "Blueberry.FlashbackExpress"; Category = "Screen Recording"; Description = "Free screen recorder" }
+    [PSCustomObject]@{ Name = "ScreenToGif"; ScriptName = "screentogif.ps1"; WingetId = "NickeManarin.ScreenToGif"; Category = "Screen Recording"; Description = "Screen, webcam and sketch recorder" }
+    [PSCustomObject]@{ Name = "Flameshot"; ScriptName = "flameshot.ps1"; WingetId = "Flameshot.Flameshot"; Category = "Screen Recording"; Description = "Powerful screenshot and annotation tool" }
+    [PSCustomObject]@{ Name = "Kap"; ScriptName = "kap.ps1"; WingetId = $null; Category = "Screen Recording"; Description = "Open-source screen recorder" }
+    [PSCustomObject]@{ Name = "Peek"; ScriptName = "peek.ps1"; WingetId = $null; Category = "Screen Recording"; Description = "Simple animated GIF screen recorder" }
+    [PSCustomObject]@{ Name = "SimpleScreenRecorder"; ScriptName = "simplescreenrecorder.ps1"; WingetId = $null; Category = "Screen Recording"; Description = "Feature-rich screen recorder" }
 )
 
 #region Helper Functions
@@ -715,6 +831,49 @@ function Get-InstalledApplications {
             }
         }
 
+        # Special handling: Check for O&O ShutUp10 by executable path
+        # O&O ShutUp10 may not register in standard registry locations
+        if (-not $installedApps.ContainsKey("O&O ShutUp10")) {
+            $ooShutUpPath = "C:\Program Files\OOShutUp10\OOSU10.exe"
+            if (Test-Path $ooShutUpPath) {
+                try {
+                    $fileInfo = Get-Item $ooShutUpPath -ErrorAction SilentlyContinue
+                    $version = if ($fileInfo.VersionInfo.FileVersion) {
+                        $fileInfo.VersionInfo.FileVersion
+                    } else {
+                        "Installed"
+                    }
+                    $installedApps["O&O ShutUp10"] = $version
+                    Write-Log "Detected O&O ShutUp10 via executable path: $version" -Level INFO
+                }
+                catch {
+                    $installedApps["O&O ShutUp10"] = "Installed"
+                    Write-Log "Detected O&O ShutUp10 via executable path" -Level INFO
+                }
+            }
+        }
+
+        # Special handling: Check for Manage Restore Points script
+        if (-not $installedApps.ContainsKey("Manage Restore Points")) {
+            $manageRPPath = "C:\myTech.Today\ManageRestorePoints\Manage-RestorePoints.ps1"
+            if (Test-Path $manageRPPath) {
+                try {
+                    $scriptContent = Get-Content $manageRPPath -Raw -ErrorAction SilentlyContinue
+                    if ($scriptContent -match '\$script:ScriptVersion\s*=\s*[''"]([^''"]+)[''"]') {
+                        $version = $matches[1]
+                    } else {
+                        $version = "Installed"
+                    }
+                    $installedApps["Manage Restore Points"] = $version
+                    Write-Log "Detected Manage Restore Points script: $version" -Level INFO
+                }
+                catch {
+                    $installedApps["Manage Restore Points"] = "Installed"
+                    Write-Log "Detected Manage Restore Points script" -Level INFO
+                }
+            }
+        }
+
         # Special handling: Check for Chrome Remote Desktop shortcut
         # If app is installed but shortcut is missing, create it
         if ($installedApps.ContainsKey("Chrome Remote Desktop")) {
@@ -931,18 +1090,62 @@ function Install-SelectedApplications {
         return
     }
 
+    # Check which apps are already installed
+    $installedApps = Get-InstalledApplications
+    $alreadyInstalled = @()
+    $notInstalled = @()
+
+    foreach ($app in $Apps) {
+        if ($installedApps.ContainsKey($app.Name)) {
+            $alreadyInstalled += $app
+        }
+        else {
+            $notInstalled += $app
+        }
+    }
+
+    # Reorder applications to install O&O ShutUp10 first if present
+    $appsToInstall = $Apps
+    $ooShutUp = $appsToInstall | Where-Object { $_.Name -eq "O&O ShutUp10" }
+    if ($ooShutUp) {
+        Write-Log "O&O ShutUp10 detected - moving to front of installation queue" -Level INFO
+        $otherApps = $appsToInstall | Where-Object { $_.Name -ne "O&O ShutUp10" }
+        $appsToInstall = @($ooShutUp) + $otherApps
+    }
+
     Write-Host "`n+===================================================================+" -ForegroundColor Cyan
     Write-Host "|                    Installing Selected Applications                |" -ForegroundColor Cyan
     Write-Host "+===================================================================+" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host "Applications to install: $($Apps.Count)" -ForegroundColor Yellow
+    Write-Host "Applications to install: $($appsToInstall.Count)" -ForegroundColor Yellow
+    if ($ooShutUp) {
+        Write-Host "[i] O&O ShutUp10 will be installed first" -ForegroundColor Cyan
+    }
     Write-Host ""
 
-    foreach ($app in $Apps) {
-        Write-Host "  - $($app.Name)" -ForegroundColor White
+    # Show installation status
+    if ($notInstalled.Count -gt 0) {
+        Write-Host "New installations ($($notInstalled.Count)):" -ForegroundColor Green
+        foreach ($app in $notInstalled) {
+            Write-Host "  - $($app.Name)" -ForegroundColor White
+        }
+        Write-Host ""
     }
 
-    Write-Host ""
+    if ($alreadyInstalled.Count -gt 0) {
+        Write-Host "Already installed - will reinstall ($($alreadyInstalled.Count)):" -ForegroundColor Yellow
+        foreach ($app in $alreadyInstalled) {
+            $version = $installedApps[$app.Name]
+            if ($app.Name -eq "O&O ShutUp10") {
+                Write-Host "  - $($app.Name) ($version) [Will re-run configuration]" -ForegroundColor Cyan
+            }
+            else {
+                Write-Host "  - $($app.Name) ($version)" -ForegroundColor Yellow
+            }
+        }
+        Write-Host ""
+    }
+
     Write-Host "Proceed with installation? (Y/N): " -NoNewline -ForegroundColor Yellow
     $confirm = Read-Host
 
@@ -955,11 +1158,11 @@ function Install-SelectedApplications {
     $successCount = 0
     $failCount = 0
 
-    foreach ($app in $Apps) {
+    foreach ($app in $appsToInstall) {
         $currentIndex++
         Write-Host ""
         Write-Host "+-------------------------------------------------------------------+" -ForegroundColor Cyan
-        Write-Host "| Installing [$currentIndex/$($Apps.Count)]: $($app.Name)" -ForegroundColor Cyan
+        Write-Host "| Installing [$currentIndex/$($appsToInstall.Count)]: $($app.Name)" -ForegroundColor Cyan
         Write-Host "+-------------------------------------------------------------------+" -ForegroundColor Cyan
 
         $result = Install-Application -App $app
@@ -976,7 +1179,7 @@ function Install-SelectedApplications {
     Write-Host "|                    Installation Summary                           |" -ForegroundColor Cyan
     Write-Host "+===================================================================+" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host "  Total:     $($Apps.Count)" -ForegroundColor White
+    Write-Host "  Total:     $($appsToInstall.Count)" -ForegroundColor White
     Write-Host "  Success:   $successCount" -ForegroundColor Green
     Write-Host "  Failed:    $failCount" -ForegroundColor $(if ($failCount -gt 0) { "Red" } else { "Gray" })
     Write-Host ""
@@ -1190,23 +1393,85 @@ function New-WebApplicationShortcut {
         }
 
         # Create WScript.Shell COM object
-        $shell = New-Object -ComObject WScript.Shell
-        $shortcut = $shell.CreateShortcut($shortcutPath)
-        $shortcut.TargetPath = $targetPath
-        $shortcut.Arguments = $arguments
-        $shortcut.Description = if ($Description) { $Description } else { "Open $ShortcutName" }
-        $shortcut.IconLocation = $iconLocation
-        $shortcut.WorkingDirectory = Split-Path $targetPath -Parent
-        $shortcut.Save()
+        $shell = $null
+        try {
+            $shell = New-Object -ComObject WScript.Shell
+            $shortcut = $shell.CreateShortcut($shortcutPath)
+            $shortcut.TargetPath = $targetPath
+            $shortcut.Arguments = $arguments
+            $shortcut.Description = if ($Description) { $Description } else { "Open $ShortcutName" }
+            $shortcut.IconLocation = $iconLocation
+            $shortcut.WorkingDirectory = Split-Path $targetPath -Parent
+            $shortcut.Save()
 
-        # Release COM object
-        [System.Runtime.Interopservices.Marshal]::ReleaseComObject($shell) | Out-Null
-
-        Write-Log "Created Start Menu shortcut: $shortcutPath" -Level SUCCESS
-        return $true
+            Write-Log "Created Start Menu shortcut: $shortcutPath" -Level SUCCESS
+            return $true
+        }
+        finally {
+            # Always release COM object, even if there's an error
+            if ($shell) {
+                [System.Runtime.Interopservices.Marshal]::ReleaseComObject($shell) | Out-Null
+                $shell = $null
+            }
+        }
     }
     catch {
         Write-Log "Failed to create shortcut for ${ShortcutName}: ${_}" -Level ERROR
+        return $false
+    }
+}
+
+function Install-OOShutUp10FromRemote {
+    <#
+    .SYNOPSIS
+        Downloads and executes the O&O ShutUp10 installation script from GitHub.
+
+    .DESCRIPTION
+        Downloads the Install-OOShutUp10.ps1 script from the mytech-today-now/OO repository
+        and executes it. This is the preferred installation method for O&O ShutUp10.
+
+    .OUTPUTS
+        Returns $true if successful, $false otherwise.
+    #>
+    [CmdletBinding()]
+    param()
+
+    try {
+        $remoteScriptUrl = "https://raw.githubusercontent.com/mytech-today-now/OO/main/Install-OOShutUp10.ps1"
+        $tempScriptPath = Join-Path $env:TEMP "Install-OOShutUp10.ps1"
+
+        Write-Log "Downloading O&O ShutUp10 script from GitHub..." -Level INFO
+        Write-Host "  [1/3] [DOWNLOAD] Downloading installation script from GitHub..." -ForegroundColor Yellow
+
+        # Download the script
+        Invoke-WebRequest -Uri $remoteScriptUrl -OutFile $tempScriptPath -UseBasicParsing -ErrorAction Stop
+
+        Write-Log "Downloaded O&O ShutUp10 script to: $tempScriptPath" -Level INFO
+        Write-Host "  [2/3] [EXECUTE] Running installation script..." -ForegroundColor Yellow
+
+        # Execute the script
+        & $tempScriptPath
+        $exitCode = $LASTEXITCODE
+
+        # Clean up
+        if (Test-Path $tempScriptPath) {
+            Remove-Item -Path $tempScriptPath -Force -ErrorAction SilentlyContinue
+        }
+
+        if ($exitCode -eq 0) {
+            Write-Log "O&O ShutUp10 installed successfully via remote script" -Level SUCCESS
+            Write-Host "  [3/3] [OK] Installation complete!" -ForegroundColor Green
+            return $true
+        }
+        else {
+            Write-Log "O&O ShutUp10 remote script failed with exit code: $exitCode" -Level ERROR
+            Write-Host "  [3/3] [FAIL] Installation failed with exit code: $exitCode" -ForegroundColor Red
+            return $false
+        }
+    }
+    catch {
+        Write-Log "Failed to download or execute O&O ShutUp10 remote script: $_" -Level ERROR
+        Write-Host "  [FAIL] Failed to download or execute remote script: $_" -ForegroundColor Red
         return $false
     }
 }
@@ -1247,6 +1512,41 @@ function Install-Application {
     Write-Host "+====================================================================+" -ForegroundColor Cyan
 
     try {
+        # Special handling for O&O ShutUp10: Try remote script first
+        if ($App.Name -eq "O&O ShutUp10") {
+            Write-Log "Using special installation method for O&O ShutUp10" -Level INFO
+            Write-Host "  [i] Using remote installation script from GitHub..." -ForegroundColor Cyan
+
+            # Try remote script first
+            $remoteSuccess = Install-OOShutUp10FromRemote
+
+            if ($remoteSuccess) {
+                # Register O&O ShutUp10 as installed
+                $ooShutUpPath = "C:\Program Files\OOShutUp10\OOSU10.exe"
+                if (Test-Path $ooShutUpPath) {
+                    try {
+                        $fileInfo = Get-Item $ooShutUpPath -ErrorAction SilentlyContinue
+                        $version = if ($fileInfo.VersionInfo.FileVersion) {
+                            $fileInfo.VersionInfo.FileVersion
+                        } else {
+                            "Installed"
+                        }
+                        $script:InstalledApps["O&O ShutUp10"] = $version
+                        Write-Log "Registered O&O ShutUp10 as installed: $version" -Level INFO
+                    }
+                    catch {
+                        $script:InstalledApps["O&O ShutUp10"] = "Installed"
+                        Write-Log "Registered O&O ShutUp10 as installed" -Level INFO
+                    }
+                }
+                return $true
+            }
+
+            # If remote failed, try local script as fallback
+            Write-Log "Remote script failed, trying local script fallback..." -Level WARNING
+            Write-Host "  [WARN] Remote script failed, trying local script..." -ForegroundColor Yellow
+        }
+
         # Check if custom script exists
         $scriptPath = Join-Path $script:AppsPath $App.ScriptName
 
@@ -1452,7 +1752,17 @@ function Install-AllApplications {
 
     Write-Verbose "Total applications to install: $totalCount"
 
-    foreach ($app in $script:Applications) {
+    # Reorder applications to install O&O ShutUp10 first if present
+    $appsToInstall = $script:Applications
+    $ooShutUp = $appsToInstall | Where-Object { $_.Name -eq "O&O ShutUp10" }
+    if ($ooShutUp) {
+        Write-Log "O&O ShutUp10 detected - moving to front of installation queue" -Level INFO
+        Write-Host "[i] O&O ShutUp10 will be installed first" -ForegroundColor Cyan
+        $otherApps = $appsToInstall | Where-Object { $_.Name -ne "O&O ShutUp10" }
+        $appsToInstall = @($ooShutUp) + $otherApps
+    }
+
+    foreach ($app in $appsToInstall) {
         $currentIndex++
         $appStartTime = Get-Date
 
@@ -1532,19 +1842,78 @@ function Install-MissingApplications {
     $startTime = Get-Date
     $installationTimes = @()  # Track individual installation times for ETA
 
-    foreach ($app in $script:Applications) {
+    # Reorder applications to install O&O ShutUp10 first if present
+    $appsToInstall = $script:Applications
+    $ooShutUp = $appsToInstall | Where-Object { $_.Name -eq "O&O ShutUp10" }
+    if ($ooShutUp) {
+        Write-Log "O&O ShutUp10 detected - moving to front of installation queue" -Level INFO
+        Write-Host "[i] O&O ShutUp10 will be installed first (if missing)" -ForegroundColor Cyan
+        $otherApps = $appsToInstall | Where-Object { $_.Name -ne "O&O ShutUp10" }
+        $appsToInstall = @($ooShutUp) + $otherApps
+    }
+
+    foreach ($app in $appsToInstall) {
         $currentIndex++
 
         if ($installedApps.ContainsKey($app.Name)) {
-            Write-Host "`n[SKIP] Skipping $($app.Name) - Already installed ($($installedApps[$app.Name]))" -ForegroundColor Gray
-            $skippedCount++
+            # Special handling for O&O ShutUp10: Always allow re-running
+            if ($app.Name -eq "O&O ShutUp10") {
+                Write-Host "`n[INFO] O&O ShutUp10 is already installed ($($installedApps[$app.Name]))" -ForegroundColor Cyan
+                Write-Host "[INFO] Re-running O&O ShutUp10 configuration script..." -ForegroundColor Cyan
+                Write-Log "O&O ShutUp10 already installed - re-running remote script as requested" -Level INFO
 
-            # Update progress for skipped apps
-            $percentComplete = [Math]::Round(($currentIndex / $totalCount) * 100, 1)
-            Write-Progress -Activity "Installing Missing Applications" `
-                -Status "Skipped $($app.Name) ($currentIndex of $totalCount - $percentComplete%)" `
-                -PercentComplete $percentComplete `
-                -Id 1
+                $appStartTime = Get-Date
+                $result = Install-Application -App $app -CurrentIndex $currentIndex -TotalCount $totalCount
+
+                # Track installation time
+                $appEndTime = Get-Date
+                $appDuration = ($appEndTime - $appStartTime).TotalSeconds
+                $installationTimes += $appDuration
+
+                if ($result) {
+                    $successCount++
+                }
+                else {
+                    $failCount++
+                }
+            }
+            else {
+                # For other applications, prompt user for re-installation
+                Write-Host "`n[INFO] $($app.Name) is already installed ($($installedApps[$app.Name]))" -ForegroundColor Yellow
+                $response = Read-Host "Would you like to reinstall $($app.Name)? (Y/N)"
+
+                if ($response -match '^[Yy]') {
+                    Write-Log "User chose to reinstall $($app.Name)" -Level INFO
+                    Write-Host "[INFO] Reinstalling $($app.Name)..." -ForegroundColor Cyan
+
+                    $appStartTime = Get-Date
+                    $result = Install-Application -App $app -CurrentIndex $currentIndex -TotalCount $totalCount
+
+                    # Track installation time
+                    $appEndTime = Get-Date
+                    $appDuration = ($appEndTime - $appStartTime).TotalSeconds
+                    $installationTimes += $appDuration
+
+                    if ($result) {
+                        $successCount++
+                    }
+                    else {
+                        $failCount++
+                    }
+                }
+                else {
+                    Write-Host "[SKIP] Skipping $($app.Name) - User declined reinstallation" -ForegroundColor Gray
+                    Write-Log "User declined to reinstall $($app.Name)" -Level INFO
+                    $skippedCount++
+
+                    # Update progress for skipped apps
+                    $percentComplete = [Math]::Round(($currentIndex / $totalCount) * 100, 1)
+                    Write-Progress -Activity "Installing Missing Applications" `
+                        -Status "Skipped $($app.Name) ($currentIndex of $totalCount - $percentComplete%)" `
+                        -PercentComplete $percentComplete `
+                        -Id 1
+                }
+            }
         }
         else {
             $appStartTime = Get-Date
@@ -1832,6 +2201,16 @@ Write-Host "  Serving Chicagoland with 20+ years of IT expertise!" -ForegroundCo
 Write-Host ""
 Write-Host "+===================================================================+" -ForegroundColor Cyan
 Write-Host ""
+
+# Cleanup: Clear large script-level variables to free memory
+$script:Applications = @()
+$script:InstalledApps = @{}
+$script:SelectedApps = @()
+
+# Force garbage collection to free memory
+[System.GC]::Collect()
+[System.GC]::WaitForPendingFinalizers()
+[System.GC]::Collect()
 
 exit 0
 

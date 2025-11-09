@@ -6,7 +6,7 @@
 
 ## Overview
 
-The **App Installer** is a comprehensive PowerShell application installer system designed for automated Windows setup. It provides both a modern **graphical user interface (GUI)** and a traditional **command-line interface** for installing and managing **93 essential applications** with real-time status tracking, version detection, and centralized logging.
+The **App Installer** is a comprehensive PowerShell application installer system designed for automated Windows setup. It provides both a modern **graphical user interface (GUI)** and a traditional **command-line interface** for installing and managing **212 essential applications** with real-time status tracking, version detection, and centralized logging.
 
 ![App Installer GUI](https://mytech.today/wp-content/uploads/2025/11/install-gui.ps1_.jpeg)
 
@@ -33,57 +33,90 @@ The **App Installer** is a comprehensive PowerShell application installer system
 ✅ **Silent Installation** - Most apps install silently without user interaction
 ✅ **Administrator Privileges** - Automatic elevation and privilege checking
 
-## Supported Applications (93)
+## Supported Applications (212)
 
-### Browsers (8)
+### Browsers (15)
 - Google Chrome, Brave Browser, Firefox, Vivaldi, Opera, LibreWolf, Tor Browser, Waterfox
+- Microsoft Edge, Chromium, Arc Browser, Ungoogled Chromium, Midori Browser, Min Browser, Floorp
 
-### Development (17)
+### Development (26)
 - Notepad++, Git, Python, Node.js, Docker Desktop, Sublime Text, Geany, NetBeans IDE
 - IntelliJ IDEA Community, FileZilla, Visual Studio Code, Postman, PyCharm Community
-- Eclipse IDE, Atom Editor, Brackets, Vagrant
+- Eclipse IDE, Atom Editor, Brackets, Vagrant, Android Studio, RStudio, Rider
+- DataGrip, WebStorm, CLion, GoLand, Vim, CMake, Lazygit
 
-### Productivity (9)
+### Productivity (16)
 - LibreOffice, Obsidian, Joplin, Foxit PDF Reader, Sumatra PDF, Notion
-- 7-Zip, Adobe Acrobat Reader, Apache OpenOffice
+- 7-Zip, Adobe Acrobat Reader, Apache OpenOffice, Calibre, Zotero, Trello
+- WPS Office, PDF24 Creator, Typora, AnyDesk
 
-### Media (19)
+### Media (26)
 - OBS Studio, GIMP, Audacity, Handbrake, OpenShot, ClipGrab, Inkscape, Paint.NET
 - Avidemux, MPC-HC, Foobar2000, VLC Media Player, FFmpeg, Krita, OpenToonz
-- Kdenlive, Shotcut, darktable, RawTherapee
+- Kdenlive, Shotcut, darktable, RawTherapee, Spotify, iTunes, AIMP
+- DaVinci Resolve, Tenacity, Blender
 
-### Utilities (17)
+### Utilities (24)
 - AngryIP Scanner, CCleaner, Bitvise SSH Client, Belarc Advisor, O&O ShutUp10
 - FileMail Desktop, PowerToys, Everything, Greenshot, Bulk Rename Utility
 - Revo Uninstaller, WinDirStat, Core Temp, GPU-Z, CrystalDiskInfo
-- Sysinternals Suite, winget Auto-Update
+- Sysinternals Suite, winget Auto-Update, ShareX, Rainmeter, Speccy
+- BleachBit, Rufus, Ventoy, HWiNFO
 
-### Security (6)
+### Security (12)
 - Avira Antivirus, Kaspersky Security Cloud, AVG AntiVirus Free, Avast Free Antivirus
-- Malwarebytes, Bitwarden
+- Malwarebytes, Bitwarden, 1Password, LastPass, Dashlane, Sophos Home
+- KeePassXC, NordPass, Proton Pass
 
-### Communication (3)
-- Telegram Desktop, Signal, Thunderbird
+### Communication (11)
+- Telegram Desktop, Signal, Thunderbird, Discord, Slack, Zoom, Microsoft Teams
+- Skype, WhatsApp Desktop, Viber, Element
 
-### 3D & CAD (4)
-- Blender, FreeCAD, LibreCAD, KiCad
+### 3D & CAD (10)
+- Blender, FreeCAD, LibreCAD, KiCad, OpenSCAD, Wings 3D, Sweet Home 3D
+- Dust3D, MeshLab, Slic3r
 
-### Networking (3)
-- Nmap, Wireshark, Zenmap
+### Networking (9)
+- Nmap, Wireshark, Zenmap, PuTTY, Advanced Port Scanner, Advanced IP Scanner
+- Fing CLI, GlassWire, NetLimiter, TCPView
 
-### Writing (3)
-- Trelby, KIT Scenarist, Storyboarder
+### Runtime (7)
+- Java Runtime Environment, .NET Desktop Runtime 6, .NET Desktop Runtime 8
+- Visual C++ Redistributable, Go Programming Language, Rust, PHP
 
-### Shortcuts (3)
+### Writing (9)
+- Trelby, KIT Scenarist, Storyboarder, Manuskript, yWriter, Celtx
+- bibisco, Scribus, FocusWriter
+
+### Gaming (7)
+- Steam, Epic Games Launcher, GOG Galaxy, EA App, Ubisoft Connect
+- Battle.net, Itch.io
+
+### Cloud Storage (6)
+- Google Drive, Dropbox, OneDrive, MEGA, pCloud, Sync.com
+
+### Remote Desktop (7)
+- TeamViewer, AnyDesk, Chrome Remote Desktop, TightVNC, RustDesk
+- UltraVNC, Parsec
+
+### Backup (7)
+- Veeam Agent FREE, EaseUS Todo Backup Free, Duplicati, Cobian Backup
+- FreeFileSync, Syncthing, Macrium Reflect Free
+
+### Education (7)
+- Anki, GeoGebra, Stellarium, MuseScore, Moodle Desktop, Scratch Desktop
+- Celestia
+
+### Finance (6)
+- GnuCash, HomeBank, Money Manager Ex, KMyMoney, Skrooge
+- Firefly III Desktop
+
+### Shortcuts & Maintenance (7)
 - Grok AI (Desktop & Start Menu)
 - ChatGPT (Desktop & Start Menu)
 - dictation.io (Desktop & Start Menu)
-
-### Runtime (1)
-- Java Runtime Environment
-
-### Maintenance (1)
 - Uninstall McAfee Products
+- PowerToys, AutoHotkey, Everything
 
 ## Requirements
 
@@ -128,13 +161,13 @@ Launch the graphical interface:
 ```
 
 **GUI Features:**
-- **Application Table** - Browse all 93 applications with checkboxes
+- **Application Table** - Browse all 212 applications with checkboxes
 - **Category Grouping** - Applications organized by category
 - **Status Column** - Shows "Installed" with version or "Not Installed"
 - **Progress Tracking** - Real-time progress: "0 / 5 applications" updates as you select
 - **Buttons:**
   - **Refresh Status** - Re-scan for installed applications
-  - **Select All** - Select all 93 applications
+  - **Select All** - Select all 212 applications
   - **Select Missing** - Select only applications not currently installed
   - **Deselect All** - Clear all selections
   - **Install Selected** - Install checked applications
@@ -153,7 +186,7 @@ Launch the graphical interface:
 ```
 
 **Menu Options:**
-- **1-93:** Install individual application by number
+- **1-212:** Install individual application by number
 - **A:** Install all applications
 - **M:** Install missing applications only
 - **S/R:** Show/Refresh status
@@ -187,7 +220,7 @@ Launch the graphical interface:
 app_installer/
 ├── install-gui.ps1                  # GUI-based installer (recommended)
 ├── install.ps1                      # Command-line menu-driven installer
-├── apps/                            # Individual app installation scripts (93 total)
+├── apps/                            # Individual app installation scripts (212 total)
 │   ├── chrome.ps1                   # (Uses winget)
 │   ├── brave.ps1                    # (Uses winget)
 │   ├── firefox.ps1                  # (Uses winget)
@@ -229,7 +262,7 @@ C:\mytech.today\logs\install-yyyy-MM.md
 
 ### Application Registry
 
-Both scripts maintain an internal registry of all 93 supported applications with:
+Both scripts maintain an internal registry of all 212 supported applications with:
 - **Name:** Display name
 - **ScriptName:** Individual installation script filename
 - **WingetId:** Windows Package Manager ID (if available)

@@ -11,7 +11,7 @@
     - Selective installation (individual apps, all apps, or only missing apps)
     - Progress tracking with detailed logging
     - Centralized logging to C:\mytech.today\logs\
-    - Support for 65+ applications via winget and custom installers
+    - Support for 271 applications via winget and custom installers
 
 .NOTES
     File Name      : install-gui.ps1
@@ -42,6 +42,8 @@ $script:LogPath = $null
 $script:AppsPath = Join-Path $script:ScriptPath "apps"
 $script:InstalledApps = @{}
 $script:SelectedApps = @()
+$script:IsClosing = $false  # Flag to prevent event handlers during form closing
+$script:IsInstalling = $false  # Flag to track if installation is in progress
 
 # Application registry - defines all supported applications
 # Using PSCustomObject for proper property access with Group-Object
@@ -59,6 +61,9 @@ $script:Applications = @(
     [PSCustomObject]@{ Name = "Waterfox"; ScriptName = "waterfox.ps1"; WingetId = "Waterfox.Waterfox"; Category = "Browsers"; Description = "Privacy-focused Firefox-based browser" }
     [PSCustomObject]@{ Name = "Chromium"; ScriptName = "chromium.ps1"; WingetId = "Hibbiki.Chromium"; Category = "Browsers"; Description = "Open-source base for Chrome" }
     [PSCustomObject]@{ Name = "Pale Moon"; ScriptName = "palemoon.ps1"; WingetId = "MoonchildProductions.PaleMoon"; Category = "Browsers"; Description = "Lightweight Firefox-based browser" }
+    [PSCustomObject]@{ Name = "Ungoogled Chromium"; ScriptName = "ungoogledchromium.ps1"; WingetId = "eloston.ungoogled-chromium"; Category = "Browsers"; Description = "Chrome without Google integration" }
+    [PSCustomObject]@{ Name = "Midori Browser"; ScriptName = "midori.ps1"; WingetId = "AstianInc.Midori"; Category = "Browsers"; Description = "Lightweight and fast web browser" }
+    [PSCustomObject]@{ Name = "Min Browser"; ScriptName = "min.ps1"; WingetId = "Min.Min"; Category = "Browsers"; Description = "Minimal, fast web browser" }
     # Development Tools
     [PSCustomObject]@{ Name = "Visual Studio Code"; ScriptName = "vscode.ps1"; WingetId = "Microsoft.VisualStudioCode"; Category = "Development"; Description = "Powerful code editor with extensions" }
     [PSCustomObject]@{ Name = "Notepad++"; ScriptName = "notepadplusplus.ps1"; WingetId = "Notepad++.Notepad++"; Category = "Development"; Description = "Lightweight text and code editor" }
@@ -83,6 +88,9 @@ $script:Applications = @(
     [PSCustomObject]@{ Name = "HeidiSQL"; ScriptName = "heidisql.ps1"; WingetId = "HeidiSQL.HeidiSQL"; Category = "Development"; Description = "Lightweight MySQL/MariaDB client" }
     [PSCustomObject]@{ Name = "Vagrant"; ScriptName = "vagrant.ps1"; WingetId = "Hashicorp.Vagrant"; Category = "Development"; Description = "Development environment manager" }
     [PSCustomObject]@{ Name = "Windows Terminal"; ScriptName = "windowsterminal.ps1"; WingetId = "Microsoft.WindowsTerminal"; Category = "Development"; Description = "Modern terminal with tabs and themes" }
+    [PSCustomObject]@{ Name = "Vim"; ScriptName = "vim.ps1"; WingetId = "vim.vim"; Category = "Development"; Description = "Highly configurable text editor" }
+    [PSCustomObject]@{ Name = "CMake"; ScriptName = "cmake.ps1"; WingetId = "Kitware.CMake"; Category = "Development"; Description = "Cross-platform build system generator" }
+    [PSCustomObject]@{ Name = "Lazygit"; ScriptName = "lazygit.ps1"; WingetId = "JesseDuffield.lazygit"; Category = "Development"; Description = "Terminal UI for git commands" }
     # Productivity
     [PSCustomObject]@{ Name = "LibreOffice"; ScriptName = "libreoffice.ps1"; WingetId = "TheDocumentFoundation.LibreOffice"; Category = "Productivity"; Description = "Free office suite with Writer, Calc, Impress" }
     [PSCustomObject]@{ Name = "Apache OpenOffice"; ScriptName = "openoffice.ps1"; WingetId = "Apache.OpenOffice"; Category = "Productivity"; Description = "Open-source office productivity suite" }
@@ -97,6 +105,16 @@ $script:Applications = @(
     [PSCustomObject]@{ Name = "Zotero"; ScriptName = "zotero.ps1"; WingetId = "DigitalScholar.Zotero"; Category = "Productivity"; Description = "Research citation and bibliography manager" }
     [PSCustomObject]@{ Name = "FreeMind"; ScriptName = "freemind.ps1"; WingetId = "FreeMind.FreeMind"; Category = "Productivity"; Description = "Mind mapping and brainstorming tool" }
     [PSCustomObject]@{ Name = "XMind"; ScriptName = "xmind.ps1"; WingetId = "XMind.XMind"; Category = "Productivity"; Description = "Professional mind mapping software" }
+    [PSCustomObject]@{ Name = "WPS Office"; ScriptName = "wpsoffice.ps1"; WingetId = "Kingsoft.WPSOffice"; Category = "Productivity"; Description = "Free office suite alternative" }
+    [PSCustomObject]@{ Name = "PDF24 Creator"; ScriptName = "pdf24.ps1"; WingetId = "geeksoftwareGmbH.PDF24Creator"; Category = "Productivity"; Description = "PDF creation and editing tools" }
+    [PSCustomObject]@{ Name = "Typora"; ScriptName = "typora.ps1"; WingetId = "Typora.Typora"; Category = "Productivity"; Description = "Minimalist markdown editor" }
+    [PSCustomObject]@{ Name = "Toggl Track"; ScriptName = "toggltrack.ps1"; WingetId = "Toggl.TogglTrack"; Category = "Productivity"; Description = "Time tracking and productivity tool" }
+    [PSCustomObject]@{ Name = "Clockify"; ScriptName = "clockify.ps1"; WingetId = "Clockify.Clockify"; Category = "Productivity"; Description = "Free time tracking software" }
+    [PSCustomObject]@{ Name = "Evernote"; ScriptName = "evernote.ps1"; WingetId = "Evernote.Evernote"; Category = "Productivity"; Description = "Note-taking and organization app" }
+    [PSCustomObject]@{ Name = "Simplenote"; ScriptName = "simplenote.ps1"; WingetId = "Automattic.Simplenote"; Category = "Productivity"; Description = "Simple, lightweight note-taking" }
+    [PSCustomObject]@{ Name = "Trello"; ScriptName = "trello.ps1"; WingetId = "Trello.Trello"; Category = "Productivity"; Description = "Visual project management boards" }
+    [PSCustomObject]@{ Name = "ClickUp"; ScriptName = "clickup.ps1"; WingetId = "ClickUp.ClickUp"; Category = "Productivity"; Description = "All-in-one productivity platform" }
+    [PSCustomObject]@{ Name = "Todoist"; ScriptName = "todoist.ps1"; WingetId = "Doist.Todoist"; Category = "Productivity"; Description = "Task management and to-do lists" }
     # Media & Creative
     [PSCustomObject]@{ Name = "VLC Media Player"; ScriptName = "vlc.ps1"; WingetId = "VideoLAN.VLC"; Category = "Media"; Description = "Versatile media player for all formats" }
     [PSCustomObject]@{ Name = "OBS Studio"; ScriptName = "obs.ps1"; WingetId = "OBSProject.OBSStudio"; Category = "Media"; Description = "Live streaming and screen recording" }
@@ -121,6 +139,9 @@ $script:Applications = @(
     [PSCustomObject]@{ Name = "iTunes"; ScriptName = "itunes.ps1"; WingetId = "Apple.iTunes"; Category = "Media"; Description = "Media player and library manager" }
     [PSCustomObject]@{ Name = "MediaInfo"; ScriptName = "mediainfo.ps1"; WingetId = "MediaArea.MediaInfo"; Category = "Media"; Description = "Technical metadata viewer for media files" }
     [PSCustomObject]@{ Name = "MKVToolNix"; ScriptName = "mkvtoolnix.ps1"; WingetId = "MoritzBunkus.MKVToolNix"; Category = "Media"; Description = "Matroska video file editor" }
+    [PSCustomObject]@{ Name = "DaVinci Resolve"; ScriptName = "davinciresolve.ps1"; WingetId = "Blackmagic.DaVinciResolve"; Category = "Media"; Description = "Professional video editing software" }
+    [PSCustomObject]@{ Name = "Tenacity"; ScriptName = "tenacity.ps1"; WingetId = "Tenacity.Tenacity"; Category = "Media"; Description = "Multi-track audio editor fork of Audacity" }
+    [PSCustomObject]@{ Name = "Blender"; ScriptName = "blender-media.ps1"; WingetId = "BlenderFoundation.Blender"; Category = "Media"; Description = "3D creation suite with video editing" }
     # Utilities
     [PSCustomObject]@{ Name = "PowerToys"; ScriptName = "powertoys.ps1"; WingetId = "Microsoft.PowerToys"; Category = "Utilities"; Description = "Windows system utilities by Microsoft" }
     [PSCustomObject]@{ Name = "Everything"; ScriptName = "everything.ps1"; WingetId = "voidtools.Everything"; Category = "Utilities"; Description = "Instant file search engine" }
@@ -143,6 +164,16 @@ $script:Applications = @(
     [PSCustomObject]@{ Name = "Belarc Advisor"; ScriptName = "belarc.ps1"; WingetId = $null; Category = "Utilities"; Description = "System profile and security status" }
     [PSCustomObject]@{ Name = "O&O ShutUp10"; ScriptName = "shutup10.ps1"; WingetId = $null; Category = "Utilities"; Description = "Windows privacy settings manager" }
     [PSCustomObject]@{ Name = "FileMail Desktop"; ScriptName = "filemail.ps1"; WingetId = $null; Category = "Utilities"; Description = "Large file transfer service" }
+    [PSCustomObject]@{ Name = "BleachBit"; ScriptName = "bleachbit.ps1"; WingetId = "BleachBit.BleachBit"; Category = "Utilities"; Description = "System cleaner and privacy tool" }
+    [PSCustomObject]@{ Name = "Rufus"; ScriptName = "rufus.ps1"; WingetId = "Rufus.Rufus"; Category = "Utilities"; Description = "Bootable USB drive creator" }
+    [PSCustomObject]@{ Name = "Ventoy"; ScriptName = "ventoy.ps1"; WingetId = "Ventoy.Ventoy"; Category = "Utilities"; Description = "Multiboot USB solution" }
+    [PSCustomObject]@{ Name = "Balena Etcher"; ScriptName = "balenaetcher.ps1"; WingetId = "Balena.Etcher"; Category = "Utilities"; Description = "Flash OS images to SD cards and USB drives" }
+    [PSCustomObject]@{ Name = "CPU-Z"; ScriptName = "cpuz.ps1"; WingetId = "CPUID.CPU-Z"; Category = "Utilities"; Description = "CPU and system information utility" }
+    [PSCustomObject]@{ Name = "CrystalDiskMark"; ScriptName = "crystaldiskmark.ps1"; WingetId = "CrystalDewWorld.CrystalDiskMark"; Category = "Utilities"; Description = "Disk benchmark utility" }
+    [PSCustomObject]@{ Name = "HWMonitor"; ScriptName = "hwmonitor.ps1"; WingetId = "CPUID.HWMonitor"; Category = "Utilities"; Description = "Hardware monitoring program" }
+    [PSCustomObject]@{ Name = "MSI Afterburner"; ScriptName = "msiafterburner.ps1"; WingetId = "Guru3D.Afterburner"; Category = "Utilities"; Description = "Graphics card overclocking utility" }
+    [PSCustomObject]@{ Name = "Lightshot"; ScriptName = "lightshot.ps1"; WingetId = "Skillbrains.Lightshot"; Category = "Utilities"; Description = "Screenshot tool with instant sharing" }
+    [PSCustomObject]@{ Name = "Process Hacker"; ScriptName = "processhacker.ps1"; WingetId = "ProcessHacker.ProcessHacker"; Category = "Utilities"; Description = "Advanced task manager alternative" }
     # Security
     [PSCustomObject]@{ Name = "Bitwarden"; ScriptName = "bitwarden.ps1"; WingetId = "Bitwarden.Bitwarden"; Category = "Security"; Description = "Open-source password manager" }
     [PSCustomObject]@{ Name = "KeePass"; ScriptName = "keepass.ps1"; WingetId = "DominikReichl.KeePass"; Category = "Security"; Description = "Secure password database manager" }
@@ -153,6 +184,9 @@ $script:Applications = @(
     [PSCustomObject]@{ Name = "AVG AntiVirus Free"; ScriptName = "avg.ps1"; WingetId = "AVG.AVG"; Category = "Security"; Description = "Free antivirus protection" }
     [PSCustomObject]@{ Name = "Avast Free Antivirus"; ScriptName = "avast.ps1"; WingetId = "Avast.Avast.Free"; Category = "Security"; Description = "Comprehensive free antivirus" }
     [PSCustomObject]@{ Name = "Sophos Home"; ScriptName = "sophos.ps1"; WingetId = "Sophos.SophosHome"; Category = "Security"; Description = "Enterprise-grade home security" }
+    [PSCustomObject]@{ Name = "KeePassXC"; ScriptName = "keepassxc.ps1"; WingetId = "KeePassXCTeam.KeePassXC"; Category = "Security"; Description = "Cross-platform password manager" }
+    [PSCustomObject]@{ Name = "NordPass"; ScriptName = "nordpass.ps1"; WingetId = "NordSecurity.NordPass"; Category = "Security"; Description = "Secure password manager by NordVPN" }
+    [PSCustomObject]@{ Name = "Proton Pass"; ScriptName = "protonpass.ps1"; WingetId = "Proton.ProtonPass"; Category = "Security"; Description = "Encrypted password manager by Proton" }
     # Communication
     [PSCustomObject]@{ Name = "Discord"; ScriptName = "discord.ps1"; WingetId = "Discord.Discord"; Category = "Communication"; Description = "Voice, video, and text chat platform" }
     [PSCustomObject]@{ Name = "Zoom"; ScriptName = "zoom.ps1"; WingetId = "Zoom.Zoom"; Category = "Communication"; Description = "Video conferencing and meetings" }
@@ -162,6 +196,12 @@ $script:Applications = @(
     [PSCustomObject]@{ Name = "Telegram Desktop"; ScriptName = "telegram.ps1"; WingetId = "Telegram.TelegramDesktop"; Category = "Communication"; Description = "Fast, secure messaging app" }
     [PSCustomObject]@{ Name = "Signal"; ScriptName = "signal.ps1"; WingetId = "OpenWhisperSystems.Signal"; Category = "Communication"; Description = "Privacy-focused encrypted messaging" }
     [PSCustomObject]@{ Name = "Thunderbird"; ScriptName = "thunderbird.ps1"; WingetId = "Mozilla.Thunderbird"; Category = "Communication"; Description = "Open-source email client" }
+    [PSCustomObject]@{ Name = "WhatsApp Desktop"; ScriptName = "whatsapp.ps1"; WingetId = "WhatsApp.WhatsApp"; Category = "Communication"; Description = "Desktop messaging application" }
+    [PSCustomObject]@{ Name = "Viber"; ScriptName = "viber.ps1"; WingetId = "Viber.Viber"; Category = "Communication"; Description = "Free calls and messages" }
+    [PSCustomObject]@{ Name = "Element"; ScriptName = "element.ps1"; WingetId = "Element.Element"; Category = "Communication"; Description = "Secure decentralized messaging" }
+    [PSCustomObject]@{ Name = "Jitsi Meet"; ScriptName = "jitsimeet.ps1"; WingetId = "Jitsi.Meet"; Category = "Communication"; Description = "Secure video conferencing" }
+    [PSCustomObject]@{ Name = "Rocket.Chat"; ScriptName = "rocketchat.ps1"; WingetId = "RocketChat.RocketChat"; Category = "Communication"; Description = "Open-source team communication" }
+    [PSCustomObject]@{ Name = "Mattermost Desktop"; ScriptName = "mattermost.ps1"; WingetId = "Mattermost.MattermostDesktop"; Category = "Communication"; Description = "Secure team collaboration platform" }
     # 3D & CAD
     [PSCustomObject]@{ Name = "Blender"; ScriptName = "blender.ps1"; WingetId = "BlenderFoundation.Blender"; Category = "3D & CAD"; Description = "3D modeling, animation, and rendering" }
     [PSCustomObject]@{ Name = "FreeCAD"; ScriptName = "freecad.ps1"; WingetId = "FreeCAD.FreeCAD"; Category = "3D & CAD"; Description = "Parametric 3D CAD modeler" }
@@ -170,6 +210,9 @@ $script:Applications = @(
     [PSCustomObject]@{ Name = "OpenSCAD"; ScriptName = "openscad.ps1"; WingetId = "OpenSCAD.OpenSCAD"; Category = "3D & CAD"; Description = "Script-based 3D CAD modeler" }
     [PSCustomObject]@{ Name = "Wings 3D"; ScriptName = "wings3d.ps1"; WingetId = "Wings3D.Wings3D"; Category = "3D & CAD"; Description = "Polygon mesh modeling tool" }
     [PSCustomObject]@{ Name = "Sweet Home 3D"; ScriptName = "sweethome3d.ps1"; WingetId = "eTeks.SweetHome3D"; Category = "3D & CAD"; Description = "Interior design and floor planning" }
+    [PSCustomObject]@{ Name = "Dust3D"; ScriptName = "dust3d.ps1"; WingetId = "Dust3D.Dust3D"; Category = "3D & CAD"; Description = "3D modeling software" }
+    [PSCustomObject]@{ Name = "MeshLab"; ScriptName = "meshlab.ps1"; WingetId = "ISTI.MeshLab"; Category = "3D & CAD"; Description = "3D mesh processing system" }
+    [PSCustomObject]@{ Name = "Slic3r"; ScriptName = "slic3r.ps1"; WingetId = "Slic3r.Slic3r"; Category = "3D & CAD"; Description = "3D printing toolbox" }
     # Networking
     [PSCustomObject]@{ Name = "Wireshark"; ScriptName = "wireshark.ps1"; WingetId = "WiresharkFoundation.Wireshark"; Category = "Networking"; Description = "Network protocol analyzer" }
     [PSCustomObject]@{ Name = "Nmap"; ScriptName = "nmap.ps1"; WingetId = "Insecure.Nmap"; Category = "Networking"; Description = "Network discovery and security scanner" }
@@ -177,11 +220,24 @@ $script:Applications = @(
     [PSCustomObject]@{ Name = "PuTTY"; ScriptName = "putty.ps1"; WingetId = "PuTTY.PuTTY"; Category = "Networking"; Description = "SSH and telnet client" }
     [PSCustomObject]@{ Name = "Advanced IP Scanner"; ScriptName = "advancedipscanner.ps1"; WingetId = "Famatech.AdvancedIPScanner"; Category = "Networking"; Description = "Fast network scanner for Windows" }
     [PSCustomObject]@{ Name = "Fing CLI"; ScriptName = "fing.ps1"; WingetId = "Fing.Fing"; Category = "Networking"; Description = "Network scanning and troubleshooting" }
+    [PSCustomObject]@{ Name = "GlassWire"; ScriptName = "glasswire.ps1"; WingetId = "GlassWire.GlassWire"; Category = "Networking"; Description = "Network security monitor and firewall" }
+    [PSCustomObject]@{ Name = "NetLimiter"; ScriptName = "netlimiter.ps1"; WingetId = "Locktime.NetLimiter"; Category = "Networking"; Description = "Internet traffic control tool" }
+    [PSCustomObject]@{ Name = "TCPView"; ScriptName = "tcpview.ps1"; WingetId = "Microsoft.Sysinternals.TCPView"; Category = "Networking"; Description = "Network connection viewer" }
+    [PSCustomObject]@{ Name = "Fiddler Classic"; ScriptName = "fiddlerclassic.ps1"; WingetId = "Telerik.Fiddler.Classic"; Category = "Networking"; Description = "Web debugging proxy tool" }
+    [PSCustomObject]@{ Name = "SoftPerfect Network Scanner"; ScriptName = "softperfectscanner.ps1"; WingetId = "SoftPerfect.NetworkScanner"; Category = "Networking"; Description = "Multi-threaded IP and NetBIOS scanner" }
+    [PSCustomObject]@{ Name = "NetSetMan"; ScriptName = "netsetman.ps1"; WingetId = "NetSetMan.NetSetMan"; Category = "Networking"; Description = "Network settings manager" }
+    [PSCustomObject]@{ Name = "Npcap"; ScriptName = "npcap.ps1"; WingetId = "Nmap.Npcap"; Category = "Networking"; Description = "Packet capture library for Windows" }
+    [PSCustomObject]@{ Name = "Charles Proxy"; ScriptName = "charlesproxy.ps1"; WingetId = "XK72.Charles"; Category = "Networking"; Description = "HTTP proxy and monitor" }
     # Runtime Environments
     [PSCustomObject]@{ Name = "Java Runtime Environment"; ScriptName = "java.ps1"; WingetId = "Oracle.JavaRuntimeEnvironment"; Category = "Runtime"; Description = "Java application runtime" }
     [PSCustomObject]@{ Name = ".NET Desktop Runtime 6"; ScriptName = "dotnet6.ps1"; WingetId = "Microsoft.DotNet.DesktopRuntime.6"; Category = "Runtime"; Description = ".NET 6 desktop application runtime" }
     [PSCustomObject]@{ Name = ".NET Desktop Runtime 8"; ScriptName = "dotnet8.ps1"; WingetId = "Microsoft.DotNet.DesktopRuntime.8"; Category = "Runtime"; Description = ".NET 8 desktop application runtime" }
     [PSCustomObject]@{ Name = "Visual C++ Redistributable"; ScriptName = "vcredist.ps1"; WingetId = "Microsoft.VCRedist.2015+.x64"; Category = "Runtime"; Description = "Microsoft C++ runtime libraries" }
+    [PSCustomObject]@{ Name = "Go Programming Language"; ScriptName = "golang.ps1"; WingetId = "GoLang.Go"; Category = "Runtime"; Description = "Go programming language runtime" }
+    [PSCustomObject]@{ Name = "Rust"; ScriptName = "rust.ps1"; WingetId = "Rustlang.Rust.MSVC"; Category = "Runtime"; Description = "Rust programming language toolchain" }
+    [PSCustomObject]@{ Name = "PHP"; ScriptName = "php.ps1"; WingetId = "PHP.PHP"; Category = "Runtime"; Description = "PHP scripting language runtime" }
+    [PSCustomObject]@{ Name = "Microsoft OpenJDK 17"; ScriptName = "openjdk17.ps1"; WingetId = "Microsoft.OpenJDK.17"; Category = "Runtime"; Description = "Microsoft build of OpenJDK 17" }
+    [PSCustomObject]@{ Name = "Microsoft OpenJDK 21"; ScriptName = "openjdk21.ps1"; WingetId = "Microsoft.OpenJDK.21"; Category = "Runtime"; Description = "Microsoft build of OpenJDK 21" }
     # Writing & Screenwriting
     [PSCustomObject]@{ Name = "Trelby"; ScriptName = "trelby.ps1"; WingetId = $null; Category = "Writing"; Description = "Screenplay writing software" }
     [PSCustomObject]@{ Name = "KIT Scenarist"; ScriptName = "kitscenarist.ps1"; WingetId = $null; Category = "Writing"; Description = "Screenwriting and story development" }
@@ -189,40 +245,102 @@ $script:Applications = @(
     [PSCustomObject]@{ Name = "FocusWriter"; ScriptName = "focuswriter.ps1"; WingetId = "GottCode.FocusWriter"; Category = "Writing"; Description = "Distraction-free writing environment" }
     [PSCustomObject]@{ Name = "Manuskript"; ScriptName = "manuskript.ps1"; WingetId = "TheologicalElucidations.Manuskript"; Category = "Writing"; Description = "Novel writing and organization tool" }
     [PSCustomObject]@{ Name = "yWriter"; ScriptName = "ywriter.ps1"; WingetId = "Spacejock.yWriter"; Category = "Writing"; Description = "Word processor for novelists" }
+    [PSCustomObject]@{ Name = "Celtx"; ScriptName = "celtx.ps1"; WingetId = "Celtx.Celtx"; Category = "Writing"; Description = "Screenwriting and production software" }
+    [PSCustomObject]@{ Name = "bibisco"; ScriptName = "bibisco.ps1"; WingetId = "bibisco.bibisco"; Category = "Writing"; Description = "Novel writing software" }
+    [PSCustomObject]@{ Name = "Scribus"; ScriptName = "scribus.ps1"; WingetId = "Scribus.Scribus"; Category = "Writing"; Description = "Desktop publishing software" }
+    [PSCustomObject]@{ Name = "Grammarly"; ScriptName = "grammarly.ps1"; WingetId = "Grammarly.Grammarly"; Category = "Writing"; Description = "Writing assistant and grammar checker" }
+    [PSCustomObject]@{ Name = "Hemingway Editor"; ScriptName = "hemingwayeditor.ps1"; WingetId = $null; Category = "Writing"; Description = "Writing improvement and readability tool" }
     # Gaming
     [PSCustomObject]@{ Name = "Steam"; ScriptName = "steam.ps1"; WingetId = "Valve.Steam"; Category = "Gaming"; Description = "Digital game distribution platform" }
     [PSCustomObject]@{ Name = "Epic Games Launcher"; ScriptName = "epicgames.ps1"; WingetId = "EpicGames.EpicGamesLauncher"; Category = "Gaming"; Description = "Epic Games store and launcher" }
     [PSCustomObject]@{ Name = "GOG Galaxy"; ScriptName = "goggalaxy.ps1"; WingetId = "GOG.Galaxy"; Category = "Gaming"; Description = "DRM-free game launcher" }
     [PSCustomObject]@{ Name = "EA App"; ScriptName = "eaapp.ps1"; WingetId = "ElectronicArts.EADesktop"; Category = "Gaming"; Description = "Electronic Arts game platform" }
+    [PSCustomObject]@{ Name = "Ubisoft Connect"; ScriptName = "ubisoftconnect.ps1"; WingetId = "Ubisoft.Connect"; Category = "Gaming"; Description = "Ubisoft game launcher and store" }
+    [PSCustomObject]@{ Name = "Battle.net"; ScriptName = "battlenet.ps1"; WingetId = "Blizzard.BattleNet"; Category = "Gaming"; Description = "Blizzard game launcher" }
+    [PSCustomObject]@{ Name = "Itch.io"; ScriptName = "itchio.ps1"; WingetId = "ItchIo.Itch"; Category = "Gaming"; Description = "Indie game marketplace and launcher" }
     # Cloud Storage
     [PSCustomObject]@{ Name = "Google Drive"; ScriptName = "googledrive.ps1"; WingetId = "Google.GoogleDrive"; Category = "Cloud Storage"; Description = "Cloud storage and file sync by Google" }
     [PSCustomObject]@{ Name = "Dropbox"; ScriptName = "dropbox.ps1"; WingetId = "Dropbox.Dropbox"; Category = "Cloud Storage"; Description = "Cloud file storage and sharing" }
     [PSCustomObject]@{ Name = "OneDrive"; ScriptName = "onedrive.ps1"; WingetId = "Microsoft.OneDrive"; Category = "Cloud Storage"; Description = "Microsoft cloud storage service" }
     [PSCustomObject]@{ Name = "MEGA"; ScriptName = "mega.ps1"; WingetId = "Mega.MEGASync"; Category = "Cloud Storage"; Description = "Secure cloud storage with encryption" }
+    [PSCustomObject]@{ Name = "pCloud"; ScriptName = "pcloud.ps1"; WingetId = "pCloud.pCloudDrive"; Category = "Cloud Storage"; Description = "Secure cloud storage solution" }
+    [PSCustomObject]@{ Name = "Sync.com"; ScriptName = "sync.ps1"; WingetId = "Sync.Sync"; Category = "Cloud Storage"; Description = "Zero-knowledge encrypted cloud storage" }
+    [PSCustomObject]@{ Name = "Box"; ScriptName = "box.ps1"; WingetId = "Box.Box"; Category = "Cloud Storage"; Description = "Cloud content management and file sharing" }
     # Remote Desktop
     [PSCustomObject]@{ Name = "TeamViewer"; ScriptName = "teamviewer.ps1"; WingetId = "TeamViewer.TeamViewer"; Category = "Remote Desktop"; Description = "Remote access and support software" }
     [PSCustomObject]@{ Name = "AnyDesk"; ScriptName = "anydesk.ps1"; WingetId = "AnyDeskSoftwareGmbH.AnyDesk"; Category = "Remote Desktop"; Description = "Fast remote desktop application" }
     [PSCustomObject]@{ Name = "Chrome Remote Desktop"; ScriptName = "chromeremote.ps1"; WingetId = "Google.ChromeRemoteDesktopHost"; Category = "Remote Desktop"; Description = "Remote access via Chrome browser" }
     [PSCustomObject]@{ Name = "TightVNC"; ScriptName = "tightvnc.ps1"; WingetId = "GlavSoft.TightVNC"; Category = "Remote Desktop"; Description = "Remote desktop control software" }
+    [PSCustomObject]@{ Name = "RustDesk"; ScriptName = "rustdesk.ps1"; WingetId = "RustDesk.RustDesk"; Category = "Remote Desktop"; Description = "Open-source remote desktop software" }
+    [PSCustomObject]@{ Name = "UltraVNC"; ScriptName = "ultravnc.ps1"; WingetId = "uvncbvba.UltraVnc"; Category = "Remote Desktop"; Description = "Powerful remote PC access software" }
+    [PSCustomObject]@{ Name = "Parsec"; ScriptName = "parsec.ps1"; WingetId = "Parsec.Parsec"; Category = "Remote Desktop"; Description = "Low-latency remote desktop for gaming" }
     # Backup & Recovery
     [PSCustomObject]@{ Name = "Veeam Agent FREE"; ScriptName = "veeam.ps1"; WingetId = "Veeam.Agent.Windows"; Category = "Backup"; Description = "Free backup and recovery solution" }
     [PSCustomObject]@{ Name = "Macrium Reflect Free"; ScriptName = "macrium.ps1"; WingetId = "Macrium.ReflectFree"; Category = "Backup"; Description = "Disk imaging and cloning tool" }
     [PSCustomObject]@{ Name = "EaseUS Todo Backup Free"; ScriptName = "easeus.ps1"; WingetId = "EASEUSAG.EaseUSTodoBackupFree"; Category = "Backup"; Description = "Backup and disaster recovery" }
     [PSCustomObject]@{ Name = "Duplicati"; ScriptName = "duplicati.ps1"; WingetId = "Duplicati.Duplicati"; Category = "Backup"; Description = "Encrypted backup to cloud storage" }
+    [PSCustomObject]@{ Name = "Cobian Backup"; ScriptName = "cobianbackup.ps1"; WingetId = "CobianSoft.CobianBackup"; Category = "Backup"; Description = "Multi-threaded backup application" }
+    [PSCustomObject]@{ Name = "FreeFileSync"; ScriptName = "freefilesync.ps1"; WingetId = "FreeFileSync.FreeFileSync"; Category = "Backup"; Description = "File synchronization and backup" }
+    [PSCustomObject]@{ Name = "Syncthing"; ScriptName = "syncthing.ps1"; WingetId = "Syncthing.Syncthing"; Category = "Backup"; Description = "Continuous file synchronization" }
     # Education
     [PSCustomObject]@{ Name = "Anki"; ScriptName = "anki.ps1"; WingetId = "Anki.Anki"; Category = "Education"; Description = "Flashcard-based learning system" }
     [PSCustomObject]@{ Name = "GeoGebra"; ScriptName = "geogebra.ps1"; WingetId = "GeoGebra.Classic"; Category = "Education"; Description = "Interactive math and geometry software" }
     [PSCustomObject]@{ Name = "Stellarium"; ScriptName = "stellarium.ps1"; WingetId = "Stellarium.Stellarium"; Category = "Education"; Description = "Planetarium and astronomy software" }
     [PSCustomObject]@{ Name = "MuseScore"; ScriptName = "musescore.ps1"; WingetId = "Musescore.Musescore"; Category = "Education"; Description = "Music notation and composition" }
+    [PSCustomObject]@{ Name = "Moodle Desktop"; ScriptName = "moodle.ps1"; WingetId = "Moodle.MoodleDesktop"; Category = "Education"; Description = "Learning management system client" }
+    [PSCustomObject]@{ Name = "Scratch Desktop"; ScriptName = "scratch.ps1"; WingetId = "MIT.Scratch"; Category = "Education"; Description = "Visual programming for kids" }
+    [PSCustomObject]@{ Name = "Celestia"; ScriptName = "celestia.ps1"; WingetId = "CelestiaProject.Celestia"; Category = "Education"; Description = "3D space simulation software" }
     # Finance
     [PSCustomObject]@{ Name = "GnuCash"; ScriptName = "gnucash.ps1"; WingetId = "GnuCash.GnuCash"; Category = "Finance"; Description = "Personal and small business accounting" }
     [PSCustomObject]@{ Name = "HomeBank"; ScriptName = "homebank.ps1"; WingetId = "HomeBank.HomeBank"; Category = "Finance"; Description = "Personal finance management" }
     [PSCustomObject]@{ Name = "Money Manager Ex"; ScriptName = "moneymanagerex.ps1"; WingetId = "MoneyManagerEx.MoneyManagerEx"; Category = "Finance"; Description = "Easy-to-use finance tracker" }
+    [PSCustomObject]@{ Name = "KMyMoney"; ScriptName = "kmymoney.ps1"; WingetId = "KDE.KMyMoney"; Category = "Finance"; Description = "Personal finance manager" }
+    [PSCustomObject]@{ Name = "Skrooge"; ScriptName = "skrooge.ps1"; WingetId = "KDE.Skrooge"; Category = "Finance"; Description = "Personal finances manager" }
+    [PSCustomObject]@{ Name = "Firefly III Desktop"; ScriptName = "fireflyiii.ps1"; WingetId = "mtoensing.FireflyIIIDesktop"; Category = "Finance"; Description = "Personal finance manager desktop client" }
+    [PSCustomObject]@{ Name = "Buddi"; ScriptName = "buddi.ps1"; WingetId = $null; Category = "Finance"; Description = "Personal finance and budgeting software" }
+    [PSCustomObject]@{ Name = "AceMoney Lite"; ScriptName = "acemoneylite.ps1"; WingetId = $null; Category = "Finance"; Description = "Personal finance management tool" }
+    [PSCustomObject]@{ Name = "Actual Budget"; ScriptName = "actualbudget.ps1"; WingetId = "ActualBudget.ActualBudget"; Category = "Finance"; Description = "Local-first personal finance tool" }
     # Shortcuts & Maintenance
     [PSCustomObject]@{ Name = "Grok AI Shortcuts"; ScriptName = "grok-shortcuts.ps1"; WingetId = $null; Category = "Shortcuts"; Description = "Quick access to Grok AI assistant" }
     [PSCustomObject]@{ Name = "ChatGPT Shortcuts"; ScriptName = "chatgpt-shortcuts.ps1"; WingetId = $null; Category = "Shortcuts"; Description = "Quick access to ChatGPT" }
     [PSCustomObject]@{ Name = "dictation.io Shortcut"; ScriptName = "dictation-shortcut.ps1"; WingetId = $null; Category = "Shortcuts"; Description = "Web-based voice dictation tool" }
     [PSCustomObject]@{ Name = "Uninstall McAfee"; ScriptName = "uninstall-mcafee.ps1"; WingetId = $null; Category = "Maintenance"; Description = "Remove McAfee software completely" }
+    [PSCustomObject]@{ Name = "PowerToys"; ScriptName = "powertoys.ps1"; WingetId = "Microsoft.PowerToys"; Category = "Shortcuts"; Description = "Windows system utilities and productivity tools" }
+    [PSCustomObject]@{ Name = "Manage Restore Points"; ScriptName = "managerestorepoints.ps1"; WingetId = $null; Category = "Maintenance"; Description = "Automated Windows System Restore Point management" }
+    [PSCustomObject]@{ Name = "AutoHotkey"; ScriptName = "autohotkey.ps1"; WingetId = "AutoHotkey.AutoHotkey"; Category = "Shortcuts"; Description = "Automation scripting language for Windows" }
+    [PSCustomObject]@{ Name = "Everything"; ScriptName = "everything.ps1"; WingetId = "voidtools.Everything"; Category = "Shortcuts"; Description = "Instant file search utility" }
+    # Mockups & Wireframe
+    [PSCustomObject]@{ Name = "Figma"; ScriptName = "figma.ps1"; WingetId = "Figma.Figma"; Category = "Mockups & Wireframe"; Description = "Collaborative interface design tool" }
+    [PSCustomObject]@{ Name = "Penpot"; ScriptName = "penpot.ps1"; WingetId = "Penpot.Penpot"; Category = "Mockups & Wireframe"; Description = "Open-source design and prototyping platform" }
+    [PSCustomObject]@{ Name = "Draw.io Desktop"; ScriptName = "drawio.ps1"; WingetId = "JGraph.Draw"; Category = "Mockups & Wireframe"; Description = "Diagramming and wireframing tool" }
+    [PSCustomObject]@{ Name = "Lunacy"; ScriptName = "lunacy.ps1"; WingetId = "Icons8.Lunacy"; Category = "Mockups & Wireframe"; Description = "Free graphic design software" }
+    [PSCustomObject]@{ Name = "Pencil Project"; ScriptName = "pencilproject.ps1"; WingetId = "Pencil.Pencil"; Category = "Mockups & Wireframe"; Description = "GUI prototyping tool" }
+    [PSCustomObject]@{ Name = "Akira"; ScriptName = "akira.ps1"; WingetId = $null; Category = "Mockups & Wireframe"; Description = "Native Linux design tool" }
+    [PSCustomObject]@{ Name = "Quant-UX"; ScriptName = "quantux.ps1"; WingetId = $null; Category = "Mockups & Wireframe"; Description = "Prototyping and usability testing" }
+    # Video Editing
+    [PSCustomObject]@{ Name = "Lightworks"; ScriptName = "lightworks.ps1"; WingetId = "LWKS.Lightworks"; Category = "Video Editing"; Description = "Professional video editing software" }
+    [PSCustomObject]@{ Name = "VSDC Free Video Editor"; ScriptName = "vsdcvideoeditor.ps1"; WingetId = "FlashIntegro.VSDCFreeVideoEditor"; Category = "Video Editing"; Description = "Non-linear video editing suite" }
+    [PSCustomObject]@{ Name = "Olive Video Editor"; ScriptName = "olivevideoeditor.ps1"; WingetId = "OliveTeam.OliveVideoEditor"; Category = "Video Editing"; Description = "Free non-linear video editor" }
+    [PSCustomObject]@{ Name = "VidCutter"; ScriptName = "vidcutter.ps1"; WingetId = "OzmosisGames.VidCutter"; Category = "Video Editing"; Description = "Simple video trimming and cutting" }
+    [PSCustomObject]@{ Name = "LosslessCut"; ScriptName = "losslesscut.ps1"; WingetId = "mifi.losslesscut"; Category = "Video Editing"; Description = "Lossless video and audio trimmer" }
+    [PSCustomObject]@{ Name = "Flowblade"; ScriptName = "flowblade.ps1"; WingetId = $null; Category = "Video Editing"; Description = "Multitrack non-linear video editor" }
+    [PSCustomObject]@{ Name = "Cinelerra"; ScriptName = "cinelerra.ps1"; WingetId = $null; Category = "Video Editing"; Description = "Advanced video editing and compositing" }
+    # Audio Production
+    [PSCustomObject]@{ Name = "Cakewalk by BandLab"; ScriptName = "cakewalk.ps1"; WingetId = "BandLab.Cakewalk"; Category = "Audio Production"; Description = "Professional digital audio workstation" }
+    [PSCustomObject]@{ Name = "LMMS"; ScriptName = "lmms.ps1"; WingetId = "LMMS.LMMS"; Category = "Audio Production"; Description = "Free music production software" }
+    [PSCustomObject]@{ Name = "Ardour"; ScriptName = "ardour.ps1"; WingetId = "Ardour.Ardour"; Category = "Audio Production"; Description = "Professional DAW for recording and editing" }
+    [PSCustomObject]@{ Name = "Ocenaudio"; ScriptName = "ocenaudio.ps1"; WingetId = "Ocenaudio.Ocenaudio"; Category = "Audio Production"; Description = "Easy-to-use audio editor" }
+    [PSCustomObject]@{ Name = "Reaper"; ScriptName = "reaper.ps1"; WingetId = "Cockos.REAPER"; Category = "Audio Production"; Description = "Digital audio production application" }
+    [PSCustomObject]@{ Name = "Mixxx"; ScriptName = "mixxx.ps1"; WingetId = "Mixxx.Mixxx"; Category = "Audio Production"; Description = "Free DJ mixing software" }
+    [PSCustomObject]@{ Name = "Hydrogen"; ScriptName = "hydrogen.ps1"; WingetId = "Hydrogen.Hydrogen"; Category = "Audio Production"; Description = "Advanced drum machine and sequencer" }
+    # Screen Recording & Streaming
+    [PSCustomObject]@{ Name = "Streamlabs Desktop"; ScriptName = "streamlabsdesktop.ps1"; WingetId = "Streamlabs.StreamlabsOBS"; Category = "Screen Recording"; Description = "Live streaming software for content creators" }
+    [PSCustomObject]@{ Name = "FlashBack Express"; ScriptName = "flashbackexpress.ps1"; WingetId = "Blueberry.FlashbackExpress"; Category = "Screen Recording"; Description = "Free screen recorder" }
+    [PSCustomObject]@{ Name = "ScreenToGif"; ScriptName = "screentogif.ps1"; WingetId = "NickeManarin.ScreenToGif"; Category = "Screen Recording"; Description = "Screen, webcam and sketch recorder" }
+    [PSCustomObject]@{ Name = "Flameshot"; ScriptName = "flameshot.ps1"; WingetId = "Flameshot.Flameshot"; Category = "Screen Recording"; Description = "Powerful screenshot and annotation tool" }
+    [PSCustomObject]@{ Name = "Kap"; ScriptName = "kap.ps1"; WingetId = $null; Category = "Screen Recording"; Description = "Open-source screen recorder" }
+    [PSCustomObject]@{ Name = "Peek"; ScriptName = "peek.ps1"; WingetId = $null; Category = "Screen Recording"; Description = "Simple animated GIF screen recorder" }
+    [PSCustomObject]@{ Name = "SimpleScreenRecorder"; ScriptName = "simplescreenrecorder.ps1"; WingetId = $null; Category = "Screen Recording"; Description = "Feature-rich screen recorder" }
 )
 
 #region Self-Installation to System Location
@@ -651,6 +769,49 @@ function Get-InstalledApplications {
             }
         }
 
+        # Special handling: Check for O&O ShutUp10 by executable path
+        # O&O ShutUp10 may not register in standard registry locations
+        if (-not $installedApps.ContainsKey("O&O ShutUp10")) {
+            $ooShutUpPath = "C:\Program Files\OOShutUp10\OOSU10.exe"
+            if (Test-Path $ooShutUpPath) {
+                try {
+                    $fileInfo = Get-Item $ooShutUpPath -ErrorAction SilentlyContinue
+                    $version = if ($fileInfo.VersionInfo.FileVersion) {
+                        $fileInfo.VersionInfo.FileVersion
+                    } else {
+                        "Installed"
+                    }
+                    $installedApps["O&O ShutUp10"] = $version
+                    Write-Log "Detected O&O ShutUp10 via executable path: $version" -Level INFO
+                }
+                catch {
+                    $installedApps["O&O ShutUp10"] = "Installed"
+                    Write-Log "Detected O&O ShutUp10 via executable path" -Level INFO
+                }
+            }
+        }
+
+        # Special handling: Check for Manage Restore Points script
+        if (-not $installedApps.ContainsKey("Manage Restore Points")) {
+            $manageRPPath = "C:\myTech.Today\ManageRestorePoints\Manage-RestorePoints.ps1"
+            if (Test-Path $manageRPPath) {
+                try {
+                    $scriptContent = Get-Content $manageRPPath -Raw -ErrorAction SilentlyContinue
+                    if ($scriptContent -match '\$script:ScriptVersion\s*=\s*[''"]([^''"]+)[''"]') {
+                        $version = $matches[1]
+                    } else {
+                        $version = "Installed"
+                    }
+                    $installedApps["Manage Restore Points"] = $version
+                    Write-Log "Detected Manage Restore Points script: $version" -Level INFO
+                }
+                catch {
+                    $installedApps["Manage Restore Points"] = "Installed"
+                    Write-Log "Detected Manage Restore Points script" -Level INFO
+                }
+            }
+        }
+
         # Special handling: Check for Chrome Remote Desktop shortcut
         # If app is installed but shortcut is missing, create it
         if ($installedApps.ContainsKey("Chrome Remote Desktop")) {
@@ -948,23 +1109,99 @@ function New-WebApplicationShortcut {
         }
 
         # Create WScript.Shell COM object
-        $shell = New-Object -ComObject WScript.Shell
-        $shortcut = $shell.CreateShortcut($shortcutPath)
-        $shortcut.TargetPath = $targetPath
-        $shortcut.Arguments = $arguments
-        $shortcut.Description = if ($Description) { $Description } else { "Open $ShortcutName" }
-        $shortcut.IconLocation = $iconLocation
-        $shortcut.WorkingDirectory = Split-Path $targetPath -Parent
-        $shortcut.Save()
+        $shell = $null
+        try {
+            $shell = New-Object -ComObject WScript.Shell
+            $shortcut = $shell.CreateShortcut($shortcutPath)
+            $shortcut.TargetPath = $targetPath
+            $shortcut.Arguments = $arguments
+            $shortcut.Description = if ($Description) { $Description } else { "Open $ShortcutName" }
+            $shortcut.IconLocation = $iconLocation
+            $shortcut.WorkingDirectory = Split-Path $targetPath -Parent
+            $shortcut.Save()
 
-        # Release COM object
-        [System.Runtime.Interopservices.Marshal]::ReleaseComObject($shell) | Out-Null
-
-        Write-Log "Created Start Menu shortcut: $shortcutPath" -Level SUCCESS
-        return $true
+            Write-Log "Created Start Menu shortcut: $shortcutPath" -Level SUCCESS
+            return $true
+        }
+        finally {
+            # Always release COM object, even if there's an error
+            if ($shell) {
+                [System.Runtime.Interopservices.Marshal]::ReleaseComObject($shell) | Out-Null
+                $shell = $null
+            }
+        }
     }
     catch {
         Write-Log "Failed to create shortcut for ${ShortcutName}: ${_}" -Level ERROR
+        return $false
+    }
+}
+
+function Install-OOShutUp10FromRemote {
+    <#
+    .SYNOPSIS
+        Downloads and executes the O&O ShutUp10 installation script from GitHub.
+
+    .DESCRIPTION
+        Downloads the Install-OOShutUp10.ps1 script from the mytech-today-now/OO repository
+        and executes it. This is the preferred installation method for O&O ShutUp10.
+
+    .OUTPUTS
+        Returns $true if successful, $false otherwise.
+    #>
+    [CmdletBinding()]
+    param()
+
+    try {
+        $remoteScriptUrl = "https://raw.githubusercontent.com/mytech-today-now/OO/main/Install-OOShutUp10.ps1"
+        $tempScriptPath = Join-Path $env:TEMP "Install-OOShutUp10.ps1"
+
+        Write-Log "Downloading O&O ShutUp10 script from GitHub..." -Level INFO
+        Write-Output "  [DOWNLOAD] Downloading installation script from GitHub..." -Color ([System.Drawing.Color]::Orange)
+
+        # Update status
+        if ($script:StatusLabel) {
+            $script:StatusLabel.Text = "[DOWNLOAD] Downloading O&O ShutUp10 script from GitHub..."
+            $script:StatusLabel.ForeColor = [System.Drawing.Color]::Orange
+            [System.Windows.Forms.Application]::DoEvents()
+        }
+
+        # Download the script
+        Invoke-WebRequest -Uri $remoteScriptUrl -OutFile $tempScriptPath -UseBasicParsing -ErrorAction Stop
+
+        Write-Log "Downloaded O&O ShutUp10 script to: $tempScriptPath" -Level INFO
+        Write-Output "  [EXECUTE] Running installation script..." -Color ([System.Drawing.Color]::Yellow)
+
+        # Update status
+        if ($script:StatusLabel) {
+            $script:StatusLabel.Text = "[INSTALL] Running O&O ShutUp10 installation script..."
+            $script:StatusLabel.ForeColor = [System.Drawing.Color]::Yellow
+            [System.Windows.Forms.Application]::DoEvents()
+        }
+
+        # Execute the script
+        & $tempScriptPath
+        $exitCode = $LASTEXITCODE
+
+        # Clean up
+        if (Test-Path $tempScriptPath) {
+            Remove-Item -Path $tempScriptPath -Force -ErrorAction SilentlyContinue
+        }
+
+        if ($exitCode -eq 0) {
+            Write-Log "O&O ShutUp10 installed successfully via remote script" -Level SUCCESS
+            Write-Output "  [OK] Installation complete!" -Color ([System.Drawing.Color]::Green)
+            return $true
+        }
+        else {
+            Write-Log "O&O ShutUp10 remote script failed with exit code: $exitCode" -Level ERROR
+            Write-Output "  [FAIL] Installation failed with exit code: $exitCode" -Color ([System.Drawing.Color]::Red)
+            return $false
+        }
+    }
+    catch {
+        Write-Log "Failed to download or execute O&O ShutUp10 remote script: $_" -Level ERROR
+        Write-Output "  [FAIL] Failed to download or execute remote script: $_" -Color ([System.Drawing.Color]::Red)
         return $false
     }
 }
@@ -992,6 +1229,54 @@ function Install-Application {
     }
 
     try {
+        # Special handling for O&O ShutUp10: Try remote script first
+        if ($App.Name -eq "O&O ShutUp10") {
+            Write-Log "Using special installation method for O&O ShutUp10" -Level INFO
+            Write-Output "  [i] Using remote installation script from GitHub..." -Color ([System.Drawing.Color]::Cyan)
+
+            # Try remote script first
+            $remoteSuccess = Install-OOShutUp10FromRemote
+
+            if ($remoteSuccess) {
+                # Register O&O ShutUp10 as installed
+                $ooShutUpPath = "C:\Program Files\OOShutUp10\OOSU10.exe"
+                if (Test-Path $ooShutUpPath) {
+                    try {
+                        $fileInfo = Get-Item $ooShutUpPath -ErrorAction SilentlyContinue
+                        $version = if ($fileInfo.VersionInfo.FileVersion) {
+                            $fileInfo.VersionInfo.FileVersion
+                        } else {
+                            "Installed"
+                        }
+                        $script:InstalledApps["O&O ShutUp10"] = $version
+                        Write-Log "Registered O&O ShutUp10 as installed: $version" -Level INFO
+                    }
+                    catch {
+                        $script:InstalledApps["O&O ShutUp10"] = "Installed"
+                        Write-Log "Registered O&O ShutUp10 as installed" -Level INFO
+                    }
+                }
+
+                # Hide secondary progress bar
+                if ($script:AppProgressBar) {
+                    $script:AppProgressBar.Visible = $false
+                }
+
+                # Update status - success
+                if ($script:StatusLabel) {
+                    $script:StatusLabel.Text = "[OK] $($App.Name) installed successfully!"
+                    $script:StatusLabel.ForeColor = [System.Drawing.Color]::Green
+                    [System.Windows.Forms.Application]::DoEvents()
+                }
+
+                return $true
+            }
+
+            # If remote failed, try local script as fallback
+            Write-Log "Remote script failed, trying local script fallback..." -Level WARNING
+            Write-Output "  [WARN] Remote script failed, trying local script..." -Color ([System.Drawing.Color]::Yellow)
+        }
+
         # Check if custom script exists
         $scriptPath = Join-Path $script:AppsPath $App.ScriptName
 
@@ -1191,144 +1476,209 @@ function Install-Application {
 
 #region GUI Creation
 
-function Get-OptimalFormSize {
+function Get-DPIScaleFactor {
     <#
     .SYNOPSIS
-        Calculates optimal form size and font sizes based on screen resolution.
+        Calculates DPI scaling factor based on screen resolution and DPI settings.
 
     .DESCRIPTION
-        Detects screen resolution and calculates form size as percentage of screen.
-        Supports HD, FHD, QHD, 4K UHD, UWQHD, and UW4K displays.
-        Calculates appropriate font sizes based on resolution and DPI.
+        Detects screen resolution and DPI, then calculates appropriate scaling factor.
+        Supports VGA through 8K UHD displays with progressive scaling.
+        Follows myTech.Today GUI responsiveness standards from .augment/gui-responsiveness.md
+
+    .OUTPUTS
+        PSCustomObject with scaling information including:
+        - BaseFactor: Base DPI scaling factor
+        - AdditionalScale: Resolution-specific additional scaling
+        - TotalScale: Combined scaling factor to apply to all dimensions
+        - ScreenWidth: Screen width in pixels
+        - ScreenHeight: Screen height in pixels
+        - DpiX: Horizontal DPI
+        - DpiY: Vertical DPI
+        - ResolutionName: Detected resolution category name
     #>
     [CmdletBinding()]
     param()
 
-    # Get primary screen dimensions
+    Add-Type -AssemblyName System.Windows.Forms
     $screen = [System.Windows.Forms.Screen]::PrimaryScreen
-    $screenWidth = $screen.WorkingArea.Width
-    $screenHeight = $screen.WorkingArea.Height
 
-    Write-Log "Detected screen resolution: ${screenWidth}x${screenHeight}" -Level INFO
+    # Calculate base DPI scaling
+    $dpiX = $screen.Bounds.Width / [System.Windows.Forms.SystemInformation]::PrimaryMonitorSize.Width
+    $dpiY = $screen.Bounds.Height / [System.Windows.Forms.SystemInformation]::PrimaryMonitorSize.Height
 
-    # Calculate form size as percentage of screen (70% width, 80% height)
-    $formWidth = [Math]::Min([Math]::Floor($screenWidth * 0.70), 2400)  # Max 2400px
-    $formHeight = [Math]::Min([Math]::Floor($screenHeight * 0.80), 1400)  # Max 1400px
+    # Use the larger of the two scaling factors, with a minimum of 1.0
+    $baseFactor = [Math]::Max([Math]::Max($dpiX, $dpiY), 1.0)
 
-    # Ensure minimum size
-    $formWidth = [Math]::Max($formWidth, 1000)
-    $formHeight = [Math]::Max($formHeight, 600)
+    # Apply resolution-specific additional scaling
+    $additionalScale = 1.0
+    $resolutionName = "Unknown"
 
-    # Calculate DPI scaling factor
-    $graphics = [System.Drawing.Graphics]::FromHwnd([IntPtr]::Zero)
-    $dpiX = $graphics.DpiX
-    $graphics.Dispose()
-    $dpiScale = $dpiX / 96.0  # 96 DPI is standard
-
-    # Calculate resolution-based font scaling
-    # Base font sizes for different resolutions:
-    # HD (1280x720): 1.0x
-    # FHD (1920x1080): 1.0x
-    # QHD (2560x1440): 1.3x
-    # 4K UHD (3840x2160): 1.8x
-    # UWQHD (3440x1440): 1.3x
-    # UW4K (5120x2160): 1.8x
-
-    $resolutionScale = 1.0
-
-    if ($screenWidth -ge 5000) {
-        # UW4K or 5K+
-        $resolutionScale = 1.8
-        $resolutionName = "UW4K/5K+"
+    if ($screen.Bounds.Width -ge 7680) {
+        # 8K UHD or higher
+        $additionalScale = 2.5
+        $resolutionName = "8K UHD"
     }
-    elseif ($screenWidth -ge 3800) {
-        # 4K UHD
-        $resolutionScale = 1.8
+    elseif ($screen.Bounds.Width -ge 5120) {
+        # 5K
+        $additionalScale = 1.8
+        $resolutionName = "5K"
+    }
+    elseif ($screen.Bounds.Width -ge 3840) {
+        # 4K UHD or UW4K
+        $additionalScale = 1.5
         $resolutionName = "4K UHD"
     }
-    elseif ($screenWidth -ge 3400) {
+    elseif ($screen.Bounds.Width -ge 3440) {
         # UWQHD
-        $resolutionScale = 1.3
+        $additionalScale = 1.3
         $resolutionName = "UWQHD"
     }
-    elseif ($screenWidth -ge 2500) {
+    elseif ($screen.Bounds.Width -ge 2560) {
         # QHD
-        $resolutionScale = 1.3
+        $additionalScale = 1.3
         $resolutionName = "QHD"
     }
-    elseif ($screenWidth -ge 1900) {
+    elseif ($screen.Bounds.Width -ge 1920) {
         # FHD
-        $resolutionScale = 1.0
+        $additionalScale = 1.2
         $resolutionName = "FHD"
     }
+    elseif ($screen.Bounds.Width -ge 1280) {
+        # HD, WXGA
+        $additionalScale = 1.0
+        $resolutionName = "HD/WXGA"
+    }
+    elseif ($screen.Bounds.Width -ge 1024) {
+        # XGA
+        $additionalScale = 1.0
+        $resolutionName = "XGA"
+    }
+    elseif ($screen.Bounds.Width -ge 800) {
+        # SVGA
+        $additionalScale = 0.9
+        $resolutionName = "SVGA"
+    }
     else {
-        # HD or lower
-        $resolutionScale = 1.0
-        $resolutionName = "HD"
+        # VGA or smaller
+        $additionalScale = 0.8
+        $resolutionName = "VGA"
     }
 
-    # Combine DPI scale and resolution scale
-    $combinedScale = $dpiScale * $resolutionScale
+    $scaleFactor = $baseFactor * $additionalScale
 
-    Write-Log "Resolution: $resolutionName, DPI scale: $dpiScale, Resolution scale: $resolutionScale, Combined: $combinedScale" -Level INFO
+    Write-Log "Screen: $($screen.Bounds.Width)x$($screen.Bounds.Height), Resolution: $resolutionName, Base DPI: $baseFactor, Additional: $additionalScale, Total Scale: $scaleFactor" -Level INFO
 
-    return @{
-        Width = $formWidth
-        Height = $formHeight
-        DpiScale = $dpiScale
-        ResolutionScale = $resolutionScale
-        CombinedScale = $combinedScale
-        ScreenWidth = $screenWidth
-        ScreenHeight = $screenHeight
+    return [PSCustomObject]@{
+        BaseFactor = $baseFactor
+        AdditionalScale = $additionalScale
+        TotalScale = $scaleFactor
+        ScreenWidth = $screen.Bounds.Width
+        ScreenHeight = $screen.Bounds.Height
+        DpiX = $dpiX
+        DpiY = $dpiY
         ResolutionName = $resolutionName
     }
 }
 
 function Create-MainForm {
-    # Get optimal form size based on screen resolution
-    $sizeInfo = Get-OptimalFormSize
-    $formWidth = $sizeInfo.Width
-    $formHeight = $sizeInfo.Height
-    $dpiScale = $sizeInfo.DpiScale
-    $combinedScale = $sizeInfo.CombinedScale
-    $resolutionName = $sizeInfo.ResolutionName
+    # Get DPI scaling factor using standardized function
+    $scaleInfo = Get-DPIScaleFactor
+    $scaleFactor = $scaleInfo.TotalScale
+    $resolutionName = $scaleInfo.ResolutionName
+    $screenWidth = $scaleInfo.ScreenWidth
+    $screenHeight = $scaleInfo.ScreenHeight
 
-    # Calculate responsive margins and spacing
-    # Removed header area completely - info moved to right panel
-    $margin = 20
-    $headerHeight = $margin    # No header, just top margin
-    $buttonAreaHeight = 150    # Increased from 110 to 150 to accommodate much taller buttons (75px) with 3x padding
-    $progressAreaHeight = 50   # Increased from 35 to 50 for more space for progress label
+    # Base dimensions (before scaling) - following .augment/gui-responsiveness.md standards
+    $baseDimensions = @{
+        # Form dimensions (as percentage of screen)
+        FormWidthPercent = 0.70    # 70% of screen width
+        FormHeightPercent = 0.80   # 80% of screen height
+        MinFormWidth = 1000
+        MinFormHeight = 600
+        MaxFormWidth = 2400
+        MaxFormHeight = 1400
 
-    # Create main form
+        # Font sizes
+        BaseFontSize = 10
+        MinFontSize = 9
+        TitleFontSize = 14
+        ConsoleFontSize = 9
+        TableFontSize = 11
+        ButtonFontSize = 9
+
+        # Margins and spacing
+        Margin = 20
+        Spacing = 12
+        HeaderHeight = 20
+        ButtonAreaHeight = 150
+        ProgressAreaHeight = 50
+
+        # Control dimensions
+        ProgressBarHeight = 18
+        ProgressLabelHeight = 30
+        StatusLabelHeight = 25
+        AppProgressBarHeight = 12
+        ButtonHeight = 75
+        RowHeightMultiplier = 2.2
+    }
+
+    # Calculate form size as percentage of screen with min/max constraints
+    $formWidth = [Math]::Min(
+        [Math]::Max(
+            [Math]::Floor($screenWidth * $baseDimensions.FormWidthPercent * $scaleFactor),
+            $baseDimensions.MinFormWidth
+        ),
+        $baseDimensions.MaxFormWidth
+    )
+
+    $formHeight = [Math]::Min(
+        [Math]::Max(
+            [Math]::Floor($screenHeight * $baseDimensions.FormHeightPercent * $scaleFactor),
+            $baseDimensions.MinFormHeight
+        ),
+        $baseDimensions.MaxFormHeight
+    )
+
+    # Apply scaling to all dimensions
+    $margin = [int]($baseDimensions.Margin * $scaleFactor)
+    $spacing = [int]($baseDimensions.Spacing * $scaleFactor)
+    $headerHeight = [int]($baseDimensions.HeaderHeight * $scaleFactor)
+    $buttonAreaHeight = [int]($baseDimensions.ButtonAreaHeight * $scaleFactor)
+    $progressAreaHeight = [int]($baseDimensions.ProgressAreaHeight * $scaleFactor)
+
+    # Calculate font sizes with min/max constraints
+    $titleFontSize = [Math]::Max([int]($baseDimensions.TitleFontSize * $scaleFactor), $baseDimensions.MinFontSize)
+    $normalFontSize = [Math]::Max([int]($baseDimensions.BaseFontSize * $scaleFactor), $baseDimensions.MinFontSize)
+    $consoleFontSize = [Math]::Max([int]($baseDimensions.ConsoleFontSize * $scaleFactor), $baseDimensions.MinFontSize)
+    $tableFontSize = [Math]::Max([int]($baseDimensions.TableFontSize * $scaleFactor), $baseDimensions.MinFontSize)
+    $buttonFontSize = [Math]::Max([int]($baseDimensions.ButtonFontSize * $scaleFactor), $baseDimensions.MinFontSize)
+
+    Write-Log "Responsive GUI - Resolution: $resolutionName ($screenWidth x $screenHeight), Scale Factor: $scaleFactor" -Level INFO
+    Write-Log "Form Size: ${formWidth}x${formHeight}, Fonts - Title: $titleFontSize, Normal: $normalFontSize, Table: $tableFontSize, Console: $consoleFontSize" -Level INFO
+
+    # Create main form with responsive settings
     $form = New-Object System.Windows.Forms.Form
     $form.Text = "myTech.Today Application Installer v$script:ScriptVersion"
     $form.ClientSize = New-Object System.Drawing.Size($formWidth, $formHeight)
     $form.StartPosition = "CenterScreen"
-    $form.MinimumSize = New-Object System.Drawing.Size(1000, 600)
+    $form.MinimumSize = New-Object System.Drawing.Size($baseDimensions.MinFormWidth, $baseDimensions.MinFormHeight)
     $form.MaximizeBox = $true
     $form.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::Sizable
     $form.AutoScaleMode = [System.Windows.Forms.AutoScaleMode]::Dpi
+    $form.AutoScaleDimensions = New-Object System.Drawing.SizeF(96, 96)
+    $form.Font = New-Object System.Drawing.Font("Segoe UI", $normalFontSize)
 
-    # Calculate font sizes based on combined DPI and resolution scaling
-    # Base sizes: Title=14pt, Normal=10pt, Console=9pt
-    # Cap maximum sizes to prevent oversized text on high-res displays
-    $titleFontSize = [Math]::Min([Math]::Max([Math]::Round(14 * $combinedScale), 14), 20)
-    $normalFontSize = [Math]::Min([Math]::Max([Math]::Round(10 * $combinedScale), 10), 13)
-    $consoleFontSize = [Math]::Min([Math]::Max([Math]::Round(9 * $combinedScale), 9), 11)
+    # Enable visual styles for modern appearance
+    [System.Windows.Forms.Application]::EnableVisualStyles()
 
-    Write-Log "Font sizes - Title: $titleFontSize, Normal: $normalFontSize, Console: $consoleFontSize" -Level INFO
-
-    # Header labels removed - information moved to right panel HTML display
-    # This provides more space for the application list and eliminates text overflow issues
-
-    # Calculate content area dimensions
+    # Calculate content area dimensions with scaled values
     $contentTop = $headerHeight
     $contentHeight = $formHeight - $headerHeight - $buttonAreaHeight - $progressAreaHeight - $margin
     $listViewWidth = [Math]::Floor(($formWidth - $margin * 3) * 0.58)  # 58% of width
     $outputWidth = $formWidth - $listViewWidth - $margin * 3
 
-    # Create ListView for applications
+    # Create ListView for applications with responsive sizing
     $script:ListView = New-Object System.Windows.Forms.ListView
     $script:ListView.Location = New-Object System.Drawing.Point($margin, $contentTop)
     $script:ListView.Size = New-Object System.Drawing.Size($listViewWidth, $contentHeight)
@@ -1337,30 +1687,27 @@ function Create-MainForm {
     $script:ListView.GridLines = $true
     $script:ListView.CheckBoxes = $true
     $script:ListView.Sorting = [System.Windows.Forms.SortOrder]::None
-    # Table font is one size larger than normal
-    $tableFontSize = $normalFontSize + 1
     $script:ListView.Font = New-Object System.Drawing.Font("Segoe UI", $tableFontSize)
     $script:ListView.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right
 
-    # Create ImageList to control row height based on font size
-    # Row height = font size * 2.2 for comfortable spacing
-    $rowHeight = [Math]::Max([Math]::Round($tableFontSize * 2.2), 24)
+    # Create ImageList to control row height based on scaled font size
+    # Row height = font size * row height multiplier for comfortable spacing
+    $rowHeight = [Math]::Max([Math]::Round($tableFontSize * $baseDimensions.RowHeightMultiplier), 24)
     $imageList = New-Object System.Windows.Forms.ImageList
     $imageList.ImageSize = New-Object System.Drawing.Size(1, $rowHeight)
     $script:ListView.SmallImageList = $imageList
 
-    Write-Log "ListView row height set to: $rowHeight px (based on table font size: $tableFontSize pt)" -Level INFO
+    Write-Log "ListView - Font: $tableFontSize pt, Row Height: $rowHeight px" -Level INFO
 
     # Add columns with optimized widths for readability
-    # Adjusted proportions: App=22%, Category=12%, Status=12%, Version=10%, Description=42%
-    # Remaining 2% for scrollbar and margins
+    # Proportions: App=22%, Category=12%, Status=12%, Version=10%, Description=42%, Scrollbar=2%
     $colAppWidth = [Math]::Floor($listViewWidth * 0.22)
     $colCategoryWidth = [Math]::Floor($listViewWidth * 0.12)
     $colStatusWidth = [Math]::Floor($listViewWidth * 0.12)
     $colVersionWidth = [Math]::Floor($listViewWidth * 0.10)
     $colDescWidth = [Math]::Floor($listViewWidth * 0.42)
 
-    # Create column headers explicitly for better control
+    # Create column headers
     $colAppName = New-Object System.Windows.Forms.ColumnHeader
     $colAppName.Text = "Application Name"
     $colAppName.Width = $colAppWidth
@@ -1388,13 +1735,46 @@ function Create-MainForm {
     $script:ListView.Add_ItemCheck({
         param($sender, $e)
 
-        # Use BeginInvoke to update after the check state has changed
-        $script:ListView.BeginInvoke([Action]{
-            $checkedCount = ($script:ListView.Items | Where-Object { $_.Checked }).Count
-            $script:ProgressBar.Maximum = $checkedCount
-            $script:ProgressBar.Value = 0
-            $script:ProgressLabel.Text = "0 / $checkedCount applications"
-        })
+        # Prevent execution during form closing
+        if ($script:IsClosing) {
+            return
+        }
+
+        # Log the check state change for debugging
+        try {
+            $itemName = $script:ListView.Items[$e.Index].Text
+            $newState = $e.NewValue
+            Write-Log "User changed checkbox for '$itemName' to: $newState" -Level INFO
+        }
+        catch {
+            # Silently ignore errors during logging
+        }
+
+        # Update progress label after check state changes
+        # Note: We calculate based on the new state since ItemCheck fires before the change is applied
+        try {
+            $currentCheckedCount = ($script:ListView.Items | Where-Object { $_.Checked }).Count
+
+            # Adjust count based on the change being made
+            if ($e.NewValue -eq [System.Windows.Forms.CheckState]::Checked) {
+                $newCheckedCount = $currentCheckedCount + 1
+            }
+            elseif ($e.CurrentValue -eq [System.Windows.Forms.CheckState]::Checked) {
+                $newCheckedCount = $currentCheckedCount - 1
+            }
+            else {
+                $newCheckedCount = $currentCheckedCount
+            }
+
+            if ($script:ProgressBar -and $script:ProgressLabel) {
+                $script:ProgressBar.Maximum = [Math]::Max(1, $newCheckedCount)
+                $script:ProgressBar.Value = 0
+                $script:ProgressLabel.Text = "0 / $newCheckedCount applications"
+            }
+        }
+        catch {
+            # Silently ignore errors during UI update
+        }
     })
 
     $form.Controls.Add($script:ListView)
@@ -1470,36 +1850,47 @@ function Create-MainForm {
         }
     })
 
-    # Initialize HTML content with myTech.Today marketing information
+    # Calculate responsive HTML font sizes based on scale factor
+    $htmlBodyFontSize = [Math]::Max([int](16 * $scaleFactor), 14)
+    $htmlH1FontSize = [Math]::Max([int](24 * $scaleFactor), 20)
+    $htmlH2FontSize = [Math]::Max([int](18 * $scaleFactor), 16)
+    $htmlLogoFontSize = [Math]::Max([int](28 * $scaleFactor), 24)
+    $htmlConsoleFontSize = [Math]::Max([int](14 * $scaleFactor), 12)
+
+    # Initialize HTML content with myTech.Today marketing information and responsive styling
     $script:HtmlContent = @"
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
+        * {
+            box-sizing: border-box;
+        }
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background-color: #1e1e1e;
             color: #d4d4d4;
             margin: 10px;
             padding: 10px;
-            font-size: 21px;
+            font-size: ${htmlBodyFontSize}px;
             line-height: 1.6;
         }
         h1 {
             color: #4ec9b0;
-            font-size: 29px;
+            font-size: ${htmlH1FontSize}px;
             margin: 10px 0;
             border-bottom: 2px solid #4ec9b0;
             padding-bottom: 5px;
         }
         h2 {
             color: #569cd6;
-            font-size: 23px;
+            font-size: ${htmlH2FontSize}px;
             margin: 8px 0;
         }
         p {
-            font-size: 21px;
+            font-size: ${htmlBodyFontSize}px;
             margin: 8px 0;
         }
         .info { color: #4fc1ff; }
@@ -1516,7 +1907,7 @@ function Create-MainForm {
         ul {
             margin: 5px 0;
             padding-left: 20px;
-            font-size: 21px;
+            font-size: ${htmlBodyFontSize}px;
         }
         li {
             margin: 4px 0;
@@ -1528,7 +1919,7 @@ function Create-MainForm {
             border-left: 3px solid #4ec9b0;
         }
         .logo {
-            font-size: 32px;
+            font-size: ${htmlLogoFontSize}px;
             font-weight: bold;
             color: #4ec9b0;
             text-align: center;
@@ -1539,6 +1930,7 @@ function Create-MainForm {
             color: #569cd6;
             font-style: italic;
             margin-bottom: 20px;
+            font-size: ${htmlBodyFontSize}px;
         }
         a {
             color: #4fc1ff;
@@ -1557,11 +1949,12 @@ function Create-MainForm {
             background-color: #2d2d30;
             padding: 8px;
             border-left: 2px solid #569cd6;
+            font-size: ${htmlBodyFontSize}px;
         }
         /* Console output styling - monospace font for terminal-like appearance */
         .console-line {
             font-family: 'Consolas', 'Courier New', monospace;
-            font-size: 19px;
+            font-size: ${htmlConsoleFontSize}px;
             line-height: 1.4;
             margin: 2px 0;
             padding: 1px 0;
@@ -1634,59 +2027,74 @@ function Create-MainForm {
     $script:WebBrowser.DocumentText = $script:HtmlContent
     $form.Controls.Add($script:WebBrowser)
 
-    # Calculate progress bar position (above buttons)
+    # Calculate progress bar position (above buttons) with scaled dimensions
     $progressTop = $formHeight - $buttonAreaHeight - $progressAreaHeight
 
-    # Create progress bar (more compact)
+    # Apply scaling to progress control dimensions
+    $progressBarHeight = [int]($baseDimensions.ProgressBarHeight * $scaleFactor)
+    $progressLabelHeight = [int]($baseDimensions.ProgressLabelHeight * $scaleFactor)
+    $statusLabelHeight = [int]($baseDimensions.StatusLabelHeight * $scaleFactor)
+    $appProgressBarHeight = [int]($baseDimensions.AppProgressBarHeight * $scaleFactor)
+
+    # Create main progress bar with scaled height
     $script:ProgressBar = New-Object System.Windows.Forms.ProgressBar
     $script:ProgressBar.Location = New-Object System.Drawing.Point($margin, $progressTop)
-    $script:ProgressBar.Size = New-Object System.Drawing.Size(($formWidth - $margin * 2), 18)  # Reduced from 25 to 18
+    $script:ProgressBar.Size = New-Object System.Drawing.Size(($formWidth - $margin * 2), $progressBarHeight)
     $script:ProgressBar.Style = [System.Windows.Forms.ProgressBarStyle]::Continuous
     $script:ProgressBar.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right
     $form.Controls.Add($script:ProgressBar)
 
-    # Create progress label with percentage
+    # Create progress label with percentage (scaled font and height)
+    $progressLabelFontSize = [Math]::Max($normalFontSize - 1, $baseDimensions.MinFontSize)
     $script:ProgressLabel = New-Object System.Windows.Forms.Label
     $script:ProgressLabel.Text = "0 / 0 applications (0%)"
-    $script:ProgressLabel.Location = New-Object System.Drawing.Point($margin, ($progressTop + 22))
-    $script:ProgressLabel.Size = New-Object System.Drawing.Size(($formWidth - $margin * 2), 30)  # Increased from 25 to 30 to prevent descender clipping
-    $script:ProgressLabel.Font = New-Object System.Drawing.Font("Segoe UI", ([Math]::Max($normalFontSize - 1, 9)))
+    $script:ProgressLabel.Location = New-Object System.Drawing.Point($margin, ($progressTop + $progressBarHeight + 4))
+    $script:ProgressLabel.Size = New-Object System.Drawing.Size(($formWidth - $margin * 2), $progressLabelHeight)
+    $script:ProgressLabel.Font = New-Object System.Drawing.Font("Segoe UI", $progressLabelFontSize)
     $script:ProgressLabel.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right
     $script:ProgressLabel.AutoSize = $false
-    $script:ProgressLabel.TextAlign = [System.Drawing.ContentAlignment]::TopLeft  # Changed from MiddleLeft to TopLeft to prevent descender clipping
+    $script:ProgressLabel.TextAlign = [System.Drawing.ContentAlignment]::TopLeft
     $form.Controls.Add($script:ProgressLabel)
 
-    # Create status label for current operation
+    # Create status label for current operation (scaled font and height)
+    $statusLabelFontSize = [Math]::Max($normalFontSize - 2, $baseDimensions.MinFontSize)
+    $statusLabelTop = $progressTop + $progressBarHeight + $progressLabelHeight + 8
     $script:StatusLabel = New-Object System.Windows.Forms.Label
     $script:StatusLabel.Text = "Ready to install applications"
-    $script:StatusLabel.Location = New-Object System.Drawing.Point($margin, ($progressTop + 52))
-    $script:StatusLabel.Size = New-Object System.Drawing.Size(($formWidth - $margin * 2), 25)
-    $script:StatusLabel.Font = New-Object System.Drawing.Font("Consolas", ([Math]::Max($normalFontSize - 2, 8)))
+    $script:StatusLabel.Location = New-Object System.Drawing.Point($margin, $statusLabelTop)
+    $script:StatusLabel.Size = New-Object System.Drawing.Size(($formWidth - $margin * 2), $statusLabelHeight)
+    $script:StatusLabel.Font = New-Object System.Drawing.Font("Consolas", $statusLabelFontSize)
     $script:StatusLabel.ForeColor = [System.Drawing.Color]::Gray
     $script:StatusLabel.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right
     $script:StatusLabel.AutoSize = $false
     $script:StatusLabel.TextAlign = [System.Drawing.ContentAlignment]::TopLeft
     $form.Controls.Add($script:StatusLabel)
 
-    # Create secondary progress bar for individual app installation (NEW - Phase 2)
+    # Create secondary progress bar for individual app installation (scaled height)
+    $appProgressBarTop = $statusLabelTop + $statusLabelHeight + 4
     $script:AppProgressBar = New-Object System.Windows.Forms.ProgressBar
-    $script:AppProgressBar.Location = New-Object System.Drawing.Point($margin, ($progressTop + 77))
-    $script:AppProgressBar.Size = New-Object System.Drawing.Size(($formWidth - $margin * 2), 12)  # Smaller than main progress bar
+    $script:AppProgressBar.Location = New-Object System.Drawing.Point($margin, $appProgressBarTop)
+    $script:AppProgressBar.Size = New-Object System.Drawing.Size(($formWidth - $margin * 2), $appProgressBarHeight)
     $script:AppProgressBar.Style = [System.Windows.Forms.ProgressBarStyle]::Marquee
     $script:AppProgressBar.MarqueeAnimationSpeed = 30
     $script:AppProgressBar.Visible = $false  # Hidden by default
     $script:AppProgressBar.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right
     $form.Controls.Add($script:AppProgressBar)
 
-    # Store form dimensions and font sizes for button creation
+    # Store form dimensions, font sizes, and scaling info for button creation
     $form.Tag = @{
         FormWidth = $formWidth
         FormHeight = $formHeight
-        DpiScale = $dpiScale
-        CombinedScale = $combinedScale
+        ScaleFactor = $scaleFactor
         NormalFontSize = $normalFontSize
         TitleFontSize = $titleFontSize
         ConsoleFontSize = $consoleFontSize
+        TableFontSize = $tableFontSize
+        ButtonFontSize = $buttonFontSize
+        Margin = $margin
+        Spacing = $spacing
+        ButtonHeight = [int]($baseDimensions.ButtonHeight * $scaleFactor)
+        BaseDimensions = $baseDimensions
     }
 
     return $form
@@ -1695,25 +2103,22 @@ function Create-MainForm {
 function Create-Buttons {
     param($form)
 
-    # Get form dimensions from Tag
+    # Get scaled dimensions from form Tag
     $formInfo = $form.Tag
     $formWidth = $formInfo.FormWidth
     $formHeight = $formInfo.FormHeight
     $normalFontSize = $formInfo.NormalFontSize
+    $buttonFontSize = $formInfo.ButtonFontSize
+    $margin = $formInfo.Margin
+    $spacing = $formInfo.Spacing
+    $buttonHeight = $formInfo.ButtonHeight
+    $scaleFactor = $formInfo.ScaleFactor
 
-    # Button configuration
-    $margin = 20
-    $spacing = 12             # Proper spacing between buttons
-    $buttonCount = 6
-
-    # Create button font first (needed for width calculation)
-    # Button font is one size smaller than normal
-    $buttonFontSize = [Math]::Max($normalFontSize - 1, 8)
+    # Create button fonts with scaled size
     $buttonFont = New-Object System.Drawing.Font("Segoe UI", $buttonFontSize)
     $buttonFontBold = New-Object System.Drawing.Font("Segoe UI", $buttonFontSize, [System.Drawing.FontStyle]::Bold)
 
-    # Calculate button width based on longest text
-    # Button texts: "Refresh Status", "Select All", "Select Missing", "Deselect All", "Install Selected", "Exit"
+    # Calculate button width based on longest text with scaled padding
     $buttonTexts = @("Refresh Status", "Select All", "Select Missing", "Deselect All", "Install Selected", "Exit")
 
     # Create temporary graphics object to measure text
@@ -1733,17 +2138,15 @@ function Create-Buttons {
     $graphics.Dispose()
     $tempBitmap.Dispose()
 
-    # Add horizontal padding (20px on each side = 40px total)
-    $buttonWidth = [Math]::Ceiling($maxTextWidth) + 40
+    # Add scaled horizontal padding (base 40px scaled)
+    $horizontalPadding = [int](40 * $scaleFactor)
+    $buttonWidth = [Math]::Ceiling($maxTextWidth) + $horizontalPadding
 
-    # Increase button height for 3x more vertical padding (top and bottom margin)
-    # Text height ~15px + 30px top padding + 30px bottom padding = 75px
-    $buttonHeight = 75        # Increased from 35 to 75 for 3x more vertical padding
+    # Calculate button Y position (scaled offset from bottom)
+    $buttonYOffset = [int](85 * $scaleFactor)
+    $buttonY = $formHeight - $buttonYOffset
 
-    # Calculate button Y position (moved much lower to avoid clipping progress label)
-    $buttonY = $formHeight - 85  # Moved from -55 to -85 (30px lower) to create more space above buttons
-
-    # Calculate X positions for each button (left-aligned with proper spacing)
+    # Calculate X positions for each button (left-aligned with scaled spacing)
     $currentX = $margin
 
     # Refresh button
@@ -1753,7 +2156,12 @@ function Create-Buttons {
     $refreshButton.Text = "Refresh Status"
     $refreshButton.Font = $buttonFont
     $refreshButton.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left
-    $refreshButton.Add_Click({ Refresh-ApplicationList })
+    $refreshButton.Add_Click({
+        if (-not $script:IsClosing) {
+            Write-Log "User clicked Refresh Status button" -Level INFO
+            Refresh-ApplicationList
+        }
+    })
     $form.Controls.Add($refreshButton)
     $currentX += $buttonWidth + $spacing
 
@@ -1765,6 +2173,8 @@ function Create-Buttons {
     $selectAllButton.Font = $buttonFont
     $selectAllButton.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left
     $selectAllButton.Add_Click({
+        if ($script:IsClosing) { return }
+        Write-Log "User clicked Select All button" -Level INFO
         foreach ($item in $script:ListView.Items) {
             $item.Checked = $true
         }
@@ -1785,6 +2195,8 @@ function Create-Buttons {
     $selectMissingButton.Font = $buttonFont
     $selectMissingButton.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left
     $selectMissingButton.Add_Click({
+        if ($script:IsClosing) { return }
+        Write-Log "User clicked Select Missing button" -Level INFO
         foreach ($item in $script:ListView.Items) {
             $item.Checked = ($item.SubItems[2].Text -eq "Not Installed")
         }
@@ -1805,6 +2217,8 @@ function Create-Buttons {
     $deselectAllButton.Font = $buttonFont
     $deselectAllButton.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left
     $deselectAllButton.Add_Click({
+        if ($script:IsClosing) { return }
+        Write-Log "User clicked Deselect All button" -Level INFO
         foreach ($item in $script:ListView.Items) {
             $item.Checked = $false
         }
@@ -1826,7 +2240,12 @@ function Create-Buttons {
     $installButton.BackColor = [System.Drawing.Color]::Green
     $installButton.ForeColor = [System.Drawing.Color]::White
     $installButton.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left
-    $installButton.Add_Click({ Install-SelectedApplications })
+    $installButton.Add_Click({
+        if (-not $script:IsClosing) {
+            Write-Log "User clicked Install Selected button" -Level INFO
+            Install-SelectedApplications
+        }
+    })
     $form.Controls.Add($installButton)
     $currentX += $buttonWidth + $spacing
 
@@ -1895,10 +2314,32 @@ function Refresh-ApplicationList {
 }
 
 function Install-SelectedApplications {
+    # Prevent execution during form closing
+    if ($script:IsClosing) {
+        Write-Log "Installation blocked: Form is closing" -Level WARNING
+        return
+    }
+
+    # Prevent multiple simultaneous installations
+    if ($script:IsInstalling) {
+        Write-Log "Installation blocked: Installation already in progress" -Level WARNING
+        [System.Windows.Forms.MessageBox]::Show(
+            "An installation is already in progress. Please wait for it to complete.",
+            "Installation In Progress",
+            [System.Windows.Forms.MessageBoxButtons]::OK,
+            [System.Windows.Forms.MessageBoxIcon]::Warning
+        )
+        return
+    }
+
+    # Log that installation was explicitly triggered by user
+    Write-Log "Install-SelectedApplications function called by user action" -Level INFO
+
     # Get checked items
     $checkedItems = $script:ListView.Items | Where-Object { $_.Checked }
 
     if ($checkedItems.Count -eq 0) {
+        Write-Log "Installation cancelled: No applications selected" -Level INFO
         [System.Windows.Forms.MessageBox]::Show(
             "Please select at least one application to install.",
             "No Selection",
@@ -1908,16 +2349,82 @@ function Install-SelectedApplications {
         return
     }
 
-    # Confirm installation
+    # Log which applications were selected
+    Write-Log "User selected $($checkedItems.Count) application(s) for installation" -Level INFO
+    foreach ($item in $checkedItems) {
+        Write-Log "  - Selected: $($item.Text)" -Level INFO
+    }
+
+    # Check which apps are already installed
+    $alreadyInstalled = @()
+    $notInstalled = @()
+
+    foreach ($item in $checkedItems) {
+        $app = $item.Tag
+        if ($script:InstalledApps.ContainsKey($app.Name)) {
+            $alreadyInstalled += $app
+        }
+        else {
+            $notInstalled += $app
+        }
+    }
+
+    # Build confirmation message
+    $confirmMessage = ""
+
+    if ($notInstalled.Count -gt 0) {
+        $confirmMessage += "New installations ($($notInstalled.Count)):`r`n"
+        foreach ($app in $notInstalled) {
+            $confirmMessage += "  - $($app.Name)`r`n"
+        }
+        $confirmMessage += "`r`n"
+    }
+
+    if ($alreadyInstalled.Count -gt 0) {
+        $confirmMessage += "Already installed - will reinstall ($($alreadyInstalled.Count)):`r`n"
+        foreach ($app in $alreadyInstalled) {
+            $version = $script:InstalledApps[$app.Name]
+            if ($app.Name -eq "O&O ShutUp10") {
+                $confirmMessage += "  - $($app.Name) ($version) [Will re-run configuration]`r`n"
+            }
+            else {
+                $confirmMessage += "  - $($app.Name) ($version)`r`n"
+            }
+        }
+        $confirmMessage += "`r`n"
+    }
+
+    $confirmMessage += "Proceed with installation?"
+
+    # Confirm installation - REQUIRED for all installations
+    Write-Log "Displaying installation confirmation dialog to user" -Level INFO
     $result = [System.Windows.Forms.MessageBox]::Show(
-        "Install $($checkedItems.Count) selected application(s)?",
+        $confirmMessage,
         "Confirm Installation",
         [System.Windows.Forms.MessageBoxButtons]::YesNo,
         [System.Windows.Forms.MessageBoxIcon]::Question
     )
 
     if ($result -ne [System.Windows.Forms.DialogResult]::Yes) {
+        Write-Log "Installation cancelled by user (clicked No or closed dialog)" -Level INFO
         return
+    }
+
+    # User confirmed - log and set installation flag
+    Write-Log "User confirmed installation - proceeding with $($checkedItems.Count) application(s)" -Level INFO
+    $script:IsInstalling = $true
+
+    # Log reinstallation information
+    if ($alreadyInstalled.Count -gt 0) {
+        Write-Log "User confirmed reinstallation of $($alreadyInstalled.Count) already-installed application(s)" -Level INFO
+        foreach ($app in $alreadyInstalled) {
+            if ($app.Name -eq "O&O ShutUp10") {
+                Write-Log "O&O ShutUp10 will be re-run (always allowed)" -Level INFO
+            }
+            else {
+                Write-Log "User chose to reinstall: $($app.Name)" -Level INFO
+            }
+        }
     }
 
     # Disable buttons during installation
@@ -1927,12 +2434,22 @@ function Install-SelectedApplications {
         }
     }
 
+    # Reorder checked items to install O&O ShutUp10 first if present
+    $itemsToInstall = $checkedItems
+    $ooShutUpItem = $itemsToInstall | Where-Object { $_.Tag.Name -eq "O&O ShutUp10" }
+    if ($ooShutUpItem) {
+        Write-Log "O&O ShutUp10 detected - moving to front of installation queue" -Level INFO
+        Write-Output "[i] O&O ShutUp10 will be installed first" -Color ([System.Drawing.Color]::Cyan)
+        $otherItems = $itemsToInstall | Where-Object { $_.Tag.Name -ne "O&O ShutUp10" }
+        $itemsToInstall = @($ooShutUpItem) + $otherItems
+    }
+
     # Setup progress bar
-    $script:ProgressBar.Maximum = $checkedItems.Count
+    $script:ProgressBar.Maximum = $itemsToInstall.Count
     $script:ProgressBar.Value = 0
 
     Write-Output "`r`n=== Starting Installation ===" -Color ([System.Drawing.Color]::Cyan)
-    Write-Output "Installing $($checkedItems.Count) application(s)..." -Color ([System.Drawing.Color]::Blue)
+    Write-Output "Installing $($itemsToInstall.Count) application(s)..." -Color ([System.Drawing.Color]::Blue)
 
     $successCount = 0
     $failCount = 0
@@ -1941,14 +2458,14 @@ function Install-SelectedApplications {
     $startTime = Get-Date  # Track installation start time
     $installationTimes = @()  # Track individual installation times for ETA
 
-    foreach ($item in $checkedItems) {
+    foreach ($item in $itemsToInstall) {
         $currentIndex++
         $app = $item.Tag
 
         # Calculate percentage
-        $percentComplete = [Math]::Round(($currentIndex / $checkedItems.Count) * 100, 1)
+        $percentComplete = [Math]::Round(($currentIndex / $itemsToInstall.Count) * 100, 1)
 
-        Write-Output "Installing $($app.Name) ($currentIndex of $($checkedItems.Count) - $percentComplete%)..." -Color ([System.Drawing.Color]::Blue)
+        Write-Output "Installing $($app.Name) ($currentIndex of $($itemsToInstall.Count) - $percentComplete%)..." -Color ([System.Drawing.Color]::Blue)
 
         # Track individual app installation time
         $appStartTime = Get-Date
@@ -1973,23 +2490,27 @@ function Install-SelectedApplications {
         # Update progress after installation completes
         $completedCount++
         $script:ProgressBar.Value = $completedCount
-        $percentComplete = [Math]::Round(($completedCount / $checkedItems.Count) * 100, 1)
+        $percentComplete = [Math]::Round(($completedCount / $itemsToInstall.Count) * 100, 1)
 
         # Calculate ETA
         $etaText = ""
-        if ($installationTimes.Count -gt 0 -and $completedCount -lt $checkedItems.Count) {
+        if ($installationTimes.Count -gt 0 -and $completedCount -lt $itemsToInstall.Count) {
             $avgTime = ($installationTimes | Measure-Object -Average).Average
-            $remainingApps = $checkedItems.Count - $completedCount
+            $remainingApps = $itemsToInstall.Count - $completedCount
             $etaSeconds = $avgTime * $remainingApps
             $etaMinutes = [Math]::Round($etaSeconds / 60, 1)
             $etaText = " | ETA: $etaMinutes min"
         }
 
-        $script:ProgressLabel.Text = "$completedCount / $($checkedItems.Count) applications ($percentComplete%)$etaText"
+        $script:ProgressLabel.Text = "$completedCount / $($itemsToInstall.Count) applications ($percentComplete%)$etaText"
 
         # Process Windows messages to keep UI responsive
         [System.Windows.Forms.Application]::DoEvents()
     }
+
+    # Reset installation flag
+    $script:IsInstalling = $false
+    Write-Log "Installation process completed - IsInstalling flag reset" -Level INFO
 
     # Re-enable buttons
     foreach ($control in $form.Controls) {
@@ -2180,6 +2701,88 @@ try {
         $this.TopMost = $false
     })
 
+    # Add FormClosing event handler for cleanup
+    $form.Add_FormClosing({
+        param($formSender, $formEvent)
+
+        Write-Host "`n[i] Form closing initiated..." -ForegroundColor Cyan
+
+        # Set closing flag FIRST to prevent any event handlers from executing
+        $script:IsClosing = $true
+        Write-Log "Form closing - IsClosing flag set to prevent event handlers" -Level INFO
+
+        # Check if installation is in progress
+        if ($script:IsInstalling) {
+            Write-Host "[WARN] Installation in progress - asking user to confirm close" -ForegroundColor Yellow
+            Write-Log "User attempted to close form during installation" -Level WARNING
+
+            $confirmClose = [System.Windows.Forms.MessageBox]::Show(
+                "An installation is currently in progress. Are you sure you want to close?`n`nThis may interrupt the installation process.",
+                "Installation In Progress",
+                [System.Windows.Forms.MessageBoxButtons]::YesNo,
+                [System.Windows.Forms.MessageBoxIcon]::Warning
+            )
+
+            if ($confirmClose -ne [System.Windows.Forms.DialogResult]::Yes) {
+                Write-Log "User cancelled form close - installation will continue" -Level INFO
+                $script:IsClosing = $false
+                $formEvent.Cancel = $true
+                return
+            }
+            else {
+                Write-Log "User confirmed form close during installation" -Level WARNING
+            }
+        }
+
+        Write-Host "[i] Cleaning up resources..." -ForegroundColor Cyan
+
+        try {
+            # Dispose of WebBrowser control
+            if ($script:WebBrowser) {
+                $script:WebBrowser.Dispose()
+                $script:WebBrowser = $null
+            }
+
+            # Dispose of ListView
+            if ($script:ListView) {
+                $script:ListView.Dispose()
+                $script:ListView = $null
+            }
+
+            # Dispose of progress controls
+            if ($script:ProgressBar) {
+                $script:ProgressBar.Dispose()
+                $script:ProgressBar = $null
+            }
+
+            if ($script:ProgressLabel) {
+                $script:ProgressLabel.Dispose()
+                $script:ProgressLabel = $null
+            }
+
+            if ($script:StatusLabel) {
+                $script:StatusLabel.Dispose()
+                $script:StatusLabel = $null
+            }
+
+            if ($script:AppProgressBar) {
+                $script:AppProgressBar.Dispose()
+                $script:AppProgressBar = $null
+            }
+
+            # Clear large script-level variables to free memory
+            $script:SelectedApps = @()
+            $script:InstalledApps = @{}
+            $script:HtmlContent = $null
+            $script:Applications = @()
+
+            Write-Host "[OK] Resources cleaned up" -ForegroundColor Green
+        }
+        catch {
+            Write-Host "[WARN] Error during cleanup: $($_.Exception.Message)" -ForegroundColor Yellow
+        }
+    })
+
     # Show the form (this blocks until the form is closed)
     Write-Host "[i] Calling ShowDialog()..." -ForegroundColor Yellow
     $result = $form.ShowDialog()
@@ -2205,6 +2808,20 @@ catch {
     )
 
     Read-Host "`nPress Enter to exit"
+}
+finally {
+    # Final cleanup - dispose of form
+    if ($form) {
+        Write-Host "[i] Disposing form..." -ForegroundColor Cyan
+        $form.Dispose()
+        $form = $null
+        Write-Host "[OK] Form disposed" -ForegroundColor Green
+    }
+
+    # Force garbage collection to free memory
+    [System.GC]::Collect()
+    [System.GC]::WaitForPendingFinalizers()
+    [System.GC]::Collect()
 }
 
 #endregion Main Execution
