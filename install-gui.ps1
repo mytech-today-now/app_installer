@@ -18,7 +18,7 @@
     Author         : myTech.Today
     Prerequisite   : PowerShell 5.1 or later, Administrator privileges
     Copyright      : (c) 2025 myTech.Today. All rights reserved.
-    Version        : 1.4.2
+    Version        : 1.4.5
 
 .LINK
     https://github.com/mytech-today-now/app_installer
@@ -30,20 +30,34 @@
 #region Load Responsive GUI Helper
 
 # Import responsive GUI helper from GitHub for improved DPI scaling and multi-monitor support
-$responsiveUrl = 'https://raw.githubusercontent.com/mytech-today-now/PowerShellScripts/refs/heads/main/scripts/responsive.ps1'
+$responsiveUrl = 'https://raw.githubusercontent.com/mytech-today-now/scripts/main/responsive.ps1'
+$script:ResponsiveHelperLoaded = $false
+
 try {
     Write-Host "Loading responsive GUI helper..." -ForegroundColor Cyan
     Invoke-Expression (Invoke-WebRequest -Uri $responsiveUrl -UseBasicParsing).Content
+    $script:ResponsiveHelperLoaded = $true
     Write-Host "[OK] Responsive GUI helper loaded successfully" -ForegroundColor Green
 }
 catch {
     Write-Host "[ERROR] Failed to load responsive GUI helper: $_" -ForegroundColor Red
-    Write-Host "[INFO] Falling back to local DPI scaling implementation" -ForegroundColor Yellow
-    $script:ResponsiveHelperLoaded = $false
-}
+    Write-Host "[INFO] Falling back to local responsive helper implementation" -ForegroundColor Yellow
 
-if (-not $script:ResponsiveHelperLoaded) {
-    $script:ResponsiveHelperLoaded = $true
+    # Try to load from local path as fallback
+    $localResponsivePath = Join-Path $PSScriptRoot "..\scripts\responsive.ps1"
+    if (Test-Path $localResponsivePath) {
+        try {
+            . $localResponsivePath
+            $script:ResponsiveHelperLoaded = $true
+            Write-Host "[OK] Loaded responsive helper from local path" -ForegroundColor Green
+        }
+        catch {
+            Write-Host "[ERROR] Failed to load local responsive helper: $_" -ForegroundColor Red
+        }
+    }
+    else {
+        Write-Host "[WARNING] Local responsive helper not found at: $localResponsivePath" -ForegroundColor Yellow
+    }
 }
 
 #endregion
@@ -51,7 +65,7 @@ if (-not $script:ResponsiveHelperLoaded) {
 #region Load Generic Logging Module
 
 # Import generic logging module from GitHub for centralized logging
-$loggingUrl = 'https://raw.githubusercontent.com/mytech-today-now/PowerShellScripts/refs/heads/main/scripts/logging.ps1'
+$loggingUrl = 'https://raw.githubusercontent.com/mytech-today-now/scripts/main/logging.ps1'
 $script:LoggingModuleLoaded = $false
 
 try {
@@ -780,7 +794,7 @@ function Ensure-DotNetFramework {
 
 # Check and install .NET Framework before loading assemblies
 Write-Host "=== myTech.Today Application Installer - GUI Mode ===" -ForegroundColor Cyan
-Write-Host "Version: 1.4.1" -ForegroundColor Gray
+Write-Host "Version: 1.4.5" -ForegroundColor Gray
 Write-Host ""
 
 if (-not (Ensure-DotNetFramework)) {
@@ -809,7 +823,7 @@ catch {
 }
 
 # Script variables
-$script:ScriptVersion = '1.4.2'
+$script:ScriptVersion = '1.4.5'
 $script:OriginalScriptPath = $PSScriptRoot
 $script:SystemInstallPath = "$env:SystemDrive\mytech.today\app_installer"
 $script:ScriptPath = $script:SystemInstallPath
@@ -2985,11 +2999,11 @@ function Create-MainForm {
         TitleFontSize = 14
         ConsoleFontSize = 9
         TableFontSize = 11
-        ButtonFontSize = 9
+        ButtonFontSize = 8  # Reduced from 9 to make button text smaller
 
         # Margins and spacing
         Margin = 20
-        Spacing = 12
+        Spacing = 6  # Reduced from 12 to cut spacing in half
         HeaderHeight = 20
         ButtonAreaHeight = 150
         ProgressAreaHeight = 50
@@ -2999,7 +3013,7 @@ function Create-MainForm {
         ProgressLabelHeight = 30
         StatusLabelHeight = 25
         AppProgressBarHeight = 12
-        ButtonHeight = 75
+        ButtonHeight = 70  # Increased from 50 to accommodate multi-line text
         RowHeightMultiplier = 2.2
     }
 
@@ -3617,16 +3631,9 @@ function Create-Buttons {
     $buttonFont = New-Object System.Drawing.Font("Segoe UI", $buttonFontSize)
     $buttonFontBold = New-Object System.Drawing.Font("Segoe UI", $buttonFontSize, [System.Drawing.FontStyle]::Bold)
 
-    # Calculate dynamic button width based on longest text
-    $buttonTexts = @("Refresh Status", "Select All", "Select Missing", "Deselect All", "Export Selection", "Import Selection", "Install Selected", "Exit")
-    $maxButtonWidth = 0
-    foreach ($text in $buttonTexts) {
-        $btnWidth = Get-DynamicButtonWidth -Text $text -Font $buttonFont -MinWidth ([int](100 * $scaleFactor)) -Padding ([int](40 * $scaleFactor))
-        if ($btnWidth -gt $maxButtonWidth) {
-            $maxButtonWidth = $btnWidth
-        }
-    }
-    $buttonWidth = $maxButtonWidth
+    # Use fixed narrow button width to enable multi-line text wrapping
+    # Significantly narrower than before to allow text stacking
+    $buttonWidth = [int](65 * $scaleFactor)  # Fixed narrow width for all buttons
 
     # Calculate button Y position (scaled offset from bottom)
     $buttonYOffset = [int](85 * $scaleFactor)
@@ -3639,8 +3646,10 @@ function Create-Buttons {
     $refreshButton = New-Object System.Windows.Forms.Button
     $refreshButton.Location = New-Object System.Drawing.Point($currentX, $buttonY)
     $refreshButton.Size = New-Object System.Drawing.Size($buttonWidth, $buttonHeight)
-    $refreshButton.Text = "Refresh Status"
+    $refreshButton.Text = "Refresh`nStatus"
     $refreshButton.Font = $buttonFont
+    $refreshButton.AutoSize = $false
+    $refreshButton.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
     $refreshButton.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left
     $refreshButton.Add_Click({
         if (-not $script:IsClosing) {
@@ -3655,8 +3664,10 @@ function Create-Buttons {
     $selectAllButton = New-Object System.Windows.Forms.Button
     $selectAllButton.Location = New-Object System.Drawing.Point($currentX, $buttonY)
     $selectAllButton.Size = New-Object System.Drawing.Size($buttonWidth, $buttonHeight)
-    $selectAllButton.Text = "Select All"
+    $selectAllButton.Text = "Select`nAll"
     $selectAllButton.Font = $buttonFont
+    $selectAllButton.AutoSize = $false
+    $selectAllButton.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
     $selectAllButton.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left
     $selectAllButton.Add_Click({
         if ($script:IsClosing) { return }
@@ -3677,8 +3688,10 @@ function Create-Buttons {
     $selectMissingButton = New-Object System.Windows.Forms.Button
     $selectMissingButton.Location = New-Object System.Drawing.Point($currentX, $buttonY)
     $selectMissingButton.Size = New-Object System.Drawing.Size($buttonWidth, $buttonHeight)
-    $selectMissingButton.Text = "Select Missing"
+    $selectMissingButton.Text = "Select`nMissing"
     $selectMissingButton.Font = $buttonFont
+    $selectMissingButton.AutoSize = $false
+    $selectMissingButton.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
     $selectMissingButton.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left
     $selectMissingButton.Add_Click({
         if ($script:IsClosing) { return }
@@ -3699,8 +3712,10 @@ function Create-Buttons {
     $deselectAllButton = New-Object System.Windows.Forms.Button
     $deselectAllButton.Location = New-Object System.Drawing.Point($currentX, $buttonY)
     $deselectAllButton.Size = New-Object System.Drawing.Size($buttonWidth, $buttonHeight)
-    $deselectAllButton.Text = "Deselect All"
+    $deselectAllButton.Text = "Deselect`nAll"
     $deselectAllButton.Font = $buttonFont
+    $deselectAllButton.AutoSize = $false
+    $deselectAllButton.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
     $deselectAllButton.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left
     $deselectAllButton.Add_Click({
         if ($script:IsClosing) { return }
@@ -3721,8 +3736,10 @@ function Create-Buttons {
     $exportButton = New-Object System.Windows.Forms.Button
     $exportButton.Location = New-Object System.Drawing.Point($currentX, $buttonY)
     $exportButton.Size = New-Object System.Drawing.Size($buttonWidth, $buttonHeight)
-    $exportButton.Text = "Export Selection"
+    $exportButton.Text = "Export`nSelection"
     $exportButton.Font = $buttonFont
+    $exportButton.AutoSize = $false
+    $exportButton.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
     $exportButton.BackColor = [System.Drawing.Color]::DarkOrange
     $exportButton.ForeColor = [System.Drawing.Color]::White
     $exportButton.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left
@@ -3784,8 +3801,10 @@ function Create-Buttons {
     $importButton = New-Object System.Windows.Forms.Button
     $importButton.Location = New-Object System.Drawing.Point($currentX, $buttonY)
     $importButton.Size = New-Object System.Drawing.Size($buttonWidth, $buttonHeight)
-    $importButton.Text = "Import Selection"
+    $importButton.Text = "Import`nSelection"
     $importButton.Font = $buttonFont
+    $importButton.AutoSize = $false
+    $importButton.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
     $importButton.BackColor = [System.Drawing.Color]::DarkBlue
     $importButton.ForeColor = [System.Drawing.Color]::White
     $importButton.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left
@@ -3861,8 +3880,10 @@ function Create-Buttons {
     $installButton = New-Object System.Windows.Forms.Button
     $installButton.Location = New-Object System.Drawing.Point($currentX, $buttonY)
     $installButton.Size = New-Object System.Drawing.Size($buttonWidth, $buttonHeight)
-    $installButton.Text = "Install Selected"
+    $installButton.Text = "Install`nSelected"
     $installButton.Font = $buttonFontBold
+    $installButton.AutoSize = $false
+    $installButton.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
     $installButton.BackColor = [System.Drawing.Color]::Green
     $installButton.ForeColor = [System.Drawing.Color]::White
     $installButton.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left
@@ -3879,8 +3900,10 @@ function Create-Buttons {
     $uninstallButton = New-Object System.Windows.Forms.Button
     $uninstallButton.Location = New-Object System.Drawing.Point($currentX, $buttonY)
     $uninstallButton.Size = New-Object System.Drawing.Size($buttonWidth, $buttonHeight)
-    $uninstallButton.Text = "Uninstall Selected"
+    $uninstallButton.Text = "Uninstall`nSelected"
     $uninstallButton.Font = $buttonFontBold
+    $uninstallButton.AutoSize = $false
+    $uninstallButton.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
     $uninstallButton.BackColor = [System.Drawing.Color]::DarkRed
     $uninstallButton.ForeColor = [System.Drawing.Color]::White
     $uninstallButton.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left
@@ -3897,8 +3920,10 @@ function Create-Buttons {
     $checkUpdatesButton = New-Object System.Windows.Forms.Button
     $checkUpdatesButton.Location = New-Object System.Drawing.Point($currentX, $buttonY)
     $checkUpdatesButton.Size = New-Object System.Drawing.Size($buttonWidth, $buttonHeight)
-    $checkUpdatesButton.Text = "Check for Updates"
+    $checkUpdatesButton.Text = "Check for`nUpdates"
     $checkUpdatesButton.Font = $buttonFont
+    $checkUpdatesButton.AutoSize = $false
+    $checkUpdatesButton.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
     $checkUpdatesButton.BackColor = [System.Drawing.Color]::DodgerBlue
     $checkUpdatesButton.ForeColor = [System.Drawing.Color]::White
     $checkUpdatesButton.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left
@@ -3917,6 +3942,8 @@ function Create-Buttons {
     $script:PauseResumeButton.Size = New-Object System.Drawing.Size($buttonWidth, $buttonHeight)
     $script:PauseResumeButton.Text = "Pause"
     $script:PauseResumeButton.Font = $buttonFont
+    $script:PauseResumeButton.AutoSize = $false
+    $script:PauseResumeButton.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
     $script:PauseResumeButton.BackColor = [System.Drawing.Color]::Orange
     $script:PauseResumeButton.ForeColor = [System.Drawing.Color]::White
     $script:PauseResumeButton.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left
@@ -3949,8 +3976,10 @@ function Create-Buttons {
     $script:SkipButton = New-Object System.Windows.Forms.Button
     $script:SkipButton.Location = New-Object System.Drawing.Point($currentX, $buttonY)
     $script:SkipButton.Size = New-Object System.Drawing.Size($buttonWidth, $buttonHeight)
-    $script:SkipButton.Text = "Skip Current"
+    $script:SkipButton.Text = "Skip`nCurrent"
     $script:SkipButton.Font = $buttonFont
+    $script:SkipButton.AutoSize = $false
+    $script:SkipButton.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
     $script:SkipButton.BackColor = [System.Drawing.Color]::DarkOrange
     $script:SkipButton.ForeColor = [System.Drawing.Color]::White
     $script:SkipButton.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left
@@ -3971,6 +4000,8 @@ function Create-Buttons {
     $exitButton.Size = New-Object System.Drawing.Size($buttonWidth, $buttonHeight)
     $exitButton.Text = "Exit"
     $exitButton.Font = $buttonFont
+    $exitButton.AutoSize = $false
+    $exitButton.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
     $exitButton.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left
     $exitButton.Add_Click({ $form.Close() })
     $form.Controls.Add($exitButton)

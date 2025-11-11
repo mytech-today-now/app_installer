@@ -62,7 +62,7 @@
     Author         : myTech.Today
     Prerequisite   : PowerShell 5.1 or later, Administrator privileges
     Copyright      : (c) 2025 myTech.Today. All rights reserved.
-    Version        : 1.5.3
+    Version        : 1.5.4
 
 .LINK
     https://github.com/mytech-today-now/PowerShellScripts
@@ -84,7 +84,7 @@ param(
 #region Load Generic Logging Module
 
 # Import generic logging module from GitHub for centralized logging
-$loggingUrl = 'https://raw.githubusercontent.com/mytech-today-now/PowerShellScripts/refs/heads/main/scripts/logging.ps1'
+$loggingUrl = 'https://raw.githubusercontent.com/mytech-today-now/scripts/main/logging.ps1'
 $script:LoggingModuleLoaded = $false
 
 try {
@@ -114,7 +114,7 @@ catch {
 #endregion
 
 # Script variables
-$script:ScriptVersion = '1.5.3'
+$script:ScriptVersion = '1.5.4'
 $script:OriginalScriptPath = $PSScriptRoot
 $script:SystemInstallPath = "$env:SystemDrive\mytech.today\app_installer"
 $script:ScriptPath = $script:SystemInstallPath  # Will be updated after copy

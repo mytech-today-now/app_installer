@@ -7,6 +7,199 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.5] - 2025-11-11 (GUI)
+
+### Changed - Multi-Line Button Text with Narrower Width 🎨
+
+- **Enabled multi-line text wrapping on all control buttons**
+- **Significantly reduced button width for more compact layout**
+- **Increased button height to accommodate stacked text**
+- **Reduced spacing between buttons by 50%**
+
+**User Requirements:**
+
+The user requested that control buttons on the main GUI should:
+1. Have stacked text (multi-line) to make them narrower
+2. Increase button heights to accommodate multi-line text with margins
+3. Cut spacing between buttons in half
+4. Make button width significantly narrower
+
+**Changes:**
+
+1. **Multi-Line Text Wrapping**
+   - Added line breaks (`n) to all button text labels
+   - Set `AutoSize = $false` to enable text wrapping
+   - Set `TextAlign = MiddleCenter` for centered multi-line text
+   - Examples:
+     - "Refresh Status" → "Refresh`nStatus"
+     - "Select All" → "Select`nAll"
+     - "Install Selected" → "Install`nSelected"
+     - "Check for Updates" → "Check for`nUpdates"
+
+2. **Button Width Reduction**
+   - Changed from dynamic width calculation to fixed narrow width
+   - New width: 65 * scaleFactor (significantly narrower than before)
+   - Previous: Dynamic width based on longest text with MinWidth 70 and Padding 20
+   - Buttons are now much more compact horizontally
+
+3. **Button Height Increase**
+   - Increased base button height from 50pt to 70pt
+   - Provides adequate space for 2-line text with margins
+   - Ensures text is readable and not cramped
+
+4. **Spacing Reduction**
+   - Reduced base spacing from 12pt to 6pt (50% reduction)
+   - Buttons are now closer together horizontally
+   - More efficient use of horizontal space
+
+**Implementation Details:**
+
+- Updated `Spacing` in base dimensions (line 3006): 12 → 6
+- Updated `ButtonHeight` in base dimensions (line 3016): 50 → 70
+- Replaced dynamic button width calculation with fixed width (line 3636): `65 * scaleFactor`
+- Updated all 12 control buttons to include:
+  - Multi-line text with `n line breaks
+  - `AutoSize = $false`
+  - `TextAlign = MiddleCenter`
+
+**Buttons Updated:**
+1. Refresh Status
+2. Select All
+3. Select Missing
+4. Deselect All
+5. Export Selection
+6. Import Selection
+7. Install Selected
+8. Uninstall Selected
+9. Check for Updates
+10. Pause/Resume (hidden initially)
+11. Skip Current (hidden initially)
+12. Exit
+
+**Visual Impact:**
+
+- Buttons are significantly narrower, allowing more buttons to fit in the same horizontal space
+- Multi-line text makes button labels clear and readable despite narrower width
+- Reduced spacing creates a more compact, efficient button layout
+- Buttons no longer extend past the right edge of HTML content area
+- More modern, space-efficient appearance
+
+**Files Modified:**
+- `install-gui.ps1` - Version 1.4.5
+  - Updated base dimensions for spacing and button height
+  - Changed button width from dynamic to fixed narrow width
+  - Added multi-line text support to all control buttons
+
+## [1.4.4] - 2025-11-11 (GUI) / [1.5.4] - 2025-11-11 (CLI)
+
+### Fixed - GitHub URLs for Scripts Repository 🔗
+
+- **Updated GitHub URLs to point to correct scripts repository**
+- **Fixed 404 errors when loading from GitHub**
+- **Enabled online loading of responsive and logging modules**
+
+**Issue:**
+
+The responsive GUI helper and generic logging module were failing to load from GitHub with 404 errors because the URLs were pointing to the wrong repository:
+- Old URL: `https://raw.githubusercontent.com/mytech-today-now/PowerShellScripts/refs/heads/main/scripts/responsive.ps1`
+- Old URL: `https://raw.githubusercontent.com/mytech-today-now/PowerShellScripts/refs/heads/main/scripts/logging.ps1`
+
+The scripts directory is actually a separate Git repository at `https://github.com/mytech-today-now/scripts.git`, not part of the PowerShellScripts repository.
+
+**Solution:**
+
+Updated all GitHub URLs to point to the correct scripts repository:
+- New URL: `https://raw.githubusercontent.com/mytech-today-now/scripts/main/responsive.ps1`
+- New URL: `https://raw.githubusercontent.com/mytech-today-now/scripts/main/logging.ps1`
+
+Also pushed the latest commits from the scripts repository to GitHub to ensure the files are available online.
+
+**Implementation Details:**
+
+1. **GUI Version (install-gui.ps1)**
+   - Updated responsive helper URL (line 33)
+   - Updated logging module URL (line 68)
+
+2. **CLI Version (install.ps1)**
+   - Updated logging module URL (line 87)
+
+3. **Scripts Repository**
+   - Pushed local commits to origin/main
+   - Ensured responsive.ps1 and logging.ps1 are available on GitHub
+
+**Testing:**
+- Syntax validation passed for both GUI and CLI ✓
+- URLs updated correctly ✓
+- Scripts repository pushed to GitHub ✓
+
+**Files Modified:**
+- `install-gui.ps1` - Version 1.4.4
+  - Updated responsive helper URL
+  - Updated logging module URL
+  - Updated version numbers
+- `install.ps1` - Version 1.5.4
+  - Updated logging module URL
+  - Updated version numbers
+
+**Expected Behavior:**
+
+When running the installer, you should now see:
+```
+Loading responsive GUI helper...
+[OK] Responsive GUI helper loaded successfully
+Loading generic logging module...
+[OK] Generic logging module loaded successfully
+```
+
+Instead of the previous 404 errors and fallback messages.
+
+## [1.4.3] - 2025-11-11 (GUI)
+
+### Fixed - Responsive Helper Local Fallback 🔧
+
+- **Added local fallback for responsive GUI helper**
+- **Fixed "New-ResponsiveForm not recognized" error**
+- **Improved offline functionality**
+
+**Issue:**
+
+When the responsive GUI helper failed to load from GitHub (404 error), the script would fall back to a local DPI scaling implementation that didn't include the `New-ResponsiveForm` function. This caused the GUI to fail with the error:
+
+```
+The term 'New-ResponsiveForm' is not recognized as the name of a cmdlet, function, script file, or operable program.
+```
+
+**Solution:**
+
+Added local file fallback for the responsive helper, similar to the logging module:
+- Attempts to load from GitHub first
+- If GitHub fails, tries to load from local path: `../scripts/responsive.ps1`
+- Provides clear status messages for each attempt
+- Gracefully handles missing local file
+
+**Implementation Details:**
+
+1. **Local Fallback Logic**
+   - Check if local responsive.ps1 exists at `../scripts/responsive.ps1`
+   - Source the file using dot-sourcing (`. $localResponsivePath`)
+   - Set `$script:ResponsiveHelperLoaded` flag on success
+   - Display appropriate status messages
+
+2. **Error Handling**
+   - Try-catch blocks for both GitHub and local loading
+   - Clear error messages for each failure scenario
+   - Warning message if local file not found
+
+**Testing:**
+- Syntax validation passed ✓
+- Local fallback working correctly ✓
+- GUI launches successfully when GitHub is unavailable ✓
+
+**Files Modified:**
+- `install-gui.ps1` - Version 1.4.3
+  - Added local fallback for responsive helper (lines 32-61)
+  - Updated version numbers
+
 ## [1.4.2] - 2025-11-11 (GUI)
 
 ### Changed - Responsive Form Creation 🎨
