@@ -1,6 +1,6 @@
 # App Installer - myTech.Today
 
-**Version:** 1.3.7
+**Version:** 1.4.1 (GUI) / 1.5.3 (CLI)
 **Author:** myTech.Today
 **License:** All rights reserved
 
@@ -13,20 +13,28 @@ The **App Installer** is a comprehensive PowerShell application installer system
 ## Features
 
 ### GUI Features (install-gui.ps1)
+
 ✅ **Modern Windows Forms Interface** - Professional GUI with responsive design and DPI scaling
+✅ **Responsive GUI Helper** - Centralized DPI scaling from GitHub for multi-monitor and high-DPI support
+✅ **Generic Logging Module** - Centralized logging system with monthly rotation and markdown format
+✅ **Real-Time Search & Filter** - Instantly filter 271 applications by name, category, or description
 ✅ **Real-Time Progress Tracking** - Dynamic progress bar and status updates as you select apps
 ✅ **Category Organization** - Applications grouped into 13 categories for easy browsing
 ✅ **Checkbox Selection** - Select individual apps, all apps, or only missing apps
+✅ **Export/Import Profiles** - Save and load application selections for backup or deployment
+✅ **Uninstall Applications** - Remove installed applications with confirmation and progress tracking
 ✅ **Live Status Display** - See installation status, version numbers, and progress in real-time
 ✅ **HTML Console Output** - Professional, color-coded installation logs in right panel
 ✅ **Marketing Information** - Company info and service details displayed in HTML panel
-✅ **Responsive Layout** - Adapts to different screen sizes and resolutions
+✅ **Responsive Layout** - Adapts to different screen sizes and resolutions (VGA to 8K UHD)
 ✅ **Professional Buttons** - Standard Windows-style buttons with proper spacing
 
 ### Core Features (Both Versions)
+
 ✅ **Version Detection** - Automatically detects installed applications via winget and registry
 ✅ **Selective Installation** - Install individual apps, all apps, or only missing apps
-✅ **Centralized Logging** - All activities logged to `C:\mytech.today\logs\` in markdown format
+✅ **Generic Logging Module** - Centralized logging with monthly rotation (scriptname-yyyy-MM.md format)
+✅ **Centralized Logging** - All activities logged to `C:\mytech.today\logs\` in markdown table format
 ✅ **winget Integration** - Leverages Windows Package Manager for 90+ applications
 ✅ **Custom Installers** - Specialized scripts for apps not available via winget
 ✅ **Error Handling** - Comprehensive error handling with fallback solutions
@@ -125,6 +133,7 @@ The **App Installer** is a comprehensive PowerShell application installer system
 - **Privileges:** Administrator rights required
 - **winget:** Windows Package Manager (recommended, installed by default on Windows 11)
 - **.NET Framework:** 4.7.2 or later (for GUI version)
+  - **Note:** The GUI installer (`install-gui.ps1`) will automatically detect and offer to install .NET Framework 4.8 if not present or if an older version is detected
 
 ## Installation
 
@@ -161,16 +170,24 @@ Launch the graphical interface:
 ```
 
 **GUI Features:**
-- **Application Table** - Browse all 212 applications with checkboxes
+- **Search & Filter** - Real-time search box to filter applications by name, category, or description
+  - Type to instantly filter the list (e.g., "chrome", "browser", "video")
+  - Clear button (X) to reset search
+  - Result count shows "Showing X of 271 applications"
+  - Checkbox states preserved when filtering
+- **Application Table** - Browse all 271 applications with checkboxes
 - **Category Grouping** - Applications organized by category
 - **Status Column** - Shows "Installed" with version or "Not Installed"
 - **Progress Tracking** - Real-time progress: "0 / 5 applications" updates as you select
 - **Buttons:**
   - **Refresh Status** - Re-scan for installed applications
-  - **Select All** - Select all 212 applications
+  - **Select All** - Select all applications (filtered or all)
   - **Select Missing** - Select only applications not currently installed
   - **Deselect All** - Clear all selections
+  - **Export Selection** - Save selected applications to a JSON profile
+  - **Import Selection** - Load applications from a JSON profile
   - **Install Selected** - Install checked applications
+  - **Uninstall Selected** - Remove checked applications (only installed apps)
   - **Exit** - Close the application
 
 **Progress Display:**
@@ -189,6 +206,10 @@ Launch the graphical interface:
 - **1-212:** Install individual application by number
 - **A:** Install all applications
 - **M:** Install missing applications only
+- **U:** Check for updates
+- **E:** Export selection to profile
+- **I:** Import selection from profile
+- **X:** Uninstall/Remove selected applications
 - **S/R:** Show/Refresh status
 - **Q:** Quit
 
@@ -213,6 +234,78 @@ Launch the graphical interface:
 ```powershell
 .\install.ps1 -AppName "Chrome"
 ```
+
+## Export/Import Configuration Profiles
+
+Both the GUI and CLI versions support exporting and importing application selection profiles. This feature is useful for:
+- **Backing up your application selections**
+- **Deploying the same set of applications to multiple machines**
+- **Sharing configurations with team members**
+- **Standardizing installations across an organization**
+
+### Profile Format
+
+Profiles are saved as JSON files with the following structure:
+
+```json
+{
+  "Version": "1.0",
+  "Timestamp": "2025-11-10T18:40:47",
+  "ComputerName": "MYTECHTODAY-LAP",
+  "UserName": "kyle",
+  "InstallerVersion": "1.3.8",
+  "Applications": [
+    "Google Chrome",
+    "7-Zip",
+    "VLC Media Player",
+    "Visual Studio Code",
+    "Git"
+  ]
+}
+```
+
+### Default Profile Location
+
+Profiles are saved to: `C:\mytech.today\app_installer\profiles\`
+
+Default filename format: `profile-{ComputerName}-{yyyy-MM-dd-HHmmss}.json`
+
+### Using Export/Import in GUI
+
+1. **Export Selection:**
+   - Select the applications you want to export
+   - Click the **"Export Selection"** button
+   - Choose a location and filename (or use the default)
+   - The profile will be saved with metadata including timestamp, computer name, and user
+
+2. **Import Selection:**
+   - Click the **"Import Selection"** button
+   - Browse to and select a profile JSON file
+   - Review the confirmation dialog showing the number of applications
+   - Click "Yes" to select the applications from the profile
+   - Applications not available in the current installer version will be listed as warnings
+
+### Using Export/Import in CLI
+
+1. **Export Selection:**
+   - From the main menu, press **E**
+   - Enter the application numbers to export (e.g., "1,3,5" or "1-10")
+   - Enter a filename or press Enter to use the default
+   - The profile will be saved to the profiles directory
+
+2. **Import Selection:**
+   - From the main menu, press **I**
+   - Select a profile from the list or enter a full path
+   - Review the profile information and confirm installation
+   - Applications will be installed automatically if confirmed
+
+### Handling Missing Applications
+
+When importing a profile, the installer will:
+- ✅ Identify which applications from the profile are available in the current installer
+- ⚠️ Warn about applications that are not available (e.g., removed or renamed apps)
+- ✅ Proceed with installing only the available applications
+- 📝 Log all import operations including missing applications
 
 ## Directory Structure
 
@@ -241,6 +334,47 @@ app_installer/
 └── ai_prompts/
     └── prompt.01.md                 # Original requirements
 ```
+
+## Uninstall Applications
+
+Both the GUI and CLI versions support uninstalling applications that were previously installed via winget.
+
+### GUI Uninstall (install-gui.ps1)
+
+1. **Select Applications** - Check the applications you want to uninstall
+2. **Click "Uninstall Selected"** - Dark red button next to "Install Selected"
+3. **Confirm Uninstall** - Review the list of applications to be removed
+4. **Progress Tracking** - Watch real-time progress as apps are uninstalled
+5. **Completion** - View success/fail statistics
+
+**Safety Features:**
+- ⚠️ **Confirmation required** - Cannot uninstall without explicit confirmation
+- ⚠️ **Only installed apps** - Only shows applications that are currently installed
+- ⚠️ **Cannot undo** - Uninstall is permanent (warning shown in confirmation)
+- ✅ **Detailed logging** - All uninstall operations logged to centralized log
+- ✅ **Error handling** - Failed uninstalls are reported with error details
+
+### CLI Uninstall (install.ps1)
+
+1. **Select Menu Option "X"** - Choose "X. Uninstall/Remove Selected Applications"
+2. **Enter Application Numbers** - Type numbers (e.g., "1,3,5" or "1-10")
+3. **Confirm Uninstall** - Review the list and confirm with "Y"
+4. **Progress Tracking** - Watch progress with success/fail counts
+5. **Completion** - View final statistics
+
+**Example:**
+```powershell
+.\install.ps1
+# Select "X" from menu
+# Enter: 1,5,10
+# Confirm: Y
+```
+
+**Important Notes:**
+- ⚠️ Applications without a WingetId cannot be uninstalled via this tool
+- ⚠️ Some applications may require manual uninstallation from Windows Settings
+- ⚠️ Uninstalling critical system applications may cause issues
+- ✅ The application list automatically refreshes after uninstall completes
 
 ## Logging
 
@@ -366,9 +500,22 @@ Edit the `Category` property in the application registry to organize apps differ
 
 **Solutions:**
 - Ensure .NET Framework 4.7.2 or later is installed
+  - The GUI installer will automatically detect and offer to install .NET Framework 4.8 if needed
+  - If automatic installation fails, download manually from: https://dotnet.microsoft.com/download/dotnet-framework/net48
 - Check Windows display scaling settings
 - Try running on different monitor if using multi-monitor setup
 - GUI automatically adapts to DPI scaling
+
+### .NET Framework Installation Issues
+
+**Issue:** GUI fails to start with assembly loading errors
+
+**Solutions:**
+- Run `install-gui.ps1` - it will automatically detect missing .NET Framework
+- If prompted, allow the script to install .NET Framework 4.8
+- A system restart may be required after .NET Framework installation
+- If automatic installation fails, install manually from Microsoft's website
+- Verify installation by running `app_installer\test-dotnet-check.ps1`
 
 ## Best Practices
 

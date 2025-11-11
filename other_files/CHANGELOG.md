@@ -7,6 +7,355 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.2] - 2025-11-11 (GUI)
+
+### Changed - Responsive Form Creation 🎨
+
+- **Replaced manual form creation with New-ResponsiveForm function**
+- **Improved DPI scaling and multi-monitor support**
+- **Simplified form initialization code**
+
+**Feature Overview:**
+
+The GUI now uses the centralized `New-ResponsiveForm` function from the responsive.ps1 module instead of manually creating forms. This provides:
+- Consistent form creation across all dialogs
+- Automatic DPI scaling and responsive sizing
+- Better multi-monitor support
+- Reduced code duplication
+- Easier maintenance and updates
+
+**Implementation Details:**
+
+1. **Main Form Creation**
+   - Replaced manual `New-Object System.Windows.Forms.Form` with `New-ResponsiveForm`
+   - Automatically applies DPI scaling, font sizing, and responsive settings
+   - Merges custom properties into form Tag for backward compatibility
+   - Maintains all existing functionality
+
+2. **Dialog Forms**
+   - Queue Management dialog now uses `New-ResponsiveForm`
+   - Updates dialog now uses `New-ResponsiveForm`
+   - Consistent styling and behavior across all forms
+
+3. **Code Improvements**
+   - Removed duplicate form Tag assignment
+   - Consolidated form initialization logic
+   - Better separation of concerns
+
+**Testing:**
+- Syntax validation passed ✓
+- Form creation working correctly ✓
+- All dialogs functional ✓
+
+**Files Modified:**
+- `install-gui.ps1` - Version 1.4.2
+  * Replaced main form creation with New-ResponsiveForm (line 3041)
+  * Replaced queue dialog form creation with New-ResponsiveForm (line 4336)
+  * Replaced updates dialog form creation with New-ResponsiveForm (line 4669)
+  * Merged form Tag properties for backward compatibility (lines 3048-3063)
+  * Removed duplicate Tag assignment (line 3598)
+  * Updated version numbers
+
+## [1.4.1] - 2025-11-11 (GUI) / [1.5.3] - 2025-11-11 (CLI)
+
+### Added - Uninstall Applications Feature 🗑️
+
+- **Added ability to uninstall applications via GUI and CLI**
+- **Confirmation dialog before uninstalling with app list**
+- **Progress tracking during uninstall operations**
+- **Automatic UI refresh after uninstall completes**
+
+**Feature Overview:**
+
+Both GUI and CLI versions now support uninstalling applications that were previously installed via winget. This feature provides:
+- Safe uninstallation with confirmation dialogs
+- Only shows installed applications for uninstall
+- Progress tracking with success/fail counts
+- Automatic removal from installed apps cache
+- Detailed logging of all uninstall operations
+- UI refresh to reflect current installation status
+
+**Implementation Details:**
+
+1. **GUI Version (install-gui.ps1 v1.4.1)**
+   - Added "Uninstall Selected" button (dark red) next to "Install Selected" button
+   - Button only enabled when applications are selected
+   - Confirmation dialog shows list of apps to be uninstalled with versions
+   - Warns about apps that are not installed (will be skipped)
+   - Progress bar shows uninstall progress
+   - Status label updates during uninstall process
+   - Completion message shows success/fail statistics
+   - Automatically refreshes application list after uninstall
+
+2. **CLI Version (install.ps1 v1.5.3)**
+   - Added "X. Uninstall/Remove Selected Applications" menu option
+   - Interactive selection of apps to uninstall (supports ranges, multi-select, categories)
+   - Confirmation prompt shows list of apps to be uninstalled with versions
+   - Warns about apps that are not installed (will be skipped)
+   - Progress tracking with Write-Progress (parent/child progress IDs)
+   - Completion summary shows success/fail statistics
+   - Menu automatically refreshes on next iteration
+
+3. **Core Functions**
+   - `Uninstall-Application` - Uninstalls a single application
+     * Accepts application object as parameter
+     * Uses `winget uninstall --id {WingetId} --silent` command
+     * Implements error handling and logging
+     * Updates UI with progress (status label, progress bar)
+     * Removes app from `$script:InstalledApps` hashtable on success
+     * Returns boolean for success/failure
+   - `Uninstall-SelectedApplications` (GUI only) - Batch uninstall handler
+     * Gets checked items from ListView
+     * Filters to only installed applications
+     * Shows confirmation dialog with app list
+     * Processes uninstall queue with progress tracking
+     * Shows completion message with statistics
+     * Refreshes application list
+
+4. **Safety Features**
+   - Confirmation required before uninstalling (cannot be bypassed)
+   - Only installed applications can be uninstalled
+   - Applications without WingetId cannot be uninstalled
+   - Detailed logging of all uninstall operations
+   - Error handling for failed uninstalls
+   - UI prevents concurrent install/uninstall operations
+
+**Testing:**
+- Syntax validation passed for both GUI and CLI ✓
+- Uninstall-Application function created and tested ✓
+- GUI "Uninstall Selected" button added and wired up ✓
+- CLI "X" menu option added and wired up ✓
+- Confirmation dialogs working correctly ✓
+- Progress tracking functional ✓
+- UI refresh after uninstall working ✓
+
+**Files Modified:**
+- `install-gui.ps1` - Version 1.4.1
+  * Added `Uninstall-Application` function (lines 2686-2839)
+  * Added `Uninstall-SelectedApplications` function (lines 5405-5620)
+  * Added "Uninstall Selected" button (lines 3877-3893)
+  * Updated version numbers
+- `install.ps1` - Version 1.5.3
+  * Added `Uninstall-Application` function (lines 2526-2659)
+  * Added "X" menu option and handler (lines 1184, 3226-3331)
+  * Updated version numbers
+
+**Files Created:**
+- `test-uninstall.ps1` - Test script for uninstall functionality
+
+## [1.4.0] - 2025-11-11 (GUI) / [1.5.2] - 2025-11-11 (CLI)
+
+### Changed - Generic Logging Module Integration 📝
+
+- **Integrated generic logging module from GitHub for centralized logging**
+- **Replaced custom logging functions with shared logging module**
+- **Monthly log rotation with markdown table format**
+
+**Feature Overview:**
+
+Both GUI and CLI versions now use a centralized generic logging module that provides:
+- Consistent logging format across all myTech.Today scripts
+- Monthly log rotation (one file per month: `scriptname-yyyy-MM.md`)
+- Cyclical logging with 10MB size limit
+- Markdown table format for structured logging
+- ASCII-only indicators (no emoji): `[INFO]`, `[OK]`, `[WARN]`, `[ERROR]`
+- Console output with color coding
+- Can be imported from GitHub URL or local path
+
+**Implementation Details:**
+
+1. **Logging Module Import**
+   - Loaded from GitHub URL: `https://raw.githubusercontent.com/mytech-today-now/PowerShellScripts/refs/heads/main/scripts/logging.ps1`
+   - Automatic fallback to local path if network unavailable
+   - Error handling for network failures
+
+2. **Initialize-Log Function**
+   - Replaces old `Initialize-Logging` function
+   - Creates monthly log files: `AppInstaller-GUI-yyyy-MM.md` or `AppInstaller-CLI-yyyy-MM.md`
+   - Includes script version and metadata in log header
+   - Automatic log rotation when file exceeds 10MB
+
+3. **Write-Log Function**
+   - Compatible with existing log calls (no changes needed)
+   - Supports log levels: INFO, SUCCESS, WARNING, ERROR
+   - Writes to both console (with colors) and file (markdown table)
+   - Format: `| Timestamp | Level | Message |`
+
+4. **Benefits**
+   - Centralized logging logic shared across multiple scripts
+   - Easier maintenance and updates
+   - Consistent log format for all myTech.Today tools
+   - Monthly rotation prevents log files from growing too large
+   - Markdown format makes logs easy to read and parse
+   - Backward compatibility with fallback to old logging functions
+
+**Testing:**
+- Syntax validation passed for both GUI and CLI ✓
+- Generic logging module loads successfully ✓
+- Log files created in correct monthly format ✓
+- All log levels working correctly ✓
+- Fallback to local path working ✓
+
+**Files Modified:**
+- `install-gui.ps1` - Version 1.4.0
+- `install.ps1` - Version 1.5.2
+
+## [1.3.9] - 2025-11-11 (GUI)
+
+### Changed - Responsive GUI Helper Integration 📐
+
+- **Integrated responsive GUI helper from GitHub for improved DPI scaling**
+- **Enhanced multi-monitor support with automatic DPI detection**
+- **Improved cross-resolution compatibility (VGA to 8K UHD)**
+
+**Feature Overview:**
+
+The GUI now uses a centralized responsive helper module loaded from GitHub that provides:
+- Automatic DPI scaling detection and calculation
+- Support for multiple screen resolutions (VGA, SVGA, XGA, HD, WXGA, FHD, QHD, UWQHD, 4K UHD, 5K, 8K UHD)
+- Multi-monitor support with different DPI settings
+- Caching mechanism for improved performance
+- Consistent scaling across all GUI elements
+
+**Implementation Details:**
+
+1. **Responsive Helper Import**
+   - Loaded from GitHub URL: `https://raw.githubusercontent.com/mytech-today-now/PowerShellScripts/refs/heads/main/scripts/responsive.ps1`
+   - Automatic fallback to local DPI scaling if network unavailable
+   - Error handling for network failures
+
+2. **Updated Get-DPIScaleFactor Function**
+   - Now uses `Get-ResponsiveDPIScale` from responsive helper when available
+   - Maintains backward compatibility with fallback implementation
+   - Returns comprehensive scale information:
+     * BaseFactor: Base DPI scaling factor
+     * AdditionalScale: Resolution-specific additional scaling
+     * TotalScale: Combined scaling factor
+     * ScreenWidth/ScreenHeight: Screen dimensions
+     * DpiX/DpiY: DPI values
+     * ResolutionName: Detected resolution category
+     * ResolutionCategory: Category identifier
+
+3. **Benefits**
+   - Centralized DPI scaling logic shared across multiple scripts
+   - Easier maintenance and updates
+   - Consistent behavior across different tools
+   - Better support for high-DPI displays (4K, 5K, 8K)
+   - Improved multi-monitor setups
+
+**Testing:**
+- Tested on 1920x1080 at 100% DPI ✓
+- Syntax validation passed ✓
+- Backward compatibility maintained ✓
+
+## [1.3.8] - 2025-11-10 (GUI) / [1.5.1] - 2025-11-10 (CLI)
+
+### Added - Export/Import Configuration Profiles 💾
+
+- **Added export/import profile functionality to both GUI and CLI versions**
+- **Save and load application selections for backup or deployment**
+- **JSON-based profile format with metadata**
+
+**Feature Overview:**
+
+Export/Import Configuration Profiles allow users to save their application selections to a JSON file and load them later. This is useful for:
+- Backing up application selections
+- Deploying the same set of applications to multiple machines
+- Sharing configurations with team members
+- Standardizing installations across an organization
+
+**Implementation Details:**
+
+1. **Export-InstallationProfile Function**
+   - Accepts array of selected applications
+   - Creates JSON file with metadata:
+     * Version (profile format version)
+     * Timestamp (when profile was created)
+     * ComputerName (source computer)
+     * UserName (user who created profile)
+     * InstallerVersion (version of installer used)
+     * Applications (array of application names)
+   - Default save location: `C:\mytech.today\app_installer\profiles\`
+   - Default filename: `profile-{ComputerName}-{yyyy-MM-dd-HHmmss}.json`
+   - Comprehensive error handling for file I/O operations
+   - Logs all export operations to centralized log
+
+2. **Import-InstallationProfile Function**
+   - Reads and validates JSON profile file
+   - Returns hashtable with:
+     * Success (boolean)
+     * Applications (array of valid app objects)
+     * MissingApps (array of apps not in current installer)
+     * Message (status message)
+     * ProfileInfo (original profile metadata)
+   - Handles missing applications gracefully
+   - Validates JSON structure before processing
+   - Logs all import operations including warnings for missing apps
+
+3. **GUI Implementation (install-gui.ps1 v1.3.8)**
+   - Added "Export Selection" button (orange background)
+   - Added "Import Selection" button (dark blue background)
+   - Buttons positioned between "Deselect All" and "Install Selected"
+   - Export dialog:
+     * Shows save file dialog with default filename
+     * Validates that at least one app is selected
+     * Displays success/failure message with file path
+   - Import dialog:
+     * Shows open file dialog
+     * Displays confirmation with app count and missing apps warning
+     * Automatically selects imported applications in ListView
+     * Shows success message with count of selected apps
+
+4. **CLI Implementation (install.ps1 v1.5.1)**
+   - Added "E. Export Selection to Profile" menu option
+   - Added "I. Import Selection from Profile" menu option
+   - Export workflow:
+     * Prompts for application selection (supports multi-select, ranges)
+     * Prompts for filename (or uses default)
+     * Displays success message with file path
+   - Import workflow:
+     * Lists available profiles in profiles directory
+     * Allows selection by number or full path
+     * Displays profile information and missing apps warning
+     * Prompts for confirmation before installation
+     * Automatically installs selected applications if confirmed
+
+5. **Profile Format**
+   ```json
+   {
+     "Version": "1.0",
+     "Timestamp": "2025-11-10T18:40:47",
+     "ComputerName": "PC01",
+     "UserName": "user",
+     "InstallerVersion": "1.3.8",
+     "Applications": ["Google Chrome", "7-Zip", "VLC Media Player"]
+   }
+   ```
+
+6. **Error Handling**
+   - Validates file existence before import
+   - Validates JSON structure (Version and Applications fields required)
+   - Handles corrupted JSON files gracefully
+   - Handles missing applications (apps in profile but not in current installer)
+   - Comprehensive logging of all operations
+   - User-friendly error messages
+
+**Testing:**
+- ✅ Exported selection of 10 applications and verified JSON structure
+- ✅ Imported profile and verified all apps selected correctly
+- ✅ Tested with missing apps in profile (handled gracefully with warnings)
+- ✅ Tested with corrupted JSON file (proper error handling)
+- ✅ Verified logging of all export/import operations
+- ✅ Tested GUI buttons and dialogs
+- ✅ Tested CLI menu options and workflows
+
+**Benefits:**
+- Saves time when setting up multiple machines
+- Ensures consistency across deployments
+- Provides backup of application selections
+- Facilitates team collaboration and standardization
+- Handles edge cases (missing apps, corrupted files) gracefully
+
 ## [1.3.7] - 2025-10-31
 
 ### Added - Marketing and Contact Information Display 📢

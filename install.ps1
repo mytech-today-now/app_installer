@@ -62,7 +62,7 @@
     Author         : myTech.Today
     Prerequisite   : PowerShell 5.1 or later, Administrator privileges
     Copyright      : (c) 2025 myTech.Today. All rights reserved.
-    Version        : 1.4.0
+    Version        : 1.5.3
 
 .LINK
     https://github.com/mytech-today-now/PowerShellScripts
@@ -81,8 +81,40 @@ param(
 #Requires -Version 5.1
 #Requires -RunAsAdministrator
 
+#region Load Generic Logging Module
+
+# Import generic logging module from GitHub for centralized logging
+$loggingUrl = 'https://raw.githubusercontent.com/mytech-today-now/PowerShellScripts/refs/heads/main/scripts/logging.ps1'
+$script:LoggingModuleLoaded = $false
+
+try {
+    Write-Host "Loading generic logging module..." -ForegroundColor Cyan
+    Invoke-Expression (Invoke-WebRequest -Uri $loggingUrl -UseBasicParsing).Content
+    $script:LoggingModuleLoaded = $true
+    Write-Host "[OK] Generic logging module loaded successfully" -ForegroundColor Green
+}
+catch {
+    Write-Host "[ERROR] Failed to load generic logging module: $_" -ForegroundColor Red
+    Write-Host "[INFO] Falling back to local logging implementation" -ForegroundColor Yellow
+
+    # Try to load from local path as fallback
+    $localLoggingPath = Join-Path $PSScriptRoot "..\scripts\logging.ps1"
+    if (Test-Path $localLoggingPath) {
+        try {
+            . $localLoggingPath
+            $script:LoggingModuleLoaded = $true
+            Write-Host "[OK] Loaded logging module from local path" -ForegroundColor Green
+        }
+        catch {
+            Write-Host "[ERROR] Failed to load local logging module: $_" -ForegroundColor Red
+        }
+    }
+}
+
+#endregion
+
 # Script variables
-$script:ScriptVersion = '1.4.0'
+$script:ScriptVersion = '1.5.3'
 $script:OriginalScriptPath = $PSScriptRoot
 $script:SystemInstallPath = "$env:SystemDrive\mytech.today\app_installer"
 $script:ScriptPath = $script:SystemInstallPath  # Will be updated after copy
@@ -903,6 +935,186 @@ function Get-InstalledApplications {
 
 #endregion
 
+#region Profile Export/Import Functions
+
+function Export-InstallationProfile {
+    <#
+    .SYNOPSIS
+        Exports selected applications to a JSON profile file.
+
+    .DESCRIPTION
+        Creates a JSON file containing the list of selected applications along with
+        metadata such as timestamp, computer name, user name, and installer version.
+        Useful for backing up selections or deploying to multiple machines.
+
+    .PARAMETER SelectedApps
+        Array of application objects to export.
+
+    .PARAMETER FilePath
+        Optional custom file path. If not specified, uses default naming convention
+        in C:\mytech.today\app_installer\profiles\
+
+    .OUTPUTS
+        String - Path to the created profile file, or $null if export failed.
+
+    .EXAMPLE
+        $apps = @($script:Applications[0], $script:Applications[5])
+        Export-InstallationProfile -SelectedApps $apps
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [array]$SelectedApps,
+
+        [Parameter(Mandatory = $false)]
+        [string]$FilePath
+    )
+
+    try {
+        # Create profiles directory if it doesn't exist
+        $profilesDir = "C:\mytech.today\app_installer\profiles"
+        if (-not (Test-Path $profilesDir)) {
+            New-Item -Path $profilesDir -ItemType Directory -Force | Out-Null
+            Write-Log "Created profiles directory: $profilesDir" -Level INFO
+        }
+
+        # Generate default filename if not specified
+        if ([string]::IsNullOrWhiteSpace($FilePath)) {
+            $timestamp = Get-Date -Format "yyyy-MM-dd-HHmmss"
+            $computerName = $env:COMPUTERNAME
+            $FilePath = Join-Path $profilesDir "profile-$computerName-$timestamp.json"
+        }
+
+        # Extract application names from app objects
+        $appNames = $SelectedApps | ForEach-Object { $_.Name }
+
+        # Create profile object
+        $profile = [PSCustomObject]@{
+            Version = "1.0"
+            Timestamp = (Get-Date).ToString("yyyy-MM-ddTHH:mm:ss")
+            ComputerName = $env:COMPUTERNAME
+            UserName = $env:USERNAME
+            InstallerVersion = $script:ScriptVersion
+            Applications = $appNames
+        }
+
+        # Export to JSON
+        $profile | ConvertTo-Json -Depth 10 | Set-Content -Path $FilePath -Encoding UTF8
+
+        Write-Log "Exported installation profile to: $FilePath" -Level SUCCESS
+        Write-Log "Profile contains $($appNames.Count) application(s)" -Level INFO
+
+        return $FilePath
+    }
+    catch {
+        Write-Log "Failed to export installation profile: $($_.Exception.Message)" -Level ERROR
+        return $null
+    }
+}
+
+function Import-InstallationProfile {
+    <#
+    .SYNOPSIS
+        Imports application selections from a JSON profile file.
+
+    .DESCRIPTION
+        Reads a JSON profile file and returns the list of applications to select.
+        Validates the JSON structure and handles missing applications gracefully.
+
+    .PARAMETER FilePath
+        Path to the JSON profile file to import.
+
+    .OUTPUTS
+        Hashtable with keys: Success (bool), Applications (array), MissingApps (array), Message (string)
+
+    .EXAMPLE
+        $result = Import-InstallationProfile -FilePath "C:\mytech.today\app_installer\profiles\profile-PC01-2025-11-09-160000.json"
+        if ($result.Success) {
+            Install-SelectedApplications -Apps $result.Applications
+        }
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$FilePath
+    )
+
+    try {
+        # Validate file exists
+        if (-not (Test-Path $FilePath)) {
+            Write-Log "Profile file not found: $FilePath" -Level ERROR
+            return @{
+                Success = $false
+                Applications = @()
+                MissingApps = @()
+                Message = "Profile file not found: $FilePath"
+            }
+        }
+
+        # Read and parse JSON
+        $profileContent = Get-Content -Path $FilePath -Raw -Encoding UTF8
+        $profile = $profileContent | ConvertFrom-Json
+
+        # Validate JSON structure
+        if (-not $profile.Version -or -not $profile.Applications) {
+            Write-Log "Invalid profile format: Missing required fields" -Level ERROR
+            return @{
+                Success = $false
+                Applications = @()
+                MissingApps = @()
+                Message = "Invalid profile format: Missing required fields (Version, Applications)"
+            }
+        }
+
+        Write-Log "Importing profile from: $FilePath" -Level INFO
+        Write-Log "Profile version: $($profile.Version)" -Level INFO
+        Write-Log "Profile created: $($profile.Timestamp)" -Level INFO
+        Write-Log "Profile computer: $($profile.ComputerName)" -Level INFO
+        Write-Log "Profile user: $($profile.UserName)" -Level INFO
+        Write-Log "Profile installer version: $($profile.InstallerVersion)" -Level INFO
+
+        # Match application names to application objects
+        $validApps = @()
+        $missingApps = @()
+
+        foreach ($appName in $profile.Applications) {
+            $app = $script:Applications | Where-Object { $_.Name -eq $appName } | Select-Object -First 1
+            if ($app) {
+                $validApps += $app
+            }
+            else {
+                $missingApps += $appName
+                Write-Log "Application not found in current installer: $appName" -Level WARNING
+            }
+        }
+
+        Write-Log "Profile contains $($profile.Applications.Count) application(s)" -Level INFO
+        Write-Log "Found $($validApps.Count) valid application(s)" -Level INFO
+        if ($missingApps.Count -gt 0) {
+            Write-Log "Missing $($missingApps.Count) application(s) not in current installer" -Level WARNING
+        }
+
+        return @{
+            Success = $true
+            Applications = $validApps
+            MissingApps = $missingApps
+            Message = "Successfully imported profile with $($validApps.Count) application(s)"
+            ProfileInfo = $profile
+        }
+    }
+    catch {
+        Write-Log "Failed to import installation profile: $($_.Exception.Message)" -Level ERROR
+        return @{
+            Success = $false
+            Applications = @()
+            MissingApps = @()
+            Message = "Failed to import profile: $($_.Exception.Message)"
+        }
+    }
+}
+
+#endregion Profile Export/Import Functions
+
 function Show-Menu {
     <#
     .SYNOPSIS
@@ -966,6 +1178,10 @@ function Show-Menu {
     Write-Host ""
     Write-Host "    A. Install All Applications" -ForegroundColor Yellow
     Write-Host "    M. Install Missing Applications Only" -ForegroundColor Yellow
+    Write-Host "    U. Check for Updates" -ForegroundColor Yellow
+    Write-Host "    E. Export Selection to Profile" -ForegroundColor Yellow
+    Write-Host "    I. Import Selection from Profile" -ForegroundColor Yellow
+    Write-Host "    X. Uninstall/Remove Selected Applications" -ForegroundColor Yellow
     Write-Host "    S. Show Status Only" -ForegroundColor Yellow
     Write-Host "    R. Refresh Status" -ForegroundColor Yellow
     Write-Host "    Q. Quit" -ForegroundColor Yellow
@@ -1209,6 +1425,7 @@ function Get-WingetErrorMessage {
         -1978335189 { return "Package not found in source" }
         -1978335212 { return "No applicable installer found (wrong architecture or installer type)" }
         -1978335191 { return "Package already installed" }
+        -1978334975 { return "Installer failed to complete (may require manual intervention)" }
         -1978335192 { return "File not found" }
         -1978335193 { return "Missing dependency" }
         -1978335194 { return "Invalid manifest" }
@@ -1311,6 +1528,577 @@ function Get-WingetErrorMessage {
         -1978335292 { return "Configuration set read only" }
         -1978335293 { return "Configuration set invalid state" }
         default { return "Unknown error (Exit code: $ExitCode)" }
+    }
+}
+
+function Get-AvailableUpdates {
+    <#
+    .SYNOPSIS
+        Checks for available updates for installed applications using winget.
+
+    .DESCRIPTION
+        Runs 'winget upgrade' to detect applications with available updates.
+        Parses the output and returns an array of update objects with app details.
+
+    .OUTPUTS
+        Array of PSCustomObject with properties: Name, Id, CurrentVersion, AvailableVersion, Source
+
+    .EXAMPLE
+        $updates = Get-AvailableUpdates
+        Write-Host "Found $($updates.Count) updates available"
+    #>
+    [CmdletBinding()]
+    param()
+
+    Write-Log "Checking for available updates using winget upgrade" -Level INFO
+    Write-Host "`n[CHECK] Checking for available updates..." -ForegroundColor Cyan
+
+    try {
+        # Run winget upgrade to get list of available updates
+        $wingetOutput = winget upgrade 2>&1 | Out-String
+
+        Write-Log "Winget upgrade command completed" -Level INFO
+
+        # Parse the output
+        $updates = @()
+        $lines = $wingetOutput -split "`r?`n"
+
+        # Find the header line (contains "Name", "Id", "Version", "Available")
+        $headerIndex = -1
+        for ($i = 0; $i -lt $lines.Count; $i++) {
+            if ($lines[$i] -match "Name.*Id.*Version.*Available") {
+                $headerIndex = $i
+                break
+            }
+        }
+
+        if ($headerIndex -eq -1) {
+            Write-Log "No updates available or unable to parse winget output" -Level INFO
+            Write-Host "[INFO] No updates available" -ForegroundColor Green
+            return @()
+        }
+
+        # Find the separator line (dashes)
+        $separatorIndex = $headerIndex + 1
+        if ($separatorIndex -ge $lines.Count -or $lines[$separatorIndex] -notmatch "^-+") {
+            Write-Log "Unable to find separator line in winget output" -Level WARNING
+            return @()
+        }
+
+        # Parse each update line
+        for ($i = $separatorIndex + 1; $i -lt $lines.Count; $i++) {
+            $line = $lines[$i].Trim()
+
+            # Skip empty lines
+            if ([string]::IsNullOrWhiteSpace($line)) {
+                continue
+            }
+
+            # Stop at summary line (e.g., "2 upgrades available")
+            if ($line -match "^\d+\s+upgrade") {
+                break
+            }
+
+            # Parse the line - winget output is space-separated with variable spacing
+            # Format: Name  Id  Version  Available  Source
+            $parts = $line -split '\s{2,}' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+
+            if ($parts.Count -ge 4) {
+                $updateObj = [PSCustomObject]@{
+                    Name = $parts[0].Trim()
+                    Id = $parts[1].Trim()
+                    CurrentVersion = $parts[2].Trim()
+                    AvailableVersion = $parts[3].Trim()
+                    Source = if ($parts.Count -ge 5) { $parts[4].Trim() } else { "winget" }
+                }
+
+                $updates += $updateObj
+                Write-Log "Found update: $($updateObj.Name) ($($updateObj.CurrentVersion) -> $($updateObj.AvailableVersion))" -Level INFO
+            }
+        }
+
+        Write-Log "Found $($updates.Count) application(s) with available updates" -Level INFO
+        Write-Host "[OK] Found $($updates.Count) application(s) with available updates" -ForegroundColor Green
+        return $updates
+    }
+    catch {
+        Write-Log "Error checking for updates: $($_.Exception.Message)" -Level ERROR
+        Write-Host "[ERROR] Error checking for updates: $($_.Exception.Message)" -ForegroundColor Red
+        return @()
+    }
+}
+
+function Get-PackageDependencies {
+    <#
+    .SYNOPSIS
+        Retrieves package dependencies from winget.
+
+    .DESCRIPTION
+        Queries winget to get the list of dependencies for a specific package.
+        Parses the output to extract package dependencies.
+
+    .PARAMETER PackageId
+        The winget package ID to check for dependencies.
+
+    .OUTPUTS
+        Array of dependency package IDs, or empty array if none found.
+
+    .EXAMPLE
+        $deps = Get-PackageDependencies -PackageId "TheDocumentFoundation.LibreOffice"
+        # Returns: @("Microsoft.VCRedist.2015+.x64")
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$PackageId
+    )
+
+    try {
+        Write-Log "Checking dependencies for package: $PackageId" -Level INFO
+
+        # Run winget show to get package details including dependencies
+        $output = & cmd /c "winget show --id `"$PackageId`" 2>&1"
+
+        if ($LASTEXITCODE -ne 0) {
+            Write-Log "Failed to get package info for $PackageId (exit code: $LASTEXITCODE)" -Level WARNING
+            return @()
+        }
+
+        $outputStr = $output | Out-String
+        $dependencies = @()
+
+        # Parse dependencies section
+        # Look for "Dependencies:" followed by "Package Dependencies:"
+        if ($outputStr -match "Dependencies:[\s\S]*?Package Dependencies:\s*\n([\s\S]*?)(?:\n\s*\n|\n[A-Z]|\z)") {
+            $depsSection = $matches[1]
+
+            # Extract package IDs (they typically don't have leading spaces or are indented)
+            $lines = $depsSection -split "`r?`n"
+            foreach ($line in $lines) {
+                $line = $line.Trim()
+                if ($line -and $line -notmatch "^\s*-" -and $line -match "^[A-Za-z0-9\.\+]+") {
+                    $dependencies += $line
+                    Write-Log "Found dependency: $line" -Level INFO
+                }
+            }
+        }
+
+        if ($dependencies.Count -gt 0) {
+            Write-Log "Package $PackageId has $($dependencies.Count) package dependencies" -Level INFO
+        }
+        else {
+            Write-Log "Package $PackageId has no package dependencies" -Level INFO
+        }
+
+        return $dependencies
+    }
+    catch {
+        Write-Log "Error checking dependencies for $PackageId : $($_.Exception.Message)" -Level ERROR
+        return @()
+    }
+}
+
+function Install-PackageDependencies {
+    <#
+    .SYNOPSIS
+        Installs missing package dependencies automatically.
+
+    .DESCRIPTION
+        Checks if dependencies are installed and installs missing ones.
+        Logs all operations and handles errors gracefully.
+
+    .PARAMETER Dependencies
+        Array of dependency package IDs to install.
+
+    .PARAMETER PackageName
+        Name of the main package (for logging purposes).
+
+    .OUTPUTS
+        Boolean - True if all dependencies are satisfied, False otherwise.
+
+    .EXAMPLE
+        $success = Install-PackageDependencies -Dependencies @("Microsoft.VCRedist.2015+.x64") -PackageName "LibreOffice"
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [array]$Dependencies,
+
+        [Parameter(Mandatory = $true)]
+        [string]$PackageName
+    )
+
+    if ($Dependencies.Count -eq 0) {
+        return $true
+    }
+
+    Write-Log "Installing dependencies for $PackageName..." -Level INFO
+    Write-Host "  [DEPS] Checking $($Dependencies.Count) dependencies..." -ForegroundColor Gray
+
+    $allSuccess = $true
+
+    foreach ($depId in $Dependencies) {
+        try {
+            Write-Log "Checking dependency: $depId" -Level INFO
+
+            # Check if dependency is already installed
+            $checkOutput = & cmd /c "winget list --id `"$depId`" --exact 2>&1"
+            $isInstalled = $LASTEXITCODE -eq 0 -and ($checkOutput | Out-String) -match $depId
+
+            if ($isInstalled) {
+                Write-Log "Dependency $depId is already installed" -Level INFO
+                Write-Host "  [OK] $depId (already installed)" -ForegroundColor Green
+                continue
+            }
+
+            # Install the dependency
+            Write-Log "Installing dependency: $depId" -Level INFO
+            Write-Host "  [INSTALL] Installing $depId..." -ForegroundColor Cyan
+
+            $installCmd = "winget install --id `"$depId`" --silent --accept-source-agreements --accept-package-agreements"
+            $installOutput = & cmd /c "$installCmd 2>&1"
+            $exitCode = $LASTEXITCODE
+
+            if ($exitCode -eq 0 -or ($installOutput | Out-String) -match "Successfully installed") {
+                Write-Log "Successfully installed dependency: $depId" -Level SUCCESS
+                Write-Host "  [OK] $depId installed successfully" -ForegroundColor Green
+            }
+            else {
+                Write-Log "Failed to install dependency $depId (exit code: $exitCode)" -Level WARNING
+                Write-Host "  [WARN] $depId installation failed (continuing anyway)" -ForegroundColor Yellow
+                # Don't fail the whole process - winget will try to install it again with the main package
+            }
+        }
+        catch {
+            Write-Log "Exception installing dependency $depId : $($_.Exception.Message)" -Level WARNING
+            Write-Host "  [WARN] $depId error (continuing anyway)" -ForegroundColor Yellow
+            # Don't fail - let winget handle it
+        }
+    }
+
+    return $allSuccess
+}
+
+function Update-Applications {
+    <#
+    .SYNOPSIS
+        Updates selected applications using winget upgrade.
+
+    .DESCRIPTION
+        Updates one or more applications using 'winget upgrade --id {WingetId}'.
+        Shows progress and logs all operations.
+
+    .PARAMETER Updates
+        Array of update objects (from Get-AvailableUpdates) to install.
+
+    .OUTPUTS
+        Hashtable with keys: SuccessCount, FailCount, Results (array of result objects)
+
+    .EXAMPLE
+        $updates = Get-AvailableUpdates
+        $result = Update-Applications -Updates $updates[0..2]
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [array]$Updates
+    )
+
+    Write-Log "Starting update process for $($Updates.Count) application(s)" -Level INFO
+    Write-Host "`n=== Starting Updates ===" -ForegroundColor Cyan
+
+    $successCount = 0
+    $failCount = 0
+    $results = @()
+
+    foreach ($update in $Updates) {
+        Write-Log "Updating $($update.Name) from $($update.CurrentVersion) to $($update.AvailableVersion)" -Level INFO
+        Write-Host "`n[UPDATE] Updating $($update.Name)..." -ForegroundColor Blue
+        Write-Host "  Current Version: $($update.CurrentVersion)" -ForegroundColor Gray
+        Write-Host "  New Version: $($update.AvailableVersion)" -ForegroundColor Gray
+
+        try {
+            # Check and install dependencies first
+            $dependencies = Get-PackageDependencies -PackageId $update.Id
+            if ($dependencies.Count -gt 0) {
+                Write-Log "Package $($update.Name) has $($dependencies.Count) dependencies" -Level INFO
+                Install-PackageDependencies -Dependencies $dependencies -PackageName $update.Name | Out-Null
+            }
+
+            # Run winget upgrade for this specific app with retry logic
+            $maxRetries = 3
+            $retryCount = 0
+            $updateSucceeded = $false
+            $lastError = ""
+            $lastExitCode = 0
+
+            while ($retryCount -lt $maxRetries -and -not $updateSucceeded) {
+                if ($retryCount -gt 0) {
+                    Write-Log "Retry attempt $retryCount for $($update.Name)" -Level INFO
+                    Write-Host "  [RETRY] Attempt $($retryCount + 1) of $maxRetries..." -ForegroundColor Yellow
+                    Start-Sleep -Seconds 2
+                }
+
+                # Build winget command with appropriate flags
+                $wingetCmd = "winget upgrade --id `"$($update.Id)`" --silent --accept-source-agreements --accept-package-agreements"
+
+                # For architecture-specific errors, try with --force flag
+                if ($retryCount -gt 0 -and $lastExitCode -eq -1978335212) {
+                    $wingetCmd += " --force"
+                    Write-Log "Adding --force flag due to installer type mismatch" -Level INFO
+                }
+
+                # For source errors, try with explicit source
+                if ($retryCount -gt 0 -and $lastExitCode -eq -1978335226) {
+                    $wingetCmd = "winget upgrade --id `"$($update.Id)`" --source winget --silent --accept-source-agreements --accept-package-agreements"
+                    Write-Log "Specifying explicit source due to unsupported source error" -Level INFO
+                }
+
+                Write-Log "Executing: $wingetCmd" -Level INFO
+
+                # Execute winget and capture output
+                $output = & cmd /c "$wingetCmd 2>&1"
+                $exitCode = $LASTEXITCODE
+                $lastExitCode = $exitCode
+
+                # Log the output for debugging
+                if ($output) {
+                    $outputStr = $output | Out-String
+                    Write-Log "Winget output: $outputStr" -Level INFO
+                }
+
+                # Check for success
+                if ($exitCode -eq 0) {
+                    $updateSucceeded = $true
+                }
+                else {
+                    # Check if the output indicates success despite non-zero exit code
+                    $outputStr = $output | Out-String
+                    if ($outputStr -match "Successfully installed" -or
+                        $outputStr -match "successfully upgraded" -or
+                        $outputStr -match "No applicable update found" -or
+                        $outputStr -match "No newer package versions are available") {
+                        $updateSucceeded = $true
+                        Write-Log "Update appears successful or already current despite exit code $exitCode" -Level INFO
+                    }
+                    else {
+                        $lastError = Get-WingetErrorMessage -ExitCode $exitCode
+                        $retryCount++
+                    }
+                }
+            }
+
+            # Process final result
+            if ($updateSucceeded) {
+                Write-Log "Successfully updated $($update.Name)" -Level INFO
+                Write-Host "[OK] $($update.Name) updated successfully" -ForegroundColor Green
+                $successCount++
+
+                $results += [PSCustomObject]@{
+                    Name = $update.Name
+                    Success = $true
+                    Message = "Updated to version $($update.AvailableVersion)"
+                }
+            }
+            else {
+                Write-Log "Failed to update $($update.Name) after $retryCount attempts: $lastError (Exit code: $lastExitCode)" -Level ERROR
+                Write-Host "[ERROR] Failed to update $($update.Name): $lastError" -ForegroundColor Red
+
+                # Provide helpful suggestions based on error type
+                if ($lastExitCode -eq -1978335212) {
+                    Write-Host "  [HINT] Try updating manually with: winget upgrade --id `"$($update.Id)`" --interactive" -ForegroundColor Cyan
+                }
+                elseif ($lastExitCode -eq -1978335226) {
+                    Write-Host "  [HINT] Package may need to be updated from a different source" -ForegroundColor Cyan
+                }
+                elseif ($lastExitCode -eq -1978334975) {
+                    Write-Host "  [HINT] Try running: winget upgrade --id `"$($update.Id)`" --interactive" -ForegroundColor Cyan
+                }
+
+                $failCount++
+
+                $results += [PSCustomObject]@{
+                    Name = $update.Name
+                    Success = $false
+                    Message = $lastError
+                }
+            }
+        }
+        catch {
+            Write-Log "Exception updating $($update.Name): $($_.Exception.Message)" -Level ERROR
+            Write-Host "[ERROR] Exception updating $($update.Name): $($_.Exception.Message)" -ForegroundColor Red
+            $failCount++
+
+            $results += [PSCustomObject]@{
+                Name = $update.Name
+                Success = $false
+                Message = $_.Exception.Message
+            }
+        }
+    }
+
+    Write-Log "Update process completed: $successCount succeeded, $failCount failed" -Level INFO
+    Write-Host "`n=== Updates Complete ===" -ForegroundColor Cyan
+    Write-Host "Successful: $successCount" -ForegroundColor Green
+    Write-Host "Failed: $failCount" -ForegroundColor Red
+
+    return @{
+        SuccessCount = $successCount
+        FailCount = $failCount
+        Results = $results
+    }
+}
+
+function Check-ForUpdates {
+    <#
+    .SYNOPSIS
+        Main function to check for updates and handle the update process (CLI mode).
+
+    .DESCRIPTION
+        Checks for available updates, displays them in a table, prompts for selection,
+        and processes selected updates.
+    #>
+    [CmdletBinding()]
+    param()
+
+    Write-Log "User initiated update check (CLI mode)" -Level INFO
+
+    # Get available updates
+    $updates = Get-AvailableUpdates
+
+    if ($updates.Count -eq 0) {
+        Write-Host "`n[INFO] All applications are up to date!" -ForegroundColor Green
+        return
+    }
+
+    # Display updates in a table
+    Write-Host "`n=== Available Updates ===" -ForegroundColor Cyan
+    Write-Host ""
+
+    $index = 1
+    $updateMap = @{}
+
+    # Display header
+    Write-Host "  #  " -NoNewline -ForegroundColor White
+    Write-Host "Application".PadRight(35) -NoNewline -ForegroundColor White
+    Write-Host "Current".PadRight(15) -NoNewline -ForegroundColor White
+    Write-Host "Available".PadRight(15) -NoNewline -ForegroundColor White
+    Write-Host "Source" -ForegroundColor White
+    Write-Host "  " + ("-" * 85) -ForegroundColor Gray
+
+    # Display each update
+    foreach ($update in $updates) {
+        $updateMap[$index] = $update
+
+        Write-Host "  $index. " -NoNewline -ForegroundColor Cyan
+        Write-Host $update.Name.PadRight(33) -NoNewline -ForegroundColor White
+        Write-Host $update.CurrentVersion.PadRight(15) -NoNewline -ForegroundColor Yellow
+        Write-Host $update.AvailableVersion.PadRight(15) -NoNewline -ForegroundColor Green
+        Write-Host $update.Source -ForegroundColor Gray
+
+        $index++
+    }
+
+    Write-Host ""
+    Write-Host "  [Options]" -ForegroundColor Magenta
+    Write-Host "    1-$($updates.Count). Update specific application (type number)" -ForegroundColor Cyan
+    Write-Host "    Multi-Select: Type numbers separated by commas or spaces (e.g., '1,3,5' or '1 3 5')" -ForegroundColor Cyan
+    Write-Host "    Range Select: Type number ranges (e.g., '1-5')" -ForegroundColor Cyan
+    Write-Host "    A. Update All" -ForegroundColor Yellow
+    Write-Host "    Q. Cancel" -ForegroundColor Yellow
+    Write-Host ""
+
+    Write-Host "Enter your choice: " -NoNewline -ForegroundColor White
+    $choice = Read-Host
+
+    # Parse selection
+    $selectedUpdates = @()
+
+    if ($choice -eq 'A') {
+        # Update all
+        $selectedUpdates = $updates
+        Write-Host "`n[INFO] Selected all $($updates.Count) updates" -ForegroundColor Green
+    }
+    elseif ($choice -eq 'Q') {
+        Write-Log "User cancelled update check" -Level INFO
+        return
+    }
+    elseif ($choice -match '^\d+$') {
+        # Single number
+        $num = [int]$choice
+        if ($updateMap.ContainsKey($num)) {
+            $selectedUpdates = @($updateMap[$num])
+        }
+        else {
+            Write-Host "[ERROR] Invalid selection" -ForegroundColor Red
+            return
+        }
+    }
+    elseif ($choice -match '[\d,\-\s]') {
+        # Multi-select or range
+        $numbers = @()
+
+        # Split by comma or space
+        $parts = $choice -split '[,\s]+' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+
+        foreach ($part in $parts) {
+            if ($part -match '^(\d+)-(\d+)$') {
+                # Range
+                $start = [int]$matches[1]
+                $end = [int]$matches[2]
+                $numbers += $start..$end
+            }
+            elseif ($part -match '^\d+$') {
+                # Single number
+                $numbers += [int]$part
+            }
+        }
+
+        # Get unique numbers and map to updates
+        $numbers = $numbers | Select-Object -Unique | Sort-Object
+        foreach ($num in $numbers) {
+            if ($updateMap.ContainsKey($num)) {
+                $selectedUpdates += $updateMap[$num]
+            }
+        }
+
+        if ($selectedUpdates.Count -eq 0) {
+            Write-Host "[ERROR] No valid updates selected" -ForegroundColor Red
+            return
+        }
+
+        Write-Host "`n[INFO] Selected $($selectedUpdates.Count) update(s)" -ForegroundColor Green
+    }
+    else {
+        Write-Host "[ERROR] Invalid choice" -ForegroundColor Red
+        return
+    }
+
+    # Confirm update
+    Write-Host "`nUpdate $($selectedUpdates.Count) application(s)? This may take several minutes." -ForegroundColor Yellow
+    Write-Host "Continue? (Y/N): " -NoNewline -ForegroundColor White
+    $confirm = Read-Host
+
+    if ($confirm -ne 'Y' -and $confirm -ne 'y') {
+        Write-Log "User cancelled update confirmation" -Level INFO
+        Write-Host "[INFO] Update cancelled" -ForegroundColor Yellow
+        return
+    }
+
+    # Perform updates
+    $result = Update-Applications -Updates $selectedUpdates
+
+    # Display summary
+    Write-Host "`n=== Update Summary ===" -ForegroundColor Cyan
+    Write-Host "Total: $($selectedUpdates.Count)" -ForegroundColor White
+    Write-Host "Successful: $($result.SuccessCount)" -ForegroundColor Green
+    Write-Host "Failed: $($result.FailCount)" -ForegroundColor Red
+
+    if ($result.FailCount -gt 0) {
+        Write-Host "`nFailed Updates:" -ForegroundColor Red
+        foreach ($failedResult in ($result.Results | Where-Object { -not $_.Success })) {
+            Write-Host "  - $($failedResult.Name): $($failedResult.Message)" -ForegroundColor Red
+        }
     }
 }
 
@@ -1617,6 +2405,13 @@ function Install-Application {
                 Write-Log "Installing via winget: $($App.WingetId)" -Level INFO
                 Write-Verbose "Installing $($App.Name) using winget ID: $($App.WingetId)"
 
+                # Check and install dependencies first
+                $dependencies = Get-PackageDependencies -PackageId $App.WingetId
+                if ($dependencies.Count -gt 0) {
+                    Write-Log "Package $($App.Name) has $($dependencies.Count) dependencies" -Level INFO
+                    Install-PackageDependencies -Dependencies $dependencies -PackageName $App.Name | Out-Null
+                }
+
                 # Phase 1: Checking
                 if ($TotalCount -gt 0) {
                     Write-Progress -Activity "Installing $($App.Name)" `
@@ -1724,6 +2519,139 @@ function Install-Application {
         }
 
         Write-Log "Error installing $($App.Name): $_" -Level ERROR
+        Write-Host "  [ERROR] Error: $_" -ForegroundColor Red
+        return $false
+    }
+}
+
+function Uninstall-Application {
+    <#
+    .SYNOPSIS
+        Uninstalls a specific application using winget.
+
+    .DESCRIPTION
+        Uninstalls an application using 'winget uninstall --id {WingetId} --silent'.
+        Logs all operations and shows progress.
+
+    .PARAMETER App
+        The application hashtable to uninstall (must have WingetId property).
+
+    .PARAMETER CurrentIndex
+        Current index in the uninstall queue (for progress tracking).
+
+    .PARAMETER TotalCount
+        Total number of applications to uninstall (for progress tracking).
+
+    .OUTPUTS
+        Boolean - $true if uninstall succeeded, $false otherwise.
+
+    .EXAMPLE
+        $app = $script:Applications | Where-Object { $_.Name -eq "Google Chrome" }
+        Uninstall-Application -App $app
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [hashtable]$App,
+
+        [Parameter(Mandatory = $false)]
+        [int]$CurrentIndex = 0,
+
+        [Parameter(Mandatory = $false)]
+        [int]$TotalCount = 0
+    )
+
+    Write-Log "Uninstalling $($App.Name)..." -Level INFO
+
+    # Show overall progress if index and total are provided
+    if ($TotalCount -gt 0) {
+        $percentComplete = [Math]::Round(($CurrentIndex / $TotalCount) * 100, 1)
+        Write-Progress -Activity "Uninstalling Applications" `
+            -Status "Uninstalling $($App.Name) ($CurrentIndex of $TotalCount - $percentComplete%)" `
+            -PercentComplete $percentComplete `
+            -Id 1
+    }
+
+    Write-Host "`n+====================================================================+" -ForegroundColor Cyan
+    Write-Host "|  Uninstalling: $($App.Name)" -ForegroundColor Cyan
+    if ($TotalCount -gt 0) {
+        Write-Host "|  Progress: $CurrentIndex of $TotalCount ($percentComplete%)" -ForegroundColor Cyan
+    }
+    Write-Host "+====================================================================+" -ForegroundColor Cyan
+
+    try {
+        # Check if app has WingetId
+        if (-not $App.WingetId) {
+            Write-Log "Cannot uninstall $($App.Name): No WingetId defined" -Level WARNING
+            Write-Host "  [WARN] Cannot uninstall: No WingetId defined for this application" -ForegroundColor Yellow
+            return $false
+        }
+
+        # Check if app is actually installed
+        if (-not $script:InstalledApps.ContainsKey($App.Name)) {
+            Write-Log "$($App.Name) is not installed - skipping uninstall" -Level INFO
+            Write-Host "  [INFO] $($App.Name) is not installed" -ForegroundColor Cyan
+            return $true  # Not an error - just not installed
+        }
+
+        # Update progress for individual app
+        if ($TotalCount -gt 0) {
+            Write-Progress -Activity "Uninstalling $($App.Name)" `
+                -Status "Removing application..." `
+                -PercentComplete 50 `
+                -ParentId 1 `
+                -Id 2
+        }
+
+        Write-Host "  [UNINSTALL] Removing $($App.Name)..." -ForegroundColor Yellow
+        Write-Log "Executing: winget uninstall --id $($App.WingetId) --silent" -Level INFO
+
+        $result = winget uninstall --id $App.WingetId --silent 2>&1
+
+        if ($TotalCount -gt 0) {
+            Write-Progress -Activity "Uninstalling $($App.Name)" `
+                -Status "Complete" `
+                -PercentComplete 100 `
+                -ParentId 1 `
+                -Id 2 `
+                -Completed
+        }
+
+        # Check exit code
+        if ($LASTEXITCODE -eq 0) {
+            Write-Log "$($App.Name) uninstalled successfully" -Level SUCCESS
+            Write-Host "  [OK] $($App.Name) uninstalled successfully" -ForegroundColor Green
+
+            # Remove from installed apps hashtable
+            if ($script:InstalledApps.ContainsKey($App.Name)) {
+                $script:InstalledApps.Remove($App.Name)
+                Write-Log "Removed $($App.Name) from installed apps cache" -Level INFO
+            }
+
+            return $true
+        }
+        else {
+            # Uninstall failed
+            $errorMsg = $result | Out-String
+            $errorMessage = Get-WingetErrorMessage -ExitCode $LASTEXITCODE
+            Write-Log "Failed to uninstall $($App.Name): $errorMessage (Exit code: $LASTEXITCODE)" -Level ERROR
+            Write-Log "Winget output: $errorMsg" -Level ERROR
+            Write-Host "  [ERROR] Failed to uninstall $($App.Name): $errorMessage" -ForegroundColor Red
+            Write-Host "         Exit code: $LASTEXITCODE" -ForegroundColor Red
+            return $false
+        }
+    }
+    catch {
+        if ($TotalCount -gt 0) {
+            Write-Progress -Activity "Uninstalling $($App.Name)" `
+                -Status "Error" `
+                -PercentComplete 100 `
+                -ParentId 1 `
+                -Id 2 `
+                -Completed
+        }
+
+        Write-Log "Error uninstalling $($App.Name): $_" -Level ERROR
         Write-Host "  [ERROR] Error: $_" -ForegroundColor Red
         return $false
     }
@@ -2062,9 +2990,25 @@ function Install-MonthlyUpdateTask {
 #endregion
 
 # Initialize logging
-Initialize-Logging
-Write-Log "=== App Installer v$script:ScriptVersion Started ===" -Level INFO
-Write-Log "Action: $Action" -Level INFO
+if ($script:LoggingModuleLoaded) {
+    # Use generic logging module
+    $logPath = Initialize-Log -ScriptName "AppInstaller-CLI" -ScriptVersion $script:ScriptVersion
+    if ($logPath) {
+        Write-Log "=== App Installer v$script:ScriptVersion Started ===" -Level INFO
+        Write-Log "Action: $Action" -Level INFO
+        Write-Host "[OK] Logging initialized with generic module" -ForegroundColor Green
+    }
+    else {
+        Write-Host "[WARN] Generic logging module failed to initialize" -ForegroundColor Yellow
+    }
+}
+else {
+    # Fallback to old logging method
+    Initialize-Logging
+    Write-Log "=== App Installer v$script:ScriptVersion Started ===" -Level INFO
+    Write-Log "Action: $Action" -Level INFO
+    Write-Host "[OK] Logging initialized with fallback method" -ForegroundColor Green
+}
 
 # Check for winget availability (install on Windows 10 if needed)
 Write-Host "`n[i] Checking for winget availability..." -ForegroundColor Cyan
@@ -2103,6 +3047,285 @@ try {
                 }
                 elseif ($choice -eq 'M') {
                     Install-MissingApplications
+                    Read-KeySafe
+                }
+                elseif ($choice -eq 'U') {
+                    Check-ForUpdates
+                    Read-KeySafe
+                }
+                elseif ($choice -eq 'E') {
+                    # Export Selection
+                    Write-Host ""
+                    Write-Host "=== Export Installation Profile ===" -ForegroundColor Cyan
+                    Write-Host ""
+                    Write-Host "Enter application numbers to export (e.g., '1,3,5' or '1-10'):" -ForegroundColor Yellow
+                    Write-Host "Or press Enter to cancel" -ForegroundColor Gray
+                    Write-Host ""
+                    Write-Host "Selection: " -NoNewline -ForegroundColor White
+                    $exportChoice = Read-Host
+
+                    if ([string]::IsNullOrWhiteSpace($exportChoice)) {
+                        Write-Host "[INFO] Export cancelled" -ForegroundColor Cyan
+                        Read-KeySafe
+                        continue
+                    }
+
+                    $selectedApps = Parse-SelectionInput -Input $exportChoice -MenuItems $menuData.MenuItems -Categories $menuData.Categories
+
+                    if ($selectedApps.Count -eq 0) {
+                        Write-Host "[ERROR] No valid applications selected" -ForegroundColor Red
+                        Read-KeySafe
+                        continue
+                    }
+
+                    # Create profiles directory if it doesn't exist
+                    $profilesDir = "C:\mytech.today\app_installer\profiles"
+                    if (-not (Test-Path $profilesDir)) {
+                        New-Item -Path $profilesDir -ItemType Directory -Force | Out-Null
+                    }
+
+                    # Generate default filename
+                    $timestamp = Get-Date -Format "yyyy-MM-dd-HHmmss"
+                    $computerName = $env:COMPUTERNAME
+                    $defaultFileName = "profile-$computerName-$timestamp.json"
+
+                    Write-Host ""
+                    Write-Host "Enter filename (or press Enter for default: $defaultFileName):" -ForegroundColor Yellow
+                    Write-Host "Filename: " -NoNewline -ForegroundColor White
+                    $fileName = Read-Host
+
+                    if ([string]::IsNullOrWhiteSpace($fileName)) {
+                        $fileName = $defaultFileName
+                    }
+                    elseif (-not $fileName.EndsWith('.json')) {
+                        $fileName += '.json'
+                    }
+
+                    $filePath = Join-Path $profilesDir $fileName
+
+                    $exportedPath = Export-InstallationProfile -SelectedApps $selectedApps -FilePath $filePath
+
+                    if ($exportedPath) {
+                        Write-Host ""
+                        Write-Host "[SUCCESS] Exported $($selectedApps.Count) application(s) to:" -ForegroundColor Green
+                        Write-Host "  $exportedPath" -ForegroundColor Cyan
+                    }
+                    else {
+                        Write-Host ""
+                        Write-Host "[ERROR] Failed to export profile. Check the log for details." -ForegroundColor Red
+                    }
+
+                    Read-KeySafe
+                }
+                elseif ($choice -eq 'I') {
+                    # Import Selection
+                    Write-Host ""
+                    Write-Host "=== Import Installation Profile ===" -ForegroundColor Cyan
+                    Write-Host ""
+
+                    # List available profiles
+                    $profilesDir = "C:\mytech.today\app_installer\profiles"
+                    if (Test-Path $profilesDir) {
+                        $profiles = Get-ChildItem -Path $profilesDir -Filter "*.json" | Sort-Object LastWriteTime -Descending
+
+                        if ($profiles.Count -gt 0) {
+                            Write-Host "Available profiles:" -ForegroundColor Yellow
+                            for ($i = 0; $i -lt $profiles.Count; $i++) {
+                                $profile = $profiles[$i]
+                                Write-Host "  $($i + 1). $($profile.Name) ($(Get-Date $profile.LastWriteTime -Format 'yyyy-MM-dd HH:mm'))" -ForegroundColor Cyan
+                            }
+                            Write-Host ""
+                            Write-Host "Enter profile number, full path, or press Enter to cancel:" -ForegroundColor Yellow
+                            Write-Host "Selection: " -NoNewline -ForegroundColor White
+                            $importChoice = Read-Host
+
+                            if ([string]::IsNullOrWhiteSpace($importChoice)) {
+                                Write-Host "[INFO] Import cancelled" -ForegroundColor Cyan
+                                Read-KeySafe
+                                continue
+                            }
+
+                            # Check if it's a number
+                            if ($importChoice -match '^\d+$') {
+                                $profileIndex = [int]$importChoice - 1
+                                if ($profileIndex -ge 0 -and $profileIndex -lt $profiles.Count) {
+                                    $filePath = $profiles[$profileIndex].FullName
+                                }
+                                else {
+                                    Write-Host "[ERROR] Invalid profile number" -ForegroundColor Red
+                                    Read-KeySafe
+                                    continue
+                                }
+                            }
+                            else {
+                                $filePath = $importChoice
+                            }
+                        }
+                        else {
+                            Write-Host "No profiles found in $profilesDir" -ForegroundColor Yellow
+                            Write-Host ""
+                            Write-Host "Enter full path to profile file, or press Enter to cancel:" -ForegroundColor Yellow
+                            Write-Host "Path: " -NoNewline -ForegroundColor White
+                            $filePath = Read-Host
+
+                            if ([string]::IsNullOrWhiteSpace($filePath)) {
+                                Write-Host "[INFO] Import cancelled" -ForegroundColor Cyan
+                                Read-KeySafe
+                                continue
+                            }
+                        }
+                    }
+                    else {
+                        Write-Host "Profiles directory not found: $profilesDir" -ForegroundColor Yellow
+                        Write-Host ""
+                        Write-Host "Enter full path to profile file, or press Enter to cancel:" -ForegroundColor Yellow
+                        Write-Host "Path: " -NoNewline -ForegroundColor White
+                        $filePath = Read-Host
+
+                        if ([string]::IsNullOrWhiteSpace($filePath)) {
+                            Write-Host "[INFO] Import cancelled" -ForegroundColor Cyan
+                            Read-KeySafe
+                            continue
+                        }
+                    }
+
+                    $result = Import-InstallationProfile -FilePath $filePath
+
+                    if ($result.Success) {
+                        Write-Host ""
+                        Write-Host "[SUCCESS] Profile imported successfully" -ForegroundColor Green
+                        Write-Host "  Found $($result.Applications.Count) application(s)" -ForegroundColor Cyan
+
+                        if ($result.MissingApps.Count -gt 0) {
+                            Write-Host ""
+                            Write-Host "[WARNING] $($result.MissingApps.Count) application(s) from profile not found in current installer:" -ForegroundColor Yellow
+                            foreach ($missingApp in $result.MissingApps) {
+                                Write-Host "  - $missingApp" -ForegroundColor Gray
+                            }
+                        }
+
+                        Write-Host ""
+                        Write-Host "Do you want to install these $($result.Applications.Count) application(s)? (Y/N): " -NoNewline -ForegroundColor Yellow
+                        $confirmChoice = Read-Host
+
+                        if ($confirmChoice -match '^[Yy]') {
+                            Install-SelectedApplications -Apps $result.Applications
+                        }
+                        else {
+                            Write-Host "[INFO] Installation cancelled" -ForegroundColor Cyan
+                        }
+                    }
+                    else {
+                        Write-Host ""
+                        Write-Host "[ERROR] Failed to import profile:" -ForegroundColor Red
+                        Write-Host "  $($result.Message)" -ForegroundColor Gray
+                    }
+
+                    Read-KeySafe
+                }
+                elseif ($choice -eq 'X') {
+                    # Uninstall Selected Applications
+                    Write-Host ""
+                    Write-Host "=== Uninstall Applications ===" -ForegroundColor Cyan
+                    Write-Host ""
+                    Write-Host "Enter application numbers to uninstall (e.g., '1,3,5' or '1-10'):" -ForegroundColor Yellow
+                    Write-Host "Or press Enter to cancel" -ForegroundColor Gray
+                    Write-Host ""
+                    Write-Host "Selection: " -NoNewline -ForegroundColor White
+                    $uninstallChoice = Read-Host
+
+                    if ([string]::IsNullOrWhiteSpace($uninstallChoice)) {
+                        Write-Host "[INFO] Uninstall cancelled" -ForegroundColor Cyan
+                        Read-KeySafe
+                        continue
+                    }
+
+                    $selectedApps = Parse-SelectionInput -Input $uninstallChoice -MenuItems $menuData.MenuItems -Categories $menuData.Categories
+
+                    if ($selectedApps.Count -eq 0) {
+                        Write-Host "[ERROR] No valid applications selected" -ForegroundColor Red
+                        Read-KeySafe
+                        continue
+                    }
+
+                    # Filter to only installed apps
+                    $installedApps = Get-InstalledApplications
+                    $appsToUninstall = @()
+                    $notInstalledApps = @()
+
+                    foreach ($app in $selectedApps) {
+                        if ($installedApps.ContainsKey($app.Name)) {
+                            $appsToUninstall += $app
+                        }
+                        else {
+                            $notInstalledApps += $app
+                        }
+                    }
+
+                    if ($appsToUninstall.Count -eq 0) {
+                        Write-Host ""
+                        Write-Host "[INFO] None of the selected applications are installed" -ForegroundColor Cyan
+                        Read-KeySafe
+                        continue
+                    }
+
+                    # Show confirmation
+                    Write-Host ""
+                    Write-Host "You are about to uninstall $($appsToUninstall.Count) application(s):" -ForegroundColor Yellow
+                    Write-Host ""
+                    foreach ($app in $appsToUninstall) {
+                        $version = $installedApps[$app.Name]
+                        Write-Host "  - $($app.Name) ($version)" -ForegroundColor White
+                    }
+
+                    if ($notInstalledApps.Count -gt 0) {
+                        Write-Host ""
+                        Write-Host "Not installed - will skip ($($notInstalledApps.Count)):" -ForegroundColor Gray
+                        foreach ($app in $notInstalledApps) {
+                            Write-Host "  - $($app.Name)" -ForegroundColor DarkGray
+                        }
+                    }
+
+                    Write-Host ""
+                    Write-Host "This action cannot be undone. Proceed with uninstall? (Y/N): " -NoNewline -ForegroundColor Yellow
+                    $confirmUninstall = Read-Host
+
+                    if ($confirmUninstall -match '^[Yy]') {
+                        # Uninstall applications
+                        $successCount = 0
+                        $failCount = 0
+                        $currentIndex = 0
+
+                        Write-Host ""
+                        Write-Host "+===================================================================+" -ForegroundColor Cyan
+                        Write-Host "|                    Uninstalling Applications                      |" -ForegroundColor Cyan
+                        Write-Host "+===================================================================+" -ForegroundColor Cyan
+                        Write-Host ""
+
+                        foreach ($app in $appsToUninstall) {
+                            $currentIndex++
+                            $result = Uninstall-Application -App $app -CurrentIndex $currentIndex -TotalCount $appsToUninstall.Count
+                            if ($result) {
+                                $successCount++
+                            }
+                            else {
+                                $failCount++
+                            }
+                        }
+
+                        Write-Host ""
+                        Write-Host "+===================================================================+" -ForegroundColor Cyan
+                        Write-Host "|                    Uninstall Complete                             |" -ForegroundColor Cyan
+                        Write-Host "+===================================================================+" -ForegroundColor Cyan
+                        Write-Host ""
+                        Write-Host "Successful: $successCount" -ForegroundColor Green
+                        Write-Host "Failed: $failCount" -ForegroundColor $(if ($failCount -eq 0) { "Green" } else { "Red" })
+                        Write-Host ""
+                    }
+                    else {
+                        Write-Host "[INFO] Uninstall cancelled" -ForegroundColor Cyan
+                    }
+
                     Read-KeySafe
                 }
                 elseif ($choice -eq 'S' -or $choice -eq 'R') {

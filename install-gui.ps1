@@ -18,7 +18,7 @@
     Author         : myTech.Today
     Prerequisite   : PowerShell 5.1 or later, Administrator privileges
     Copyright      : (c) 2025 myTech.Today. All rights reserved.
-    Version        : 1.3.7
+    Version        : 1.4.2
 
 .LINK
     https://github.com/mytech-today-now/app_installer
@@ -27,13 +27,789 @@
 #Requires -Version 5.1
 #Requires -RunAsAdministrator
 
+#region Load Responsive GUI Helper
+
+# Import responsive GUI helper from GitHub for improved DPI scaling and multi-monitor support
+$responsiveUrl = 'https://raw.githubusercontent.com/mytech-today-now/PowerShellScripts/refs/heads/main/scripts/responsive.ps1'
+try {
+    Write-Host "Loading responsive GUI helper..." -ForegroundColor Cyan
+    Invoke-Expression (Invoke-WebRequest -Uri $responsiveUrl -UseBasicParsing).Content
+    Write-Host "[OK] Responsive GUI helper loaded successfully" -ForegroundColor Green
+}
+catch {
+    Write-Host "[ERROR] Failed to load responsive GUI helper: $_" -ForegroundColor Red
+    Write-Host "[INFO] Falling back to local DPI scaling implementation" -ForegroundColor Yellow
+    $script:ResponsiveHelperLoaded = $false
+}
+
+if (-not $script:ResponsiveHelperLoaded) {
+    $script:ResponsiveHelperLoaded = $true
+}
+
+#endregion
+
+#region Load Generic Logging Module
+
+# Import generic logging module from GitHub for centralized logging
+$loggingUrl = 'https://raw.githubusercontent.com/mytech-today-now/PowerShellScripts/refs/heads/main/scripts/logging.ps1'
+$script:LoggingModuleLoaded = $false
+
+try {
+    Write-Host "Loading generic logging module..." -ForegroundColor Cyan
+    Invoke-Expression (Invoke-WebRequest -Uri $loggingUrl -UseBasicParsing).Content
+    $script:LoggingModuleLoaded = $true
+    Write-Host "[OK] Generic logging module loaded successfully" -ForegroundColor Green
+}
+catch {
+    Write-Host "[ERROR] Failed to load generic logging module: $_" -ForegroundColor Red
+    Write-Host "[INFO] Falling back to local logging implementation" -ForegroundColor Yellow
+
+    # Try to load from local path as fallback
+    $localLoggingPath = Join-Path $PSScriptRoot "..\scripts\logging.ps1"
+    if (Test-Path $localLoggingPath) {
+        try {
+            . $localLoggingPath
+            $script:LoggingModuleLoaded = $true
+            Write-Host "[OK] Loaded logging module from local path" -ForegroundColor Green
+        }
+        catch {
+            Write-Host "[ERROR] Failed to load local logging module: $_" -ForegroundColor Red
+        }
+    }
+}
+
+#endregion
+
+#region .NET Framework Prerequisites
+
+#region Dynamic Sizing Helper Functions
+
+function Measure-TextWidth {
+    <#
+    .SYNOPSIS
+        Measures the width of text in pixels for a given font.
+
+    .PARAMETER Text
+        The text to measure.
+
+    .PARAMETER Font
+        The font to use for measurement.
+
+    .OUTPUTS
+        System.Int32 - The width in pixels.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Text,
+
+        [Parameter(Mandatory = $true)]
+        [System.Drawing.Font]$Font
+    )
+
+    try {
+        $graphics = [System.Drawing.Graphics]::FromImage((New-Object System.Drawing.Bitmap 1, 1))
+        $size = $graphics.MeasureString($Text, $Font)
+        $graphics.Dispose()
+        return [int]([Math]::Ceiling($size.Width))
+    }
+    catch {
+        # Fallback: approximate based on character count
+        return [int]($Text.Length * $Font.Size * 0.6)
+    }
+}
+
+function Get-DynamicButtonWidth {
+    <#
+    .SYNOPSIS
+        Calculates button width based on text content.
+
+    .PARAMETER Text
+        The button text.
+
+    .PARAMETER Font
+        The font to use.
+
+    .PARAMETER MinWidth
+        Minimum button width.
+
+    .PARAMETER Padding
+        Additional padding to add.
+
+    .OUTPUTS
+        System.Int32 - The calculated button width.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Text,
+
+        [Parameter(Mandatory = $true)]
+        [System.Drawing.Font]$Font,
+
+        [int]$MinWidth = 80,
+
+        [int]$Padding = 30
+    )
+
+    $textWidth = Measure-TextWidth -Text $Text -Font $Font
+    $calculatedWidth = $textWidth + $Padding
+    return [Math]::Max($calculatedWidth, $MinWidth)
+}
+
+function Get-LongestTextLength {
+    <#
+    .SYNOPSIS
+        Finds the longest text in an array of strings.
+
+    .PARAMETER TextArray
+        Array of strings to analyze.
+
+    .OUTPUTS
+        System.String - The longest string.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [array]$TextArray
+    )
+
+    $longest = ""
+    foreach ($text in $TextArray) {
+        if ($text.Length -gt $longest.Length) {
+            $longest = $text
+        }
+    }
+    return $longest
+}
+
+function Get-DynamicColumnWidth {
+    <#
+    .SYNOPSIS
+        Calculates optimal column width based on content and header text.
+
+    .PARAMETER Items
+        Array of items to measure.
+
+    .PARAMETER PropertyName
+        Property name to measure.
+
+    .PARAMETER HeaderText
+        Column header text to also measure (optional).
+
+    .PARAMETER Font
+        Font to use for measurement.
+
+    .PARAMETER MinWidth
+        Minimum column width.
+
+    .PARAMETER Padding
+        Additional padding.
+
+    .OUTPUTS
+        System.Int32 - The calculated column width.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $false)]
+        [array]$Items,
+
+        [Parameter(Mandatory = $false)]
+        [string]$PropertyName,
+
+        [Parameter(Mandatory = $false)]
+        [string]$HeaderText,
+
+        [Parameter(Mandatory = $true)]
+        [System.Drawing.Font]$Font,
+
+        [int]$MinWidth = 100,
+
+        [int]$Padding = 20
+    )
+
+    $maxWidth = 0
+
+    # Measure header text if provided
+    if ($HeaderText) {
+        $headerWidth = Measure-TextWidth -Text $HeaderText -Font $Font
+        if ($headerWidth -gt $maxWidth) {
+            $maxWidth = $headerWidth
+        }
+    }
+
+    # Measure data values if items and property name provided
+    if ($Items -and $PropertyName) {
+        foreach ($item in $Items) {
+            $text = $item.$PropertyName
+            if ($text) {
+                $width = Measure-TextWidth -Text $text.ToString() -Font $Font
+                if ($width -gt $maxWidth) {
+                    $maxWidth = $width
+                }
+            }
+        }
+    }
+
+    $calculatedWidth = $maxWidth + $Padding
+    return [Math]::Max($calculatedWidth, $MinWidth)
+}
+
+#endregion Dynamic Sizing Helper Functions
+
+#region ListView Click-to-Select Helper Functions
+
+function Add-ListViewClickToSelect {
+    <#
+    .SYNOPSIS
+        Adds click-to-select and drag-to-multi-select functionality to a ListView with checkboxes.
+
+    .DESCRIPTION
+        Enables users to check/uncheck items by clicking anywhere on the row.
+        Also supports click-and-drag to multi-select items.
+        Follows Microsoft Professional Design Standards for Enterprise software.
+
+    .PARAMETER ListView
+        The ListView control to enhance.
+
+    .EXAMPLE
+        Add-ListViewClickToSelect -ListView $myListView
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [System.Windows.Forms.ListView]$ListView
+    )
+
+    # Track drag selection state
+    $dragState = @{
+        IsDragging = $false
+        StartIndex = -1
+        LastIndex = -1
+        InitialCheckState = $false
+    }
+
+    # MouseDown event - Start drag selection
+    $ListView.Add_MouseDown({
+        param($sender, $e)
+
+        if ($e.Button -eq [System.Windows.Forms.MouseButtons]::Left) {
+            $hitTest = $sender.HitTest($e.Location)
+
+            if ($hitTest.Item -ne $null) {
+                $index = $hitTest.Item.Index
+
+                # Don't interfere with checkbox clicks
+                if ($hitTest.Location -ne [System.Windows.Forms.ListViewHitTestLocations]::StateImage) {
+                    # Toggle the checkbox
+                    $hitTest.Item.Checked = -not $hitTest.Item.Checked
+
+                    # Initialize drag state
+                    $dragState.IsDragging = $true
+                    $dragState.StartIndex = $index
+                    $dragState.LastIndex = $index
+                    $dragState.InitialCheckState = $hitTest.Item.Checked
+                }
+            }
+        }
+    }.GetNewClosure())
+
+    # MouseMove event - Continue drag selection
+    $ListView.Add_MouseMove({
+        param($sender, $e)
+
+        if ($dragState.IsDragging -and $e.Button -eq [System.Windows.Forms.MouseButtons]::Left) {
+            $hitTest = $sender.HitTest($e.Location)
+
+            if ($hitTest.Item -ne $null) {
+                $currentIndex = $hitTest.Item.Index
+
+                # Only process if we've moved to a different item
+                if ($currentIndex -ne $dragState.LastIndex) {
+                    # Determine range to update
+                    $startRange = [Math]::Min($dragState.StartIndex, $currentIndex)
+                    $endRange = [Math]::Max($dragState.StartIndex, $currentIndex)
+
+                    # Update all items in the range
+                    for ($i = $startRange; $i -le $endRange; $i++) {
+                        if ($i -lt $sender.Items.Count) {
+                            $sender.Items[$i].Checked = $dragState.InitialCheckState
+                        }
+                    }
+
+                    $dragState.LastIndex = $currentIndex
+                }
+            }
+        }
+    }.GetNewClosure())
+
+    # MouseUp event - End drag selection
+    $ListView.Add_MouseUp({
+        param($sender, $e)
+
+        if ($e.Button -eq [System.Windows.Forms.MouseButtons]::Left) {
+            $dragState.IsDragging = $false
+            $dragState.StartIndex = -1
+            $dragState.LastIndex = -1
+        }
+    }.GetNewClosure())
+
+    # MouseLeave event - Cancel drag if mouse leaves control
+    $ListView.Add_MouseLeave({
+        $dragState.IsDragging = $false
+        $dragState.StartIndex = -1
+        $dragState.LastIndex = -1
+    }.GetNewClosure())
+}
+
+#endregion ListView Click-to-Select Helper Functions
+
+#region Dynamic Form Resizing Helper Functions
+
+function Add-MainFormResizeHandler {
+    <#
+    .SYNOPSIS
+        Adds dynamic resize handling to the main application form.
+
+    .DESCRIPTION
+        Implements Microsoft Professional Design Standards for responsive window resizing.
+        Dynamically adjusts ListView column widths when the form is resized.
+
+    .PARAMETER Form
+        The main form to add resize handling to.
+
+    .PARAMETER ListView
+        The main ListView control.
+
+    .PARAMETER WebBrowser
+        The WebBrowser control for output.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [System.Windows.Forms.Form]$Form,
+
+        [Parameter(Mandatory = $true)]
+        [System.Windows.Forms.ListView]$ListView,
+
+        [Parameter(Mandatory = $true)]
+        [System.Windows.Forms.WebBrowser]$WebBrowser
+    )
+
+    # Store original proportions
+    $resizeState = @{
+        LastWidth = $Form.ClientSize.Width
+        LastHeight = $Form.ClientSize.Height
+        IsResizing = $false
+    }
+
+    $Form.Add_Resize({
+        # Prevent recursive calls and ignore minimized state
+        if ($resizeState.IsResizing -or $Form.WindowState -eq [System.Windows.Forms.FormWindowState]::Minimized) {
+            return
+        }
+
+        $resizeState.IsResizing = $true
+
+        try {
+            # Get current form dimensions
+            $currentWidth = $Form.ClientSize.Width
+            $currentHeight = $Form.ClientSize.Height
+
+            # Only resize if dimensions actually changed
+            if ($currentWidth -ne $resizeState.LastWidth -or $currentHeight -ne $resizeState.LastHeight) {
+                # Get form info from Tag
+                $formInfo = $Form.Tag
+                $margin = $formInfo.Margin
+
+                # Calculate new ListView width (anchoring handles position automatically)
+                $listViewWidth = $ListView.Width
+                $outputWidth = $WebBrowser.Width
+
+                # Adjust Description column (last column) to fill remaining space
+                if ($ListView.Columns.Count -ge 5) {
+                    $usedWidth = 0
+                    for ($i = 0; $i -lt 4; $i++) {
+                        $usedWidth += $ListView.Columns[$i].Width
+                    }
+                    $scrollbarWidth = 25
+                    $newDescWidth = [Math]::Max($listViewWidth - $usedWidth - $scrollbarWidth, 200)
+                    $ListView.Columns[4].Width = $newDescWidth
+                }
+
+                # Update stored dimensions
+                $resizeState.LastWidth = $currentWidth
+                $resizeState.LastHeight = $currentHeight
+            }
+        }
+        catch {
+            # Silently ignore resize errors
+        }
+        finally {
+            $resizeState.IsResizing = $false
+        }
+    }.GetNewClosure())
+}
+
+function Add-UpdatesFormResizeHandler {
+    <#
+    .SYNOPSIS
+        Adds dynamic resize handling to the Updates dialog form.
+
+    .DESCRIPTION
+        Implements Microsoft Professional Design Standards for responsive window resizing.
+        Dynamically adjusts ListView column widths when the form is resized.
+
+    .PARAMETER Form
+        The updates form to add resize handling to.
+
+    .PARAMETER ListView
+        The updates ListView control.
+
+    .PARAMETER TitleLabel
+        The title label control.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [System.Windows.Forms.Form]$Form,
+
+        [Parameter(Mandatory = $true)]
+        [System.Windows.Forms.ListView]$ListView,
+
+        [Parameter(Mandatory = $true)]
+        [System.Windows.Forms.Label]$TitleLabel
+    )
+
+    # Store original proportions
+    $resizeState = @{
+        LastWidth = $Form.ClientSize.Width
+        LastHeight = $Form.ClientSize.Height
+        IsResizing = $false
+    }
+
+    $Form.Add_Resize({
+        # Prevent recursive calls and ignore minimized state
+        if ($resizeState.IsResizing -or $Form.WindowState -eq [System.Windows.Forms.FormWindowState]::Minimized) {
+            return
+        }
+
+        $resizeState.IsResizing = $true
+
+        try {
+            # Get current form dimensions
+            $currentWidth = $Form.ClientSize.Width
+            $currentHeight = $Form.ClientSize.Height
+
+            # Only resize if dimensions actually changed
+            if ($currentWidth -ne $resizeState.LastWidth -or $currentHeight -ne $resizeState.LastHeight) {
+                # Columns are already anchored and will resize automatically
+                # No additional adjustments needed for this simple layout
+
+                # Update stored dimensions
+                $resizeState.LastWidth = $currentWidth
+                $resizeState.LastHeight = $currentHeight
+            }
+        }
+        catch {
+            # Silently ignore resize errors
+        }
+        finally {
+            $resizeState.IsResizing = $false
+        }
+    }.GetNewClosure())
+}
+
+function Add-QueueFormResizeHandler {
+    <#
+    .SYNOPSIS
+        Adds dynamic resize handling to the Queue Management dialog form.
+
+    .DESCRIPTION
+        Implements Microsoft Professional Design Standards for responsive window resizing.
+        Dynamically adjusts ListView and button positions when the form is resized.
+
+    .PARAMETER Form
+        The queue form to add resize handling to.
+
+    .PARAMETER ListView
+        The queue ListView control.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [System.Windows.Forms.Form]$Form,
+
+        [Parameter(Mandatory = $true)]
+        [System.Windows.Forms.ListView]$ListView
+    )
+
+    # Store original proportions
+    $resizeState = @{
+        LastWidth = $Form.ClientSize.Width
+        LastHeight = $Form.ClientSize.Height
+        IsResizing = $false
+    }
+
+    $Form.Add_Resize({
+        # Prevent recursive calls and ignore minimized state
+        if ($resizeState.IsResizing -or $Form.WindowState -eq [System.Windows.Forms.FormWindowState]::Minimized) {
+            return
+        }
+
+        $resizeState.IsResizing = $true
+
+        try {
+            # Get current form dimensions
+            $currentWidth = $Form.ClientSize.Width
+            $currentHeight = $Form.ClientSize.Height
+
+            # Only resize if dimensions actually changed
+            if ($currentWidth -ne $resizeState.LastWidth -or $currentHeight -ne $resizeState.LastHeight) {
+                # Columns and buttons are already anchored and will resize automatically
+                # No additional adjustments needed
+
+                # Update stored dimensions
+                $resizeState.LastWidth = $currentWidth
+                $resizeState.LastHeight = $currentHeight
+            }
+        }
+        catch {
+            # Silently ignore resize errors
+        }
+        finally {
+            $resizeState.IsResizing = $false
+        }
+    }.GetNewClosure())
+}
+
+#endregion Dynamic Form Resizing Helper Functions
+
+function Get-DotNetFrameworkVersion {
+    <#
+    .SYNOPSIS
+        Gets the installed .NET Framework version.
+
+    .DESCRIPTION
+        Checks the registry to determine the highest installed .NET Framework version.
+        Returns the version number or 0 if not found.
+
+    .OUTPUTS
+        System.Int32 - The .NET Framework release number
+    #>
+    [CmdletBinding()]
+    param()
+
+    try {
+        # Check for .NET Framework 4.5+ using Release registry value
+        $releaseKey = 'HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full'
+
+        if (Test-Path $releaseKey) {
+            $release = (Get-ItemProperty -Path $releaseKey -Name Release -ErrorAction SilentlyContinue).Release
+
+            if ($release) {
+                Write-Host "[CHECK] .NET Framework release number: $release" -ForegroundColor Cyan
+                return $release
+            }
+        }
+
+        Write-Host "[WARN] .NET Framework 4.5+ not detected in registry" -ForegroundColor Yellow
+        return 0
+    }
+    catch {
+        Write-Host "[ERROR] Failed to check .NET Framework version: $($_.Exception.Message)" -ForegroundColor Red
+        return 0
+    }
+}
+
+function Get-DotNetFrameworkVersionName {
+    <#
+    .SYNOPSIS
+        Converts .NET Framework release number to version name.
+
+    .PARAMETER Release
+        The release number from the registry.
+
+    .OUTPUTS
+        System.String - The version name (e.g., "4.8")
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [int]$Release
+    )
+
+    # .NET Framework version mapping
+    # Reference: https://docs.microsoft.com/en-us/dotnet/framework/migration-guide/how-to-determine-which-versions-are-installed
+    if ($Release -ge 528040) { return "4.8" }
+    elseif ($Release -ge 461808) { return "4.7.2" }
+    elseif ($Release -ge 461308) { return "4.7.1" }
+    elseif ($Release -ge 460798) { return "4.7" }
+    elseif ($Release -ge 394802) { return "4.6.2" }
+    elseif ($Release -ge 394254) { return "4.6.1" }
+    elseif ($Release -ge 393295) { return "4.6" }
+    elseif ($Release -ge 379893) { return "4.5.2" }
+    elseif ($Release -ge 378675) { return "4.5.1" }
+    elseif ($Release -ge 378389) { return "4.5" }
+    else { return "Unknown" }
+}
+
+function Install-DotNetFramework {
+    <#
+    .SYNOPSIS
+        Installs .NET Framework 4.8 using winget.
+
+    .DESCRIPTION
+        Downloads and installs .NET Framework 4.8 which is required for Windows Forms GUI.
+        Uses winget package manager for installation.
+
+    .OUTPUTS
+        System.Boolean - True if installation succeeded, False otherwise
+    #>
+    [CmdletBinding()]
+    param()
+
+    try {
+        Write-Host "`n[INSTALL] Installing .NET Framework 4.8..." -ForegroundColor Yellow
+        Write-Host "[INFO] This is required for the GUI to function properly" -ForegroundColor Cyan
+        Write-Host "[INFO] Installation may take several minutes and require a restart" -ForegroundColor Cyan
+
+        # Check if winget is available
+        $wingetAvailable = $null -ne (Get-Command winget -ErrorAction SilentlyContinue)
+
+        if (-not $wingetAvailable) {
+            Write-Host "[ERROR] winget not available - cannot install .NET Framework automatically" -ForegroundColor Red
+            Write-Host "[INFO] Please install .NET Framework 4.8 manually from:" -ForegroundColor Yellow
+            Write-Host "       https://dotnet.microsoft.com/download/dotnet-framework/net48" -ForegroundColor Yellow
+            return $false
+        }
+
+        # Install .NET Framework 4.8 using winget
+        Write-Host "[DOWNLOAD] Downloading .NET Framework 4.8..." -ForegroundColor Yellow
+        $result = winget install --id Microsoft.DotNet.Framework.DeveloperPack_4 --silent --accept-source-agreements --accept-package-agreements 2>&1
+
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "[OK] .NET Framework 4.8 installed successfully!" -ForegroundColor Green
+            Write-Host "[WARN] A system restart may be required for changes to take effect" -ForegroundColor Yellow
+            Write-Host "[INFO] Please restart your computer and run this script again" -ForegroundColor Cyan
+
+            # Prompt user to restart
+            $restart = Read-Host "`nWould you like to restart now? (Y/N)"
+            if ($restart -eq 'Y' -or $restart -eq 'y') {
+                Write-Host "[INFO] Restarting computer in 10 seconds..." -ForegroundColor Yellow
+                Write-Host "[INFO] Press Ctrl+C to cancel" -ForegroundColor Cyan
+                Start-Sleep -Seconds 10
+                Restart-Computer -Force
+            }
+            else {
+                Write-Host "[INFO] Please restart your computer manually before running this script again" -ForegroundColor Yellow
+                exit 0
+            }
+
+            return $true
+        }
+        else {
+            Write-Host "[ERROR] .NET Framework installation failed with exit code: $LASTEXITCODE" -ForegroundColor Red
+            Write-Host "[INFO] Please install .NET Framework 4.8 manually from:" -ForegroundColor Yellow
+            Write-Host "       https://dotnet.microsoft.com/download/dotnet-framework/net48" -ForegroundColor Yellow
+            return $false
+        }
+    }
+    catch {
+        Write-Host "[ERROR] Failed to install .NET Framework: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "[INFO] Please install .NET Framework 4.8 manually from:" -ForegroundColor Yellow
+        Write-Host "       https://dotnet.microsoft.com/download/dotnet-framework/net48" -ForegroundColor Yellow
+        return $false
+    }
+}
+
+function Ensure-DotNetFramework {
+    <#
+    .SYNOPSIS
+        Ensures .NET Framework 4.7.2 or later is installed.
+
+    .DESCRIPTION
+        Checks for .NET Framework 4.7.2+ and installs 4.8 if not present.
+        This is required for Windows Forms GUI to function properly.
+
+    .OUTPUTS
+        System.Boolean - True if .NET Framework is available, False otherwise
+    #>
+    [CmdletBinding()]
+    param()
+
+    Write-Host "`n[CHECK] Checking .NET Framework version..." -ForegroundColor Cyan
+
+    $release = Get-DotNetFrameworkVersion
+
+    if ($release -eq 0) {
+        Write-Host "[ERROR] .NET Framework not detected" -ForegroundColor Red
+        Write-Host "[INFO] .NET Framework 4.7.2 or later is required for this GUI" -ForegroundColor Yellow
+
+        $install = Read-Host "`nWould you like to install .NET Framework 4.8 now? (Y/N)"
+        if ($install -eq 'Y' -or $install -eq 'y') {
+            return Install-DotNetFramework
+        }
+        else {
+            Write-Host "[ERROR] Cannot continue without .NET Framework" -ForegroundColor Red
+            return $false
+        }
+    }
+
+    $versionName = Get-DotNetFrameworkVersionName -Release $release
+    Write-Host "[OK] .NET Framework $versionName detected (Release: $release)" -ForegroundColor Green
+
+    # Check if version is 4.7.2 or later (release >= 461808)
+    if ($release -lt 461808) {
+        Write-Host "[WARN] .NET Framework $versionName is installed, but 4.7.2 or later is recommended" -ForegroundColor Yellow
+        Write-Host "[INFO] Current version may not support all GUI features" -ForegroundColor Yellow
+
+        $upgrade = Read-Host "`nWould you like to upgrade to .NET Framework 4.8? (Y/N)"
+        if ($upgrade -eq 'Y' -or $upgrade -eq 'y') {
+            return Install-DotNetFramework
+        }
+        else {
+            Write-Host "[WARN] Continuing with .NET Framework $versionName - some features may not work" -ForegroundColor Yellow
+            return $true
+        }
+    }
+
+    Write-Host "[OK] .NET Framework version is sufficient for GUI" -ForegroundColor Green
+    return $true
+}
+
+# Check and install .NET Framework before loading assemblies
+Write-Host "=== myTech.Today Application Installer - GUI Mode ===" -ForegroundColor Cyan
+Write-Host "Version: 1.4.1" -ForegroundColor Gray
+Write-Host ""
+
+if (-not (Ensure-DotNetFramework)) {
+    Write-Host "`n[ERROR] .NET Framework prerequisites not met" -ForegroundColor Red
+    Write-Host "[INFO] Please install .NET Framework 4.8 and try again" -ForegroundColor Yellow
+    Read-Host "`nPress Enter to exit"
+    exit 1
+}
+
+#endregion .NET Framework Prerequisites
+
 # Add required assemblies
-Add-Type -AssemblyName System.Windows.Forms
-Add-Type -AssemblyName System.Drawing
-Add-Type -AssemblyName System.Web
+Write-Host "`n[INFO] Loading GUI assemblies..." -ForegroundColor Cyan
+try {
+    Add-Type -AssemblyName System.Windows.Forms
+    Add-Type -AssemblyName System.Drawing
+    Add-Type -AssemblyName System.Web
+    Write-Host "[OK] GUI assemblies loaded successfully" -ForegroundColor Green
+}
+catch {
+    Write-Host "[ERROR] Failed to load GUI assemblies: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "[INFO] This usually indicates a .NET Framework issue" -ForegroundColor Yellow
+    Write-Host "[INFO] Please ensure .NET Framework 4.8 is properly installed" -ForegroundColor Yellow
+    Read-Host "`nPress Enter to exit"
+    exit 1
+}
 
 # Script variables
-$script:ScriptVersion = '1.3.7'
+$script:ScriptVersion = '1.4.2'
 $script:OriginalScriptPath = $PSScriptRoot
 $script:SystemInstallPath = "$env:SystemDrive\mytech.today\app_installer"
 $script:ScriptPath = $script:SystemInstallPath
@@ -44,6 +820,15 @@ $script:InstalledApps = @{}
 $script:SelectedApps = @()
 $script:IsClosing = $false  # Flag to prevent event handlers during form closing
 $script:IsInstalling = $false  # Flag to track if installation is in progress
+$script:SearchTerm = ""  # Current search filter term
+$script:FilteredApplications = @()  # Filtered application list
+
+# Queue management variables
+$script:InstallationQueue = @()  # Array of apps in installation queue
+$script:QueueStatePath = "C:\mytech.today\app_installer\queue-state.json"  # Queue state file
+$script:IsPaused = $false  # Flag to track if installation is paused
+$script:SkipCurrent = $false  # Flag to skip current installation
+$script:CurrentQueueIndex = 0  # Current position in queue
 
 # Application registry - defines all supported applications
 # Using PSCustomObject for proper property access with Group-Object
@@ -468,18 +1253,18 @@ if ($copiedToSystem) {
 function Initialize-Logging {
     [CmdletBinding()]
     param()
-    
+
     try {
         if (-not (Test-Path $script:CentralLogPath)) {
             New-Item -ItemType Directory -Path $script:CentralLogPath -Force | Out-Null
         }
-        
+
         $timestamp = Get-Date -Format "yyyy-MM-dd_HHmmss"
         $script:LogPath = Join-Path $script:CentralLogPath "app_installer_gui_$timestamp.log"
-        
+
         Write-Log "=== myTech.Today Application Installer GUI v$script:ScriptVersion ===" -Level INFO
         Write-Log "Log initialized at: $script:LogPath" -Level INFO
-        
+
         return $true
     }
     catch {
@@ -498,15 +1283,15 @@ function Write-Log {
     param(
         [Parameter(Mandatory = $true)]
         [string]$Message,
-        
+
         [Parameter(Mandatory = $false)]
         [ValidateSet('INFO', 'SUCCESS', 'WARNING', 'ERROR')]
         [string]$Level = 'INFO'
     )
-    
+
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     $logMessage = "[$timestamp] [$Level] $Message"
-    
+
     if ($script:LogPath) {
         Add-Content -Path $script:LogPath -Value $logMessage -ErrorAction SilentlyContinue
     }
@@ -925,6 +1710,7 @@ function Get-WingetErrorMessage {
         -1978335189 { return "Package not found in source" }
         -1978335212 { return "No applicable installer found (wrong architecture or installer type)" }
         -1978335191 { return "Package already installed" }
+        -1978334975 { return "Installer failed to complete (may require manual intervention)" }
         -1978335192 { return "File not found" }
         -1978335193 { return "Missing dependency" }
         -1978335194 { return "Invalid manifest" }
@@ -1027,6 +1813,424 @@ function Get-WingetErrorMessage {
         -1978335292 { return "Configuration set read only" }
         -1978335293 { return "Configuration set invalid state" }
         default { return "Unknown error (Exit code: $ExitCode)" }
+    }
+}
+
+function Get-AvailableUpdates {
+    <#
+    .SYNOPSIS
+        Checks for available updates for installed applications using winget.
+
+    .DESCRIPTION
+        Runs 'winget upgrade' to detect applications with available updates.
+        Parses the output and returns an array of update objects with app details.
+
+    .OUTPUTS
+        Array of PSCustomObject with properties: Name, Id, CurrentVersion, AvailableVersion, Source
+
+    .EXAMPLE
+        $updates = Get-AvailableUpdates
+        Write-Host "Found $($updates.Count) updates available"
+    #>
+    [CmdletBinding()]
+    param()
+
+    Write-Log "Checking for available updates using winget upgrade" -Level INFO
+
+    try {
+        # Run winget upgrade to get list of available updates
+        $wingetOutput = winget upgrade 2>&1 | Out-String
+
+        Write-Log "Winget upgrade command completed" -Level INFO
+
+        # Parse the output
+        $updates = @()
+        $lines = $wingetOutput -split "`r?`n"
+
+        # Find the header line (contains "Name", "Id", "Version", "Available")
+        $headerIndex = -1
+        for ($i = 0; $i -lt $lines.Count; $i++) {
+            if ($lines[$i] -match "Name.*Id.*Version.*Available") {
+                $headerIndex = $i
+                break
+            }
+        }
+
+        if ($headerIndex -eq -1) {
+            Write-Log "No updates available or unable to parse winget output" -Level INFO
+            return @()
+        }
+
+        # Find the separator line (dashes)
+        $separatorIndex = $headerIndex + 1
+        if ($separatorIndex -ge $lines.Count -or $lines[$separatorIndex] -notmatch "^-+") {
+            Write-Log "Unable to find separator line in winget output" -Level WARNING
+            return @()
+        }
+
+        # Parse each update line
+        for ($i = $separatorIndex + 1; $i -lt $lines.Count; $i++) {
+            $line = $lines[$i].Trim()
+
+            # Skip empty lines
+            if ([string]::IsNullOrWhiteSpace($line)) {
+                continue
+            }
+
+            # Stop at summary line (e.g., "2 upgrades available")
+            if ($line -match "^\d+\s+upgrade") {
+                break
+            }
+
+            # Parse the line - winget output is space-separated with variable spacing
+            # Format: Name  Id  Version  Available  Source
+            $parts = $line -split '\s{2,}' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+
+            if ($parts.Count -ge 4) {
+                $updateObj = [PSCustomObject]@{
+                    Name = $parts[0].Trim()
+                    Id = $parts[1].Trim()
+                    CurrentVersion = $parts[2].Trim()
+                    AvailableVersion = $parts[3].Trim()
+                    Source = if ($parts.Count -ge 5) { $parts[4].Trim() } else { "winget" }
+                }
+
+                $updates += $updateObj
+                Write-Log "Found update: $($updateObj.Name) ($($updateObj.CurrentVersion) -> $($updateObj.AvailableVersion))" -Level INFO
+            }
+        }
+
+        Write-Log "Found $($updates.Count) application(s) with available updates" -Level INFO
+        return $updates
+    }
+    catch {
+        Write-Log "Error checking for updates: $($_.Exception.Message)" -Level ERROR
+        return @()
+    }
+}
+
+function Get-PackageDependencies {
+    <#
+    .SYNOPSIS
+        Retrieves package dependencies from winget.
+
+    .DESCRIPTION
+        Queries winget to get the list of dependencies for a specific package.
+        Parses the output to extract package dependencies.
+
+    .PARAMETER PackageId
+        The winget package ID to check for dependencies.
+
+    .OUTPUTS
+        Array of dependency package IDs, or empty array if none found.
+
+    .EXAMPLE
+        $deps = Get-PackageDependencies -PackageId "TheDocumentFoundation.LibreOffice"
+        # Returns: @("Microsoft.VCRedist.2015+.x64")
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$PackageId
+    )
+
+    try {
+        Write-Log "Checking dependencies for package: $PackageId" -Level INFO
+
+        # Run winget show to get package details including dependencies
+        $output = & cmd /c "winget show --id `"$PackageId`" 2>&1"
+
+        if ($LASTEXITCODE -ne 0) {
+            Write-Log "Failed to get package info for $PackageId (exit code: $LASTEXITCODE)" -Level WARNING
+            return @()
+        }
+
+        $outputStr = $output | Out-String
+        $dependencies = @()
+
+        # Parse dependencies section
+        # Look for "Dependencies:" followed by "Package Dependencies:"
+        if ($outputStr -match "Dependencies:[\s\S]*?Package Dependencies:\s*\n([\s\S]*?)(?:\n\s*\n|\n[A-Z]|\z)") {
+            $depsSection = $matches[1]
+
+            # Extract package IDs (they typically don't have leading spaces or are indented)
+            $lines = $depsSection -split "`r?`n"
+            foreach ($line in $lines) {
+                $line = $line.Trim()
+                if ($line -and $line -notmatch "^\s*-" -and $line -match "^[A-Za-z0-9\.\+]+") {
+                    $dependencies += $line
+                    Write-Log "Found dependency: $line" -Level INFO
+                }
+            }
+        }
+
+        if ($dependencies.Count -gt 0) {
+            Write-Log "Package $PackageId has $($dependencies.Count) package dependencies" -Level INFO
+        }
+        else {
+            Write-Log "Package $PackageId has no package dependencies" -Level INFO
+        }
+
+        return $dependencies
+    }
+    catch {
+        Write-Log "Error checking dependencies for $PackageId : $($_.Exception.Message)" -Level ERROR
+        return @()
+    }
+}
+
+function Install-PackageDependencies {
+    <#
+    .SYNOPSIS
+        Installs missing package dependencies automatically.
+
+    .DESCRIPTION
+        Checks if dependencies are installed and installs missing ones.
+        Logs all operations and handles errors gracefully.
+
+    .PARAMETER Dependencies
+        Array of dependency package IDs to install.
+
+    .PARAMETER PackageName
+        Name of the main package (for logging purposes).
+
+    .OUTPUTS
+        Boolean - True if all dependencies are satisfied, False otherwise.
+
+    .EXAMPLE
+        $success = Install-PackageDependencies -Dependencies @("Microsoft.VCRedist.2015+.x64") -PackageName "LibreOffice"
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [array]$Dependencies,
+
+        [Parameter(Mandatory = $true)]
+        [string]$PackageName
+    )
+
+    if ($Dependencies.Count -eq 0) {
+        return $true
+    }
+
+    Write-Log "Installing dependencies for $PackageName..." -Level INFO
+    Write-Output "  [DEPS] Checking $($Dependencies.Count) dependencies..." -Color ([System.Drawing.Color]::Gray)
+
+    $allSuccess = $true
+
+    foreach ($depId in $Dependencies) {
+        try {
+            Write-Log "Checking dependency: $depId" -Level INFO
+
+            # Check if dependency is already installed
+            $checkOutput = & cmd /c "winget list --id `"$depId`" --exact 2>&1"
+            $isInstalled = $LASTEXITCODE -eq 0 -and ($checkOutput | Out-String) -match $depId
+
+            if ($isInstalled) {
+                Write-Log "Dependency $depId is already installed" -Level INFO
+                Write-Output "  [OK] $depId (already installed)" -Color ([System.Drawing.Color]::Green)
+                continue
+            }
+
+            # Install the dependency
+            Write-Log "Installing dependency: $depId" -Level INFO
+            Write-Output "  [INSTALL] Installing $depId..." -Color ([System.Drawing.Color]::Cyan)
+
+            $installCmd = "winget install --id `"$depId`" --silent --accept-source-agreements --accept-package-agreements"
+            $installOutput = & cmd /c "$installCmd 2>&1"
+            $exitCode = $LASTEXITCODE
+
+            if ($exitCode -eq 0 -or ($installOutput | Out-String) -match "Successfully installed") {
+                Write-Log "Successfully installed dependency: $depId" -Level SUCCESS
+                Write-Output "  [OK] $depId installed successfully" -Color ([System.Drawing.Color]::Green)
+            }
+            else {
+                Write-Log "Failed to install dependency $depId (exit code: $exitCode)" -Level WARNING
+                Write-Output "  [WARN] $depId installation failed (continuing anyway)" -Color ([System.Drawing.Color]::Orange)
+                # Don't fail the whole process - winget will try to install it again with the main package
+            }
+        }
+        catch {
+            Write-Log "Exception installing dependency $depId : $($_.Exception.Message)" -Level WARNING
+            Write-Output "  [WARN] $depId error (continuing anyway)" -Color ([System.Drawing.Color]::Orange)
+            # Don't fail - let winget handle it
+        }
+
+        # Process Windows messages to keep UI responsive
+        if ($script:ListView) {
+            [System.Windows.Forms.Application]::DoEvents()
+        }
+    }
+
+    return $allSuccess
+}
+
+function Update-Applications {
+    <#
+    .SYNOPSIS
+        Updates selected applications using winget upgrade.
+
+    .DESCRIPTION
+        Updates one or more applications using 'winget upgrade --id {WingetId}'.
+        Shows progress and logs all operations.
+
+    .PARAMETER Updates
+        Array of update objects (from Get-AvailableUpdates) to install.
+
+    .OUTPUTS
+        Hashtable with keys: SuccessCount, FailCount, Results (array of result objects)
+
+    .EXAMPLE
+        $updates = Get-AvailableUpdates
+        $result = Update-Applications -Updates $updates[0..2]
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [array]$Updates
+    )
+
+    Write-Log "Starting update process for $($Updates.Count) application(s)" -Level INFO
+
+    $successCount = 0
+    $failCount = 0
+    $results = @()
+
+    foreach ($update in $Updates) {
+        Write-Log "Updating $($update.Name) from $($update.CurrentVersion) to $($update.AvailableVersion)" -Level INFO
+        Write-Output "[UPDATE] Updating $($update.Name)..." -Color ([System.Drawing.Color]::Blue)
+
+        try {
+            # Check and install dependencies first
+            $dependencies = Get-PackageDependencies -PackageId $update.Id
+            if ($dependencies.Count -gt 0) {
+                Write-Log "Package $($update.Name) has $($dependencies.Count) dependencies" -Level INFO
+                Install-PackageDependencies -Dependencies $dependencies -PackageName $update.Name | Out-Null
+            }
+
+            # Run winget upgrade for this specific app with retry logic
+            $maxRetries = 3
+            $retryCount = 0
+            $updateSucceeded = $false
+            $lastError = ""
+            $lastExitCode = 0
+
+            while ($retryCount -lt $maxRetries -and -not $updateSucceeded) {
+                if ($retryCount -gt 0) {
+                    Write-Log "Retry attempt $retryCount for $($update.Name)" -Level INFO
+                    Write-Output "  [RETRY] Attempt $($retryCount + 1) of $maxRetries..." -Color ([System.Drawing.Color]::Yellow)
+                    Start-Sleep -Seconds 2
+                }
+
+                # Build winget command with appropriate flags
+                $wingetCmd = "winget upgrade --id `"$($update.Id)`" --silent --accept-source-agreements --accept-package-agreements"
+
+                # For architecture-specific errors, try with --force flag
+                if ($retryCount -gt 0 -and $lastExitCode -eq -1978335212) {
+                    $wingetCmd += " --force"
+                    Write-Log "Adding --force flag due to installer type mismatch" -Level INFO
+                }
+
+                # For source errors, try with explicit source
+                if ($retryCount -gt 0 -and $lastExitCode -eq -1978335226) {
+                    $wingetCmd = "winget upgrade --id `"$($update.Id)`" --source winget --silent --accept-source-agreements --accept-package-agreements"
+                    Write-Log "Specifying explicit source due to unsupported source error" -Level INFO
+                }
+
+                Write-Log "Executing: $wingetCmd" -Level INFO
+
+                # Execute winget and capture output
+                $output = & cmd /c "$wingetCmd 2>&1"
+                $exitCode = $LASTEXITCODE
+                $lastExitCode = $exitCode
+
+                # Log the output for debugging
+                if ($output) {
+                    $outputStr = $output | Out-String
+                    Write-Log "Winget output: $outputStr" -Level INFO
+                }
+
+                # Check for success
+                if ($exitCode -eq 0) {
+                    $updateSucceeded = $true
+                }
+                else {
+                    # Check if the output indicates success despite non-zero exit code
+                    $outputStr = $output | Out-String
+                    if ($outputStr -match "Successfully installed" -or
+                        $outputStr -match "successfully upgraded" -or
+                        $outputStr -match "No applicable update found" -or
+                        $outputStr -match "No newer package versions are available") {
+                        $updateSucceeded = $true
+                        Write-Log "Update appears successful or already current despite exit code $exitCode" -Level INFO
+                    }
+                    else {
+                        $lastError = Get-WingetErrorMessage -ExitCode $exitCode
+                        $retryCount++
+                    }
+                }
+            }
+
+            # Process final result
+            if ($updateSucceeded) {
+                Write-Log "Successfully updated $($update.Name)" -Level INFO
+                Write-Output "[OK] $($update.Name) updated successfully" -Color ([System.Drawing.Color]::Green)
+                $successCount++
+
+                $results += [PSCustomObject]@{
+                    Name = $update.Name
+                    Success = $true
+                    Message = "Updated to version $($update.AvailableVersion)"
+                }
+            }
+            else {
+                Write-Log "Failed to update $($update.Name) after $retryCount attempts: $lastError (Exit code: $lastExitCode)" -Level ERROR
+                Write-Output "[ERROR] Failed to update $($update.Name): $lastError" -Color ([System.Drawing.Color]::Red)
+
+                # Provide helpful suggestions based on error type
+                if ($lastExitCode -eq -1978335212) {
+                    Write-Output "  [HINT] Try updating manually with: winget upgrade --id `"$($update.Id)`" --interactive" -Color ([System.Drawing.Color]::Cyan)
+                }
+                elseif ($lastExitCode -eq -1978335226) {
+                    Write-Output "  [HINT] Package may need to be updated from a different source" -Color ([System.Drawing.Color]::Cyan)
+                }
+                elseif ($lastExitCode -eq -1978334975) {
+                    Write-Output "  [HINT] Try running: winget upgrade --id `"$($update.Id)`" --interactive" -Color ([System.Drawing.Color]::Cyan)
+                }
+
+                $failCount++
+
+                $results += [PSCustomObject]@{
+                    Name = $update.Name
+                    Success = $false
+                    Message = $lastError
+                }
+            }
+        }
+        catch {
+            Write-Log "Exception updating $($update.Name): $($_.Exception.Message)" -Level ERROR
+            Write-Output "[ERROR] Exception updating $($update.Name): $($_.Exception.Message)" -Color ([System.Drawing.Color]::Red)
+            $failCount++
+
+            $results += [PSCustomObject]@{
+                Name = $update.Name
+                Success = $false
+                Message = $_.Exception.Message
+            }
+        }
+
+        # Process Windows messages to keep UI responsive
+        if ($script:ListView) {
+            [System.Windows.Forms.Application]::DoEvents()
+        }
+    }
+
+    Write-Log "Update process completed: $successCount succeeded, $failCount failed" -Level INFO
+
+    return @{
+        SuccessCount = $successCount
+        FailCount = $failCount
+        Results = $results
     }
 }
 
@@ -1347,6 +2551,13 @@ function Install-Application {
                 Write-Log "Installing via winget: $($App.WingetId)" -Level INFO
                 Write-Output "  Installing via winget..." -Color ([System.Drawing.Color]::Gray)
 
+                # Check and install dependencies first
+                $dependencies = Get-PackageDependencies -PackageId $App.WingetId
+                if ($dependencies.Count -gt 0) {
+                    Write-Log "Package $($App.Name) has $($dependencies.Count) dependencies" -Level INFO
+                    Install-PackageDependencies -Dependencies $dependencies -PackageName $App.Name | Out-Null
+                }
+
                 # Update status - downloading
                 if ($script:StatusLabel) {
                     $script:StatusLabel.Text = "[DOWNLOAD] Downloading $($App.Name)..."
@@ -1472,6 +2683,159 @@ function Install-Application {
     }
 }
 
+function Uninstall-Application {
+    <#
+    .SYNOPSIS
+        Uninstalls a single application using winget.
+
+    .DESCRIPTION
+        Uninstalls an application using 'winget uninstall --id {WingetId} --silent'.
+        Logs all operations and updates UI with progress.
+
+    .PARAMETER App
+        The application object to uninstall (must have WingetId property).
+
+    .OUTPUTS
+        Boolean - $true if uninstall succeeded, $false otherwise.
+
+    .EXAMPLE
+        $app = $script:Applications | Where-Object { $_.Name -eq "Google Chrome" }
+        Uninstall-Application -App $app
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [PSCustomObject]$App
+    )
+
+    Write-Log "Uninstalling $($App.Name)..." -Level INFO
+    Write-Output "`r`nUninstalling $($App.Name)..." -Color ([System.Drawing.Color]::Blue)
+
+    # Show secondary progress bar and update status label
+    if ($script:AppProgressBar) {
+        $script:AppProgressBar.Visible = $true
+        [System.Windows.Forms.Application]::DoEvents()
+    }
+
+    if ($script:StatusLabel) {
+        $script:StatusLabel.Text = "[PREP] Preparing to uninstall $($App.Name)..."
+        $script:StatusLabel.ForeColor = [System.Drawing.Color]::DodgerBlue
+        [System.Windows.Forms.Application]::DoEvents()
+    }
+
+    try {
+        # Check if app has WingetId
+        if (-not $App.WingetId) {
+            Write-Log "Cannot uninstall $($App.Name): No WingetId defined" -Level WARNING
+            Write-Output "  [WARN] Cannot uninstall: No WingetId defined for this application" -Color ([System.Drawing.Color]::Orange)
+
+            if ($script:AppProgressBar) {
+                $script:AppProgressBar.Visible = $false
+            }
+            if ($script:StatusLabel) {
+                $script:StatusLabel.Text = "[WARN] Cannot uninstall $($App.Name): No WingetId"
+                $script:StatusLabel.ForeColor = [System.Drawing.Color]::Orange
+                [System.Windows.Forms.Application]::DoEvents()
+            }
+
+            return $false
+        }
+
+        # Check if app is actually installed
+        if (-not $script:InstalledApps.ContainsKey($App.Name)) {
+            Write-Log "$($App.Name) is not installed - skipping uninstall" -Level INFO
+            Write-Output "  [INFO] $($App.Name) is not installed" -Color ([System.Drawing.Color]::Cyan)
+
+            if ($script:AppProgressBar) {
+                $script:AppProgressBar.Visible = $false
+            }
+            if ($script:StatusLabel) {
+                $script:StatusLabel.Text = "[INFO] $($App.Name) is not installed"
+                $script:StatusLabel.ForeColor = [System.Drawing.Color]::Cyan
+                [System.Windows.Forms.Application]::DoEvents()
+            }
+
+            return $true  # Not an error - just not installed
+        }
+
+        # Update status - uninstalling
+        if ($script:StatusLabel) {
+            $script:StatusLabel.Text = "[UNINSTALL] Uninstalling $($App.Name)..."
+            $script:StatusLabel.ForeColor = [System.Drawing.Color]::Orange
+            [System.Windows.Forms.Application]::DoEvents()
+        }
+
+        Write-Log "Executing: winget uninstall --id $($App.WingetId) --silent" -Level INFO
+        $result = winget uninstall --id $App.WingetId --silent 2>&1
+
+        # Check exit code
+        if ($LASTEXITCODE -eq 0) {
+            Write-Log "$($App.Name) uninstalled successfully" -Level SUCCESS
+            Write-Output "  [OK] $($App.Name) uninstalled successfully" -Color ([System.Drawing.Color]::Green)
+
+            # Remove from installed apps hashtable
+            if ($script:InstalledApps.ContainsKey($App.Name)) {
+                $script:InstalledApps.Remove($App.Name)
+                Write-Log "Removed $($App.Name) from installed apps cache" -Level INFO
+            }
+
+            # Hide secondary progress bar
+            if ($script:AppProgressBar) {
+                $script:AppProgressBar.Visible = $false
+            }
+
+            # Update status - success
+            if ($script:StatusLabel) {
+                $script:StatusLabel.Text = "[OK] $($App.Name) uninstalled successfully"
+                $script:StatusLabel.ForeColor = [System.Drawing.Color]::Green
+                [System.Windows.Forms.Application]::DoEvents()
+            }
+
+            return $true
+        }
+        else {
+            # Uninstall failed
+            $errorMsg = $result | Out-String
+            Write-Log "Failed to uninstall $($App.Name): Exit code $LASTEXITCODE" -Level ERROR
+            Write-Log "Winget output: $errorMsg" -Level ERROR
+            Write-Output "  [ERROR] Failed to uninstall $($App.Name)" -Color ([System.Drawing.Color]::Red)
+            Write-Output "  Exit code: $LASTEXITCODE" -Color ([System.Drawing.Color]::Red)
+
+            # Hide secondary progress bar
+            if ($script:AppProgressBar) {
+                $script:AppProgressBar.Visible = $false
+            }
+
+            # Update status - error
+            if ($script:StatusLabel) {
+                $script:StatusLabel.Text = "[ERROR] Failed to uninstall $($App.Name)"
+                $script:StatusLabel.ForeColor = [System.Drawing.Color]::Red
+                [System.Windows.Forms.Application]::DoEvents()
+            }
+
+            return $false
+        }
+    }
+    catch {
+        Write-Log "Error uninstalling $($App.Name): $($_.Exception.Message)" -Level ERROR
+        Write-Output "  [ERROR] Error: $($_.Exception.Message)" -Color ([System.Drawing.Color]::Red)
+
+        # Hide secondary progress bar
+        if ($script:AppProgressBar) {
+            $script:AppProgressBar.Visible = $false
+        }
+
+        # Update status - error
+        if ($script:StatusLabel) {
+            $script:StatusLabel.Text = "[ERROR] Error uninstalling $($App.Name): $($_.Exception.Message)"
+            $script:StatusLabel.ForeColor = [System.Drawing.Color]::Red
+            [System.Windows.Forms.Application]::DoEvents()
+        }
+
+        return $false
+    }
+}
+
 #endregion Installation Functions
 
 #region GUI Creation
@@ -1479,12 +2843,12 @@ function Install-Application {
 function Get-DPIScaleFactor {
     <#
     .SYNOPSIS
-        Calculates DPI scaling factor based on screen resolution and DPI settings.
+        Wrapper function that uses the responsive GUI helper for DPI scaling.
 
     .DESCRIPTION
-        Detects screen resolution and DPI, then calculates appropriate scaling factor.
-        Supports VGA through 8K UHD displays with progressive scaling.
-        Follows myTech.Today GUI responsiveness standards from .augment/gui-responsiveness.md
+        This function calls the responsive GUI helper's Get-ResponsiveDPIScale function
+        to calculate DPI scaling factor. If the responsive helper is not loaded,
+        it falls back to a basic implementation.
 
     .OUTPUTS
         PSCustomObject with scaling information including:
@@ -1496,10 +2860,19 @@ function Get-DPIScaleFactor {
         - DpiX: Horizontal DPI
         - DpiY: Vertical DPI
         - ResolutionName: Detected resolution category name
+        - ResolutionCategory: Category (VGA, HD, FHD, 4K, etc.)
     #>
     [CmdletBinding()]
     param()
 
+    # Use responsive helper if available
+    if ($script:ResponsiveHelperLoaded -and (Get-Command -Name Get-ResponsiveDPIScale -ErrorAction SilentlyContinue)) {
+        $scaleInfo = Get-ResponsiveDPIScale
+        Write-Log "Screen: $($scaleInfo.ScreenWidth)x$($scaleInfo.ScreenHeight), Resolution: $($scaleInfo.ResolutionName), Base DPI: $($scaleInfo.BaseFactor), Additional: $($scaleInfo.AdditionalScale), Total Scale: $($scaleInfo.TotalScale)" -Level INFO
+        return $scaleInfo
+    }
+
+    # Fallback implementation if responsive helper is not available
     Add-Type -AssemblyName System.Windows.Forms
     $screen = [System.Windows.Forms.Screen]::PrimaryScreen
 
@@ -1513,56 +2886,62 @@ function Get-DPIScaleFactor {
     # Apply resolution-specific additional scaling
     $additionalScale = 1.0
     $resolutionName = "Unknown"
+    $resolutionCategory = "Unknown"
 
     if ($screen.Bounds.Width -ge 7680) {
-        # 8K UHD or higher
         $additionalScale = 2.5
-        $resolutionName = "8K UHD"
+        $resolutionName = "8K UHD (7680x4320)"
+        $resolutionCategory = "8K"
     }
     elseif ($screen.Bounds.Width -ge 5120) {
-        # 5K
         $additionalScale = 1.8
-        $resolutionName = "5K"
+        $resolutionName = "5K (5120x2880)"
+        $resolutionCategory = "5K"
     }
     elseif ($screen.Bounds.Width -ge 3840) {
-        # 4K UHD or UW4K
         $additionalScale = 1.5
-        $resolutionName = "4K UHD"
+        $resolutionName = "4K UHD (3840x2160)"
+        $resolutionCategory = "4K"
     }
     elseif ($screen.Bounds.Width -ge 3440) {
-        # UWQHD
         $additionalScale = 1.3
-        $resolutionName = "UWQHD"
+        $resolutionName = "UWQHD (3440x1440)"
+        $resolutionCategory = "UWQHD"
     }
     elseif ($screen.Bounds.Width -ge 2560) {
-        # QHD
         $additionalScale = 1.3
-        $resolutionName = "QHD"
+        $resolutionName = "QHD (2560x1440)"
+        $resolutionCategory = "QHD"
     }
     elseif ($screen.Bounds.Width -ge 1920) {
-        # FHD
         $additionalScale = 1.2
-        $resolutionName = "FHD"
+        $resolutionName = "FHD (1920x1080)"
+        $resolutionCategory = "FHD"
+    }
+    elseif ($screen.Bounds.Width -ge 1366) {
+        $additionalScale = 1.0
+        $resolutionName = "WXGA (1366x768)"
+        $resolutionCategory = "WXGA"
     }
     elseif ($screen.Bounds.Width -ge 1280) {
-        # HD, WXGA
         $additionalScale = 1.0
-        $resolutionName = "HD/WXGA"
+        $resolutionName = "HD (1280x720)"
+        $resolutionCategory = "HD"
     }
     elseif ($screen.Bounds.Width -ge 1024) {
-        # XGA
         $additionalScale = 1.0
-        $resolutionName = "XGA"
+        $resolutionName = "XGA (1024x768)"
+        $resolutionCategory = "XGA"
     }
     elseif ($screen.Bounds.Width -ge 800) {
-        # SVGA
         $additionalScale = 0.9
-        $resolutionName = "SVGA"
+        $resolutionName = "SVGA (800x600)"
+        $resolutionCategory = "SVGA"
     }
     else {
-        # VGA or smaller
         $additionalScale = 0.8
-        $resolutionName = "VGA"
+        $resolutionName = "VGA (640x480)"
+        $resolutionCategory = "VGA"
     }
 
     $scaleFactor = $baseFactor * $additionalScale
@@ -1578,6 +2957,7 @@ function Get-DPIScaleFactor {
         DpiX = $dpiX
         DpiY = $dpiY
         ResolutionName = $resolutionName
+        ResolutionCategory = $resolutionCategory
     }
 }
 
@@ -1657,31 +3037,115 @@ function Create-MainForm {
     Write-Log "Responsive GUI - Resolution: $resolutionName ($screenWidth x $screenHeight), Scale Factor: $scaleFactor" -Level INFO
     Write-Log "Form Size: ${formWidth}x${formHeight}, Fonts - Title: $titleFontSize, Normal: $normalFontSize, Table: $tableFontSize, Console: $consoleFontSize" -Level INFO
 
-    # Create main form with responsive settings
-    $form = New-Object System.Windows.Forms.Form
-    $form.Text = "myTech.Today Application Installer v$script:ScriptVersion"
-    $form.ClientSize = New-Object System.Drawing.Size($formWidth, $formHeight)
-    $form.StartPosition = "CenterScreen"
-    $form.MinimumSize = New-Object System.Drawing.Size($baseDimensions.MinFormWidth, $baseDimensions.MinFormHeight)
-    $form.MaximizeBox = $true
-    $form.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::Sizable
-    $form.AutoScaleMode = [System.Windows.Forms.AutoScaleMode]::Dpi
-    $form.AutoScaleDimensions = New-Object System.Drawing.SizeF(96, 96)
-    $form.Font = New-Object System.Drawing.Font("Segoe UI", $normalFontSize)
+    # Create main form with responsive settings using New-ResponsiveForm
+    $form = New-ResponsiveForm -Title "myTech.Today Application Installer v$script:ScriptVersion" `
+        -Width $formWidth `
+        -Height $formHeight `
+        -MinWidth $baseDimensions.MinFormWidth `
+        -MinHeight $baseDimensions.MinFormHeight `
+        -StartPosition 'CenterScreen' `
+        -Resizable $true
+
+    # Merge additional properties into form Tag (New-ResponsiveForm already sets ScaleInfo, ScaleFactor, BaseDimensions)
+    $existingTag = $form.Tag
+    $form.Tag = @{
+        ScaleInfo = $existingTag.ScaleInfo
+        ScaleFactor = $existingTag.ScaleFactor
+        BaseDimensions = $existingTag.BaseDimensions
+        FormWidth = $formWidth
+        FormHeight = $formHeight
+        NormalFontSize = $normalFontSize
+        TitleFontSize = $titleFontSize
+        ConsoleFontSize = $consoleFontSize
+        TableFontSize = $tableFontSize
+        ButtonFontSize = $buttonFontSize
+        Margin = $margin
+        Spacing = $spacing
+        ButtonHeight = [int]($baseDimensions.ButtonHeight * $scaleFactor)
+    }
 
     # Enable visual styles for modern appearance
     [System.Windows.Forms.Application]::EnableVisualStyles()
 
     # Calculate content area dimensions with scaled values
     $contentTop = $headerHeight
+    $searchPanelHeight = [Math]::Max([Math]::Round($normalFontSize * 2.5), 35)  # Height for search controls
     $contentHeight = $formHeight - $headerHeight - $buttonAreaHeight - $progressAreaHeight - $margin
     $listViewWidth = [Math]::Floor(($formWidth - $margin * 3) * 0.58)  # 58% of width
     $outputWidth = $formWidth - $listViewWidth - $margin * 3
 
+    # Create search panel controls
+    # Increase label width to show full "Search:" text (90 pixels minimum to ensure full visibility at all DPI settings)
+    $searchLabelWidth = [Math]::Max([Math]::Round($normalFontSize * 10), 90)
+    # Clear button width - will align with ListView scrollbar
+    $clearButtonWidth = [Math]::Max([Math]::Round($normalFontSize * 2.5), 30)
+    # Position clear button to align with right edge of ListView (where scrollbar is)
+    $clearButtonX = $margin + $listViewWidth - $clearButtonWidth
+    # Search textbox fills space between label and clear button
+    $searchTextBoxX = $margin + $searchLabelWidth + 5
+    $searchTextBoxWidth = $clearButtonX - $searchTextBoxX - 5
+
+    # Search label
+    $searchLabel = New-Object System.Windows.Forms.Label
+    $searchLabel.Location = New-Object System.Drawing.Point($margin, ($contentTop + 5))
+    $searchLabel.Size = New-Object System.Drawing.Size($searchLabelWidth, ($searchPanelHeight - 10))
+    $searchLabel.Text = "Search:"
+    $searchLabel.Font = New-Object System.Drawing.Font("Segoe UI", $normalFontSize)
+    $searchLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
+    $form.Controls.Add($searchLabel)
+
+    # Search textbox
+    $script:SearchTextBox = New-Object System.Windows.Forms.TextBox
+    $script:SearchTextBox.Location = New-Object System.Drawing.Point($searchTextBoxX, ($contentTop + 5))
+    $script:SearchTextBox.Size = New-Object System.Drawing.Size($searchTextBoxWidth, ($searchPanelHeight - 10))
+    $script:SearchTextBox.Font = New-Object System.Drawing.Font("Segoe UI", $normalFontSize)
+    $script:SearchTextBox.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right
+    $form.Controls.Add($script:SearchTextBox)
+
+    # Clear search button (aligned with ListView scrollbar)
+    $clearSearchButton = New-Object System.Windows.Forms.Button
+    $clearSearchButton.Location = New-Object System.Drawing.Point($clearButtonX, ($contentTop + 5))
+    $clearSearchButton.Size = New-Object System.Drawing.Size($clearButtonWidth, ($searchPanelHeight - 10))
+    $clearSearchButton.Text = "X"
+    $clearSearchButton.Font = New-Object System.Drawing.Font("Segoe UI", $normalFontSize, [System.Drawing.FontStyle]::Bold)
+    $clearSearchButton.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Right
+    $clearSearchButton.Add_Click({
+        if (-not $script:IsClosing) {
+            Write-Log "User clicked Clear Search button" -Level INFO
+            $script:SearchTextBox.Text = ""
+            $script:SearchTerm = ""
+            Filter-Applications -SearchTerm ""
+        }
+    })
+    $form.Controls.Add($clearSearchButton)
+
+    # Add event handler for search textbox (real-time filtering)
+    $script:SearchTextBox.Add_TextChanged({
+        if (-not $script:IsClosing) {
+            $script:SearchTerm = $script:SearchTextBox.Text
+            Filter-Applications -SearchTerm $script:SearchTerm
+        }
+    })
+
+    # Result count label (positioned on the right side, above output panel)
+    $script:ResultCountLabel = New-Object System.Windows.Forms.Label
+    $script:ResultCountLabel.Location = New-Object System.Drawing.Point(($margin * 2 + $listViewWidth), ($contentTop + 5))
+    $script:ResultCountLabel.Size = New-Object System.Drawing.Size($outputWidth, ($searchPanelHeight - 10))
+    $script:ResultCountLabel.Text = "Showing 0 of 0 applications"
+    $script:ResultCountLabel.Font = New-Object System.Drawing.Font("Segoe UI", ($normalFontSize - 1))
+    $script:ResultCountLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
+    $script:ResultCountLabel.ForeColor = [System.Drawing.Color]::Gray
+    $script:ResultCountLabel.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Right
+    $form.Controls.Add($script:ResultCountLabel)
+
+    # Adjust ListView position and height to accommodate search panel
+    $listViewTop = $contentTop + $searchPanelHeight + 5
+    $listViewHeight = $contentHeight - $searchPanelHeight - 5
+
     # Create ListView for applications with responsive sizing
     $script:ListView = New-Object System.Windows.Forms.ListView
-    $script:ListView.Location = New-Object System.Drawing.Point($margin, $contentTop)
-    $script:ListView.Size = New-Object System.Drawing.Size($listViewWidth, $contentHeight)
+    $script:ListView.Location = New-Object System.Drawing.Point($margin, $listViewTop)
+    $script:ListView.Size = New-Object System.Drawing.Size($listViewWidth, $listViewHeight)
     $script:ListView.View = [System.Windows.Forms.View]::Details
     $script:ListView.FullRowSelect = $true
     $script:ListView.GridLines = $true
@@ -1699,13 +3163,59 @@ function Create-MainForm {
 
     Write-Log "ListView - Font: $tableFontSize pt, Row Height: $rowHeight px" -Level INFO
 
-    # Add columns with optimized widths for readability
-    # Proportions: App=22%, Category=12%, Status=12%, Version=10%, Description=42%, Scrollbar=2%
-    $colAppWidth = [Math]::Floor($listViewWidth * 0.22)
-    $colCategoryWidth = [Math]::Floor($listViewWidth * 0.12)
-    $colStatusWidth = [Math]::Floor($listViewWidth * 0.12)
-    $colVersionWidth = [Math]::Floor($listViewWidth * 0.10)
-    $colDescWidth = [Math]::Floor($listViewWidth * 0.42)
+    # Calculate dynamic column widths based on actual content
+    $tableFont = New-Object System.Drawing.Font("Segoe UI", $tableFontSize)
+
+    # Application Name column - measure both data and header
+    $colAppWidth = Get-DynamicColumnWidth -Items $script:Applications -PropertyName "Name" -HeaderText "Application Name" -Font $tableFont -MinWidth ([int](150 * $scaleFactor)) -Padding ([int](30 * $scaleFactor))
+
+    # Category column - measure both data and header
+    $colCategoryWidth = Get-DynamicColumnWidth -Items $script:Applications -PropertyName "Category" -HeaderText "Category" -Font $tableFont -MinWidth ([int](100 * $scaleFactor)) -Padding ([int](30 * $scaleFactor))
+
+    # Status column - measure possible statuses and header
+    $statusTexts = @("Not Installed", "Installed", "Installing...", "Failed", "Skipped")
+    $maxStatusWidth = 0
+    foreach ($statusText in $statusTexts) {
+        $width = Measure-TextWidth -Text $statusText -Font $tableFont
+        if ($width -gt $maxStatusWidth) {
+            $maxStatusWidth = $width
+        }
+    }
+    $headerWidth = Measure-TextWidth -Text "Install Status" -Font $tableFont
+    $maxStatusWidth = [Math]::Max($maxStatusWidth, $headerWidth)
+    $colStatusWidth = $maxStatusWidth + [int](30 * $scaleFactor)
+    $colStatusWidth = [Math]::Max($colStatusWidth, [int](120 * $scaleFactor))
+
+    # Version column - measure actual version strings from installed apps and header
+    $versionTexts = @("Version")  # Start with header
+    foreach ($app in $script:Applications) {
+        if ($script:InstalledApps.ContainsKey($app.Name)) {
+            $version = $script:InstalledApps[$app.Name]
+            if ($version -and $version -ne "Unknown") {
+                $versionTexts += $version
+            }
+        }
+    }
+    # Add some common version formats as minimum
+    $versionTexts += @("1.0.0.0", "10.0.0.0", "100.0.0.0")
+    $maxVersionWidth = 0
+    foreach ($versionText in $versionTexts) {
+        $width = Measure-TextWidth -Text $versionText -Font $tableFont
+        if ($width -gt $maxVersionWidth) {
+            $maxVersionWidth = $width
+        }
+    }
+    $colVersionWidth = $maxVersionWidth + [int](30 * $scaleFactor)
+    $colVersionWidth = [Math]::Max($colVersionWidth, [int](80 * $scaleFactor))
+
+    # Description column - takes remaining space, but ensure header fits
+    $descHeaderWidth = Measure-TextWidth -Text "Description" -Font $tableFont
+    $minDescWidth = [Math]::Max($descHeaderWidth + [int](30 * $scaleFactor), [int](200 * $scaleFactor))
+    $usedWidth = $colAppWidth + $colCategoryWidth + $colStatusWidth + $colVersionWidth
+    $scrollbarWidth = [int](25 * $scaleFactor)
+    $colDescWidth = [Math]::Max($listViewWidth - $usedWidth - $scrollbarWidth, $minDescWidth)
+
+    Write-Log "Dynamic column widths - App: $colAppWidth, Category: $colCategoryWidth, Status: $colStatusWidth, Version: $colVersionWidth, Desc: $colDescWidth" -Level INFO
 
     # Create column headers
     $colAppName = New-Object System.Windows.Forms.ColumnHeader
@@ -1777,12 +3287,15 @@ function Create-MainForm {
         }
     })
 
+    # Add click-to-select and drag-to-multi-select functionality
+    Add-ListViewClickToSelect -ListView $script:ListView
+
     $form.Controls.Add($script:ListView)
 
     # Create WebBrowser control for HTML output (replaces RichTextBox)
     $script:WebBrowser = New-Object System.Windows.Forms.WebBrowser
-    $script:WebBrowser.Location = New-Object System.Drawing.Point(($margin * 2 + $listViewWidth), $contentTop)
-    $script:WebBrowser.Size = New-Object System.Drawing.Size($outputWidth, $contentHeight)
+    $script:WebBrowser.Location = New-Object System.Drawing.Point(($margin * 2 + $listViewWidth), $listViewTop)
+    $script:WebBrowser.Size = New-Object System.Drawing.Size($outputWidth, $listViewHeight)
     $script:WebBrowser.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Right
     $script:WebBrowser.ScriptErrorsSuppressed = $true
     $script:WebBrowser.IsWebBrowserContextMenuEnabled = $false
@@ -2081,21 +3594,7 @@ function Create-MainForm {
     $script:AppProgressBar.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right
     $form.Controls.Add($script:AppProgressBar)
 
-    # Store form dimensions, font sizes, and scaling info for button creation
-    $form.Tag = @{
-        FormWidth = $formWidth
-        FormHeight = $formHeight
-        ScaleFactor = $scaleFactor
-        NormalFontSize = $normalFontSize
-        TitleFontSize = $titleFontSize
-        ConsoleFontSize = $consoleFontSize
-        TableFontSize = $tableFontSize
-        ButtonFontSize = $buttonFontSize
-        Margin = $margin
-        Spacing = $spacing
-        ButtonHeight = [int]($baseDimensions.ButtonHeight * $scaleFactor)
-        BaseDimensions = $baseDimensions
-    }
+    # Form Tag already set after New-ResponsiveForm creation with all necessary properties
 
     return $form
 }
@@ -2118,29 +3617,16 @@ function Create-Buttons {
     $buttonFont = New-Object System.Drawing.Font("Segoe UI", $buttonFontSize)
     $buttonFontBold = New-Object System.Drawing.Font("Segoe UI", $buttonFontSize, [System.Drawing.FontStyle]::Bold)
 
-    # Calculate button width based on longest text with scaled padding
-    $buttonTexts = @("Refresh Status", "Select All", "Select Missing", "Deselect All", "Install Selected", "Exit")
-
-    # Create temporary graphics object to measure text
-    $tempBitmap = New-Object System.Drawing.Bitmap(1, 1)
-    $graphics = [System.Drawing.Graphics]::FromImage($tempBitmap)
-
-    # Measure all button texts and find the maximum width
-    $maxTextWidth = 0
+    # Calculate dynamic button width based on longest text
+    $buttonTexts = @("Refresh Status", "Select All", "Select Missing", "Deselect All", "Export Selection", "Import Selection", "Install Selected", "Exit")
+    $maxButtonWidth = 0
     foreach ($text in $buttonTexts) {
-        $textSize = $graphics.MeasureString($text, $buttonFont)
-        if ($textSize.Width -gt $maxTextWidth) {
-            $maxTextWidth = $textSize.Width
+        $btnWidth = Get-DynamicButtonWidth -Text $text -Font $buttonFont -MinWidth ([int](100 * $scaleFactor)) -Padding ([int](40 * $scaleFactor))
+        if ($btnWidth -gt $maxButtonWidth) {
+            $maxButtonWidth = $btnWidth
         }
     }
-
-    # Clean up graphics objects
-    $graphics.Dispose()
-    $tempBitmap.Dispose()
-
-    # Add scaled horizontal padding (base 40px scaled)
-    $horizontalPadding = [int](40 * $scaleFactor)
-    $buttonWidth = [Math]::Ceiling($maxTextWidth) + $horizontalPadding
+    $buttonWidth = $maxButtonWidth
 
     # Calculate button Y position (scaled offset from bottom)
     $buttonYOffset = [int](85 * $scaleFactor)
@@ -2231,6 +3717,146 @@ function Create-Buttons {
     $form.Controls.Add($deselectAllButton)
     $currentX += $buttonWidth + $spacing
 
+    # Export Selection button
+    $exportButton = New-Object System.Windows.Forms.Button
+    $exportButton.Location = New-Object System.Drawing.Point($currentX, $buttonY)
+    $exportButton.Size = New-Object System.Drawing.Size($buttonWidth, $buttonHeight)
+    $exportButton.Text = "Export Selection"
+    $exportButton.Font = $buttonFont
+    $exportButton.BackColor = [System.Drawing.Color]::DarkOrange
+    $exportButton.ForeColor = [System.Drawing.Color]::White
+    $exportButton.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left
+    $exportButton.Add_Click({
+        if (-not $script:IsClosing) {
+            Write-Log "User clicked Export Selection button" -Level INFO
+
+            # Get checked items
+            $checkedItems = $script:ListView.Items | Where-Object { $_.Checked }
+
+            if ($checkedItems.Count -eq 0) {
+                [System.Windows.Forms.MessageBox]::Show(
+                    "Please select at least one application to export.",
+                    "No Selection",
+                    [System.Windows.Forms.MessageBoxButtons]::OK,
+                    [System.Windows.Forms.MessageBoxIcon]::Information
+                )
+                return
+            }
+
+            # Get application names
+            $selectedAppNames = $checkedItems | ForEach-Object { $_.Tag.Name }
+
+            # Show save file dialog
+            $saveDialog = New-Object System.Windows.Forms.SaveFileDialog
+            $saveDialog.Filter = "JSON files (*.json)|*.json|All files (*.*)|*.*"
+            $saveDialog.Title = "Export Installation Profile"
+            $saveDialog.InitialDirectory = "C:\mytech.today\app_installer\profiles"
+            $timestamp = Get-Date -Format "yyyy-MM-dd-HHmmss"
+            $computerName = $env:COMPUTERNAME
+            $saveDialog.FileName = "profile-$computerName-$timestamp.json"
+
+            if ($saveDialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
+                $filePath = Export-InstallationProfile -SelectedApps $selectedAppNames -FilePath $saveDialog.FileName
+
+                if ($filePath) {
+                    [System.Windows.Forms.MessageBox]::Show(
+                        "Successfully exported $($selectedAppNames.Count) application(s) to:`n$filePath",
+                        "Export Successful",
+                        [System.Windows.Forms.MessageBoxButtons]::OK,
+                        [System.Windows.Forms.MessageBoxIcon]::Information
+                    )
+                }
+                else {
+                    [System.Windows.Forms.MessageBox]::Show(
+                        "Failed to export installation profile. Check the log for details.",
+                        "Export Failed",
+                        [System.Windows.Forms.MessageBoxButtons]::OK,
+                        [System.Windows.Forms.MessageBoxIcon]::Error
+                    )
+                }
+            }
+        }
+    })
+    $form.Controls.Add($exportButton)
+    $currentX += $buttonWidth + $spacing
+
+    # Import Selection button
+    $importButton = New-Object System.Windows.Forms.Button
+    $importButton.Location = New-Object System.Drawing.Point($currentX, $buttonY)
+    $importButton.Size = New-Object System.Drawing.Size($buttonWidth, $buttonHeight)
+    $importButton.Text = "Import Selection"
+    $importButton.Font = $buttonFont
+    $importButton.BackColor = [System.Drawing.Color]::DarkBlue
+    $importButton.ForeColor = [System.Drawing.Color]::White
+    $importButton.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left
+    $importButton.Add_Click({
+        if (-not $script:IsClosing) {
+            Write-Log "User clicked Import Selection button" -Level INFO
+
+            # Show open file dialog
+            $openDialog = New-Object System.Windows.Forms.OpenFileDialog
+            $openDialog.Filter = "JSON files (*.json)|*.json|All files (*.*)|*.*"
+            $openDialog.Title = "Import Installation Profile"
+            $openDialog.InitialDirectory = "C:\mytech.today\app_installer\profiles"
+
+            if ($openDialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
+                $result = Import-InstallationProfile -FilePath $openDialog.FileName
+
+                if ($result.Success) {
+                    # Show confirmation dialog
+                    $message = "Found $($result.Applications.Count) application(s) in profile."
+                    if ($result.MissingApps.Count -gt 0) {
+                        $message += "`n`nWarning: $($result.MissingApps.Count) application(s) from the profile are not available in the current installer:"
+                        $message += "`n" + ($result.MissingApps -join ", ")
+                    }
+                    $message += "`n`nDo you want to select these applications?"
+
+                    $confirmResult = [System.Windows.Forms.MessageBox]::Show(
+                        $message,
+                        "Import Profile",
+                        [System.Windows.Forms.MessageBoxButtons]::YesNo,
+                        [System.Windows.Forms.MessageBoxIcon]::Question
+                    )
+
+                    if ($confirmResult -eq [System.Windows.Forms.DialogResult]::Yes) {
+                        # Deselect all first
+                        foreach ($item in $script:ListView.Items) {
+                            $item.Checked = $false
+                        }
+
+                        # Select applications from profile
+                        $selectedCount = 0
+                        foreach ($item in $script:ListView.Items) {
+                            if ($result.Applications -contains $item.Tag.Name) {
+                                $item.Checked = $true
+                                $selectedCount++
+                            }
+                        }
+
+                        Write-Log "Imported and selected $selectedCount application(s) from profile" -Level SUCCESS
+
+                        [System.Windows.Forms.MessageBox]::Show(
+                            "Successfully selected $selectedCount application(s) from profile.",
+                            "Import Successful",
+                            [System.Windows.Forms.MessageBoxButtons]::OK,
+                            [System.Windows.Forms.MessageBoxIcon]::Information
+                        )
+                    }
+                }
+                else {
+                    [System.Windows.Forms.MessageBox]::Show(
+                        "Failed to import profile:`n$($result.Message)",
+                        "Import Failed",
+                        [System.Windows.Forms.MessageBoxButtons]::OK,
+                        [System.Windows.Forms.MessageBoxIcon]::Error
+                    )
+                }
+            }
+        }
+    })
+    $form.Controls.Add($importButton)
+    $currentX += $buttonWidth + $spacing
+
     # Install Selected button
     $installButton = New-Object System.Windows.Forms.Button
     $installButton.Location = New-Object System.Drawing.Point($currentX, $buttonY)
@@ -2249,6 +3875,96 @@ function Create-Buttons {
     $form.Controls.Add($installButton)
     $currentX += $buttonWidth + $spacing
 
+    # Uninstall Selected button
+    $uninstallButton = New-Object System.Windows.Forms.Button
+    $uninstallButton.Location = New-Object System.Drawing.Point($currentX, $buttonY)
+    $uninstallButton.Size = New-Object System.Drawing.Size($buttonWidth, $buttonHeight)
+    $uninstallButton.Text = "Uninstall Selected"
+    $uninstallButton.Font = $buttonFontBold
+    $uninstallButton.BackColor = [System.Drawing.Color]::DarkRed
+    $uninstallButton.ForeColor = [System.Drawing.Color]::White
+    $uninstallButton.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left
+    $uninstallButton.Add_Click({
+        if (-not $script:IsClosing) {
+            Write-Log "User clicked Uninstall Selected button" -Level INFO
+            Uninstall-SelectedApplications
+        }
+    })
+    $form.Controls.Add($uninstallButton)
+    $currentX += $buttonWidth + $spacing
+
+    # Check for Updates button
+    $checkUpdatesButton = New-Object System.Windows.Forms.Button
+    $checkUpdatesButton.Location = New-Object System.Drawing.Point($currentX, $buttonY)
+    $checkUpdatesButton.Size = New-Object System.Drawing.Size($buttonWidth, $buttonHeight)
+    $checkUpdatesButton.Text = "Check for Updates"
+    $checkUpdatesButton.Font = $buttonFont
+    $checkUpdatesButton.BackColor = [System.Drawing.Color]::DodgerBlue
+    $checkUpdatesButton.ForeColor = [System.Drawing.Color]::White
+    $checkUpdatesButton.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left
+    $checkUpdatesButton.Add_Click({
+        if (-not $script:IsClosing) {
+            Write-Log "User clicked Check for Updates button" -Level INFO
+            Check-ForUpdates
+        }
+    })
+    $form.Controls.Add($checkUpdatesButton)
+    $currentX += $buttonWidth + $spacing
+
+    # Pause/Resume button (initially hidden, shown during installation)
+    $script:PauseResumeButton = New-Object System.Windows.Forms.Button
+    $script:PauseResumeButton.Location = New-Object System.Drawing.Point($currentX, $buttonY)
+    $script:PauseResumeButton.Size = New-Object System.Drawing.Size($buttonWidth, $buttonHeight)
+    $script:PauseResumeButton.Text = "Pause"
+    $script:PauseResumeButton.Font = $buttonFont
+    $script:PauseResumeButton.BackColor = [System.Drawing.Color]::Orange
+    $script:PauseResumeButton.ForeColor = [System.Drawing.Color]::White
+    $script:PauseResumeButton.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left
+    $script:PauseResumeButton.Visible = $false  # Hidden until installation starts
+    $script:PauseResumeButton.Add_Click({
+        if (-not $script:IsClosing) {
+            if ($script:IsPaused) {
+                # Resume
+                Write-Log "User clicked Resume button" -Level INFO
+                $script:IsPaused = $false
+                $script:PauseResumeButton.Text = "Pause"
+                $script:PauseResumeButton.BackColor = [System.Drawing.Color]::Orange
+                Write-Output "[RESUME] Installation resumed" -Color ([System.Drawing.Color]::Green)
+            }
+            else {
+                # Pause
+                Write-Log "User clicked Pause button" -Level INFO
+                $script:IsPaused = $true
+                $script:PauseResumeButton.Text = "Resume"
+                $script:PauseResumeButton.BackColor = [System.Drawing.Color]::Green
+                Write-Output "[PAUSE] Installation paused" -Color ([System.Drawing.Color]::Yellow)
+                Save-QueueState
+            }
+        }
+    })
+    $form.Controls.Add($script:PauseResumeButton)
+    $currentX += $buttonWidth + $spacing
+
+    # Skip button (initially hidden, shown during installation)
+    $script:SkipButton = New-Object System.Windows.Forms.Button
+    $script:SkipButton.Location = New-Object System.Drawing.Point($currentX, $buttonY)
+    $script:SkipButton.Size = New-Object System.Drawing.Size($buttonWidth, $buttonHeight)
+    $script:SkipButton.Text = "Skip Current"
+    $script:SkipButton.Font = $buttonFont
+    $script:SkipButton.BackColor = [System.Drawing.Color]::DarkOrange
+    $script:SkipButton.ForeColor = [System.Drawing.Color]::White
+    $script:SkipButton.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left
+    $script:SkipButton.Visible = $false  # Hidden until installation starts
+    $script:SkipButton.Add_Click({
+        if (-not $script:IsClosing -and $script:IsInstalling) {
+            Write-Log "User clicked Skip Current button" -Level INFO
+            $script:SkipCurrent = $true
+            Write-Output "[SKIP] Skipping current installation..." -Color ([System.Drawing.Color]::Yellow)
+        }
+    })
+    $form.Controls.Add($script:SkipButton)
+    $currentX += $buttonWidth + $spacing
+
     # Exit button
     $exitButton = New-Object System.Windows.Forms.Button
     $exitButton.Location = New-Object System.Drawing.Point($currentX, $buttonY)
@@ -2258,26 +3974,65 @@ function Create-Buttons {
     $exitButton.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left
     $exitButton.Add_Click({ $form.Close() })
     $form.Controls.Add($exitButton)
+
+    # Add dynamic resize handler for responsive column width adjustment
+    Add-MainFormResizeHandler -Form $form -ListView $script:ListView -WebBrowser $script:WebBrowser
 }
 
 #endregion GUI Creation
 
 #region Event Handlers
 
-function Refresh-ApplicationList {
-    Write-Output "`r`n=== Refreshing Application List ===" -Color ([System.Drawing.Color]::Cyan)
-    Write-Output "Refreshing application list..." -Color ([System.Drawing.Color]::Blue)
+function Filter-Applications {
+    <#
+    .SYNOPSIS
+        Filters the application list based on search term.
 
-    # Clear existing items
+    .DESCRIPTION
+        Filters applications by matching search term against Name, Category, and Description.
+        Updates the ListView with filtered results while preserving checkbox states.
+
+    .PARAMETER SearchTerm
+        The search term to filter by (case-insensitive).
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $false)]
+        [string]$SearchTerm = ""
+    )
+
+    # Store current checkbox states
+    $checkedApps = @{}
+    foreach ($item in $script:ListView.Items) {
+        if ($item.Checked) {
+            $app = $item.Tag
+            if ($app) {
+                $checkedApps[$app.Name] = $true
+            }
+        }
+    }
+
+    # Clear ListView
     $script:ListView.Items.Clear()
 
-    # Get installed applications
-    $script:InstalledApps = Get-InstalledApplications
+    # Filter applications
+    if ([string]::IsNullOrWhiteSpace($SearchTerm)) {
+        # No filter - show all applications
+        $script:FilteredApplications = $script:Applications
+    }
+    else {
+        # Filter by Name, Category, or Description (case-insensitive)
+        $script:FilteredApplications = $script:Applications | Where-Object {
+            $_.Name -like "*$SearchTerm*" -or
+            $_.Category -like "*$SearchTerm*" -or
+            $_.Description -like "*$SearchTerm*"
+        }
+    }
 
-    # Group applications by category
-    $categories = $script:Applications | Group-Object -Property Category | Sort-Object Name
+    # Group filtered applications by category
+    $categories = $script:FilteredApplications | Group-Object -Property Category | Sort-Object Name
 
-    # Add applications to ListView
+    # Add filtered applications to ListView
     foreach ($category in $categories) {
         foreach ($app in $category.Group | Sort-Object Name) {
             $item = New-Object System.Windows.Forms.ListViewItem($app.Name)
@@ -2302,16 +4057,1003 @@ function Refresh-ApplicationList {
             # Store app object in Tag
             $item.Tag = $app
 
+            # Restore checkbox state if it was checked before filtering
+            if ($checkedApps.ContainsKey($app.Name)) {
+                $item.Checked = $true
+            }
+
             $script:ListView.Items.Add($item) | Out-Null
         }
     }
 
+    # Update result count label
+    $totalCount = $script:Applications.Count
+    $filteredCount = $script:FilteredApplications.Count
     $installedCount = ($script:ListView.Items | Where-Object { $_.SubItems[2].Text -eq "Installed" }).Count
-    $totalCount = $script:ListView.Items.Count
+
+    if ([string]::IsNullOrWhiteSpace($SearchTerm)) {
+        $script:ResultCountLabel.Text = "Showing $filteredCount of $totalCount applications ($installedCount installed)"
+    }
+    else {
+        $script:ResultCountLabel.Text = "Showing $filteredCount of $totalCount applications (filtered)"
+    }
+
+    # Update progress label
+    $checkedCount = ($script:ListView.Items | Where-Object { $_.Checked }).Count
+    if ($checkedCount -gt 0) {
+        $script:ProgressBar.Maximum = $checkedCount
+        $script:ProgressLabel.Text = "0 / $checkedCount applications (0%)"
+    }
+    else {
+        $script:ProgressBar.Maximum = 1
+        $script:ProgressBar.Value = 0
+        $script:ProgressLabel.Text = "0 / 0 applications (0%)"
+    }
+
+    Write-Log "Filtered applications: $filteredCount of $totalCount (Search: '$SearchTerm')" -Level INFO
+}
+
+function Refresh-ApplicationList {
+    Write-Output "`r`n=== Refreshing Application List ===" -Color ([System.Drawing.Color]::Cyan)
+    Write-Output "Refreshing application list..." -Color ([System.Drawing.Color]::Blue)
+
+    # Get installed applications
+    $script:InstalledApps = Get-InstalledApplications
+
+    # Apply current search filter
+    Filter-Applications -SearchTerm $script:SearchTerm
+
+    $installedCount = ($script:ListView.Items | Where-Object { $_.SubItems[2].Text -eq "Installed" }).Count
+    $totalCount = $script:Applications.Count
 
     Write-Output "Ready - $installedCount of $totalCount applications installed" -Color ([System.Drawing.Color]::Green)
     Write-Output "Application list refreshed: $installedCount / $totalCount installed" -Color ([System.Drawing.Color]::Green)
 }
+
+
+#region Queue Management Functions
+
+function Save-QueueState {
+    <#
+    .SYNOPSIS
+        Saves the current installation queue state to JSON file.
+
+    .DESCRIPTION
+        Persists the installation queue, current index, and pause state to allow
+        resuming interrupted installations.
+    #>
+    [CmdletBinding()]
+    param()
+
+    try {
+        # Ensure directory exists
+        $queueDir = Split-Path $script:QueueStatePath -Parent
+        if (-not (Test-Path $queueDir)) {
+            New-Item -Path $queueDir -ItemType Directory -Force | Out-Null
+        }
+
+        # Create state object
+        $state = @{
+            Version = $script:ScriptVersion
+            Timestamp = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
+            CurrentIndex = $script:CurrentQueueIndex
+            IsPaused = $script:IsPaused
+            Queue = @($script:InstallationQueue | ForEach-Object {
+                @{
+                    Name = $_.Name
+                    ScriptName = $_.ScriptName
+                    WingetId = $_.WingetId
+                    Category = $_.Category
+                    Description = $_.Description
+                }
+            })
+        }
+
+        # Save to JSON
+        $state | ConvertTo-Json -Depth 10 | Set-Content -Path $script:QueueStatePath -Encoding UTF8
+        Write-Log "Queue state saved to: $script:QueueStatePath" -Level INFO
+        return $true
+    }
+    catch {
+        Write-Log "Failed to save queue state: $_" -Level ERROR
+        return $false
+    }
+}
+
+function Load-QueueState {
+    <#
+    .SYNOPSIS
+        Loads the installation queue state from JSON file.
+
+    .DESCRIPTION
+        Restores a previously saved installation queue to allow resuming
+        interrupted installations.
+
+    .OUTPUTS
+        Returns $true if state was loaded successfully, $false otherwise.
+    #>
+    [CmdletBinding()]
+    param()
+
+    try {
+        if (-not (Test-Path $script:QueueStatePath)) {
+            Write-Log "No saved queue state found" -Level INFO
+            return $false
+        }
+
+        # Load state from JSON
+        $state = Get-Content -Path $script:QueueStatePath -Raw | ConvertFrom-Json
+
+        # Validate state
+        if (-not $state.Queue -or $state.Queue.Count -eq 0) {
+            Write-Log "Saved queue state is empty" -Level INFO
+            return $false
+        }
+
+        # Restore queue
+        $script:InstallationQueue = @($state.Queue | ForEach-Object {
+            [PSCustomObject]@{
+                Name = $_.Name
+                ScriptName = $_.ScriptName
+                WingetId = $_.WingetId
+                Category = $_.Category
+                Description = $_.Description
+            }
+        })
+
+        $script:CurrentQueueIndex = $state.CurrentIndex
+        $script:IsPaused = $state.IsPaused
+
+        Write-Log "Queue state loaded: $($script:InstallationQueue.Count) apps, index $script:CurrentQueueIndex" -Level INFO
+        return $true
+    }
+    catch {
+        Write-Log "Failed to load queue state: $_" -Level ERROR
+        return $false
+    }
+}
+
+function Clear-QueueState {
+    <#
+    .SYNOPSIS
+        Clears the saved queue state file.
+
+    .DESCRIPTION
+        Removes the queue state file after successful completion or cancellation.
+    #>
+    [CmdletBinding()]
+    param()
+
+    try {
+        if (Test-Path $script:QueueStatePath) {
+            Remove-Item -Path $script:QueueStatePath -Force
+            Write-Log "Queue state file cleared" -Level INFO
+        }
+    }
+    catch {
+        Write-Log "Failed to clear queue state: $_" -Level WARNING
+    }
+}
+
+function Show-QueueManagementDialog {
+    <#
+    .SYNOPSIS
+        Shows a dialog for managing the installation queue.
+
+    .DESCRIPTION
+        Displays a Windows Forms dialog allowing users to:
+        - View the installation queue
+        - Reorder items (move up/down, drag-drop)
+        - Remove items from queue
+        - Prioritize items (move to top)
+
+    .PARAMETER Queue
+        The installation queue array to manage.
+
+    .OUTPUTS
+        Returns the modified queue array, or $null if cancelled.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [array]$Queue
+    )
+
+    # Get DPI scaling factor using standardized function
+    $scaleInfo = Get-DPIScaleFactor
+    $scaleFactor = $scaleInfo.TotalScale
+    $screenWidth = $scaleInfo.ScreenWidth
+    $screenHeight = $scaleInfo.ScreenHeight
+
+    # Create a working copy of the queue that will be modified by button handlers
+    # This ensures all changes are tracked in one place
+    $workingQueue = New-Object System.Collections.ArrayList
+    foreach ($app in $Queue) {
+        $null = $workingQueue.Add($app)
+    }
+
+    # Base dimensions (before scaling)
+    $baseMargin = 15
+    $baseListViewHeight = 600
+    $baseButtonHeight = 35
+    $baseButtonSpacing = 12
+    $baseFontSize = 9  # Button font size
+    $baseTableFontSize = 11  # Table font size (increased by 1)
+
+    # Apply scaling
+    $margin = [int]($baseMargin * $scaleFactor)
+    $listViewHeight = [int]($baseListViewHeight * $scaleFactor)
+    $buttonHeight = [int]($baseButtonHeight * $scaleFactor)
+    $buttonSpacing = [int]($baseButtonSpacing * $scaleFactor)
+
+    # Calculate font sizes with minimum constraints
+    $fontSize = [Math]::Max([int]($baseFontSize * $scaleFactor), 8)
+    $tableFontSize = [Math]::Max([int]($baseTableFontSize * $scaleFactor), 10)
+
+    # Create fonts for measurement
+    $buttonFont = New-Object System.Drawing.Font("Segoe UI", $fontSize)
+    $tableFont = New-Object System.Drawing.Font("Segoe UI", $tableFontSize)
+
+    # Calculate dynamic column widths based on actual queue content
+    # Index column - measure header "#" and potential index numbers
+    $maxIndexWidth = Measure-TextWidth -Text "#" -Font $tableFont
+    if ($Queue.Count -gt 0) {
+        $maxIndexText = $Queue.Count.ToString()
+        $indexWidth = Measure-TextWidth -Text $maxIndexText -Font $tableFont
+        $maxIndexWidth = [Math]::Max($maxIndexWidth, $indexWidth)
+    }
+    $col1Width = $maxIndexWidth + [int](30 * $scaleFactor)
+    $col1Width = [Math]::Max($col1Width, [int](40 * $scaleFactor))
+
+    # Application column - measure both data and header
+    if ($Queue.Count -gt 0) {
+        $col2Width = Get-DynamicColumnWidth -Items $Queue -PropertyName "Name" -HeaderText "Application" -Font $tableFont -MinWidth ([int](150 * $scaleFactor)) -Padding ([int](30 * $scaleFactor))
+        $col3Width = Get-DynamicColumnWidth -Items $Queue -PropertyName "Category" -HeaderText "Category" -Font $tableFont -MinWidth ([int](100 * $scaleFactor)) -Padding ([int](30 * $scaleFactor))
+    }
+    else {
+        # If queue is empty, just measure headers
+        $col2Width = (Measure-TextWidth -Text "Application" -Font $tableFont) + [int](30 * $scaleFactor)
+        $col2Width = [Math]::Max($col2Width, [int](150 * $scaleFactor))
+        $col3Width = (Measure-TextWidth -Text "Category" -Font $tableFont) + [int](30 * $scaleFactor)
+        $col3Width = [Math]::Max($col3Width, [int](100 * $scaleFactor))
+    }
+
+    # Calculate ListView width based on columns
+    $scrollbarWidth = [int](25 * $scaleFactor)
+    $listViewWidth = $col1Width + $col2Width + $col3Width + $scrollbarWidth
+
+    # Calculate dynamic button widths based on text
+    $buttonTexts = @("Move Up", "Move Down", "Move to Top (Prioritize)", "Remove from Queue")
+    $maxButtonWidth = 0
+    foreach ($btnText in $buttonTexts) {
+        $btnWidth = Get-DynamicButtonWidth -Text $btnText -Font $buttonFont -MinWidth ([int](120 * $scaleFactor)) -Padding ([int](40 * $scaleFactor))
+        if ($btnWidth -gt $maxButtonWidth) {
+            $maxButtonWidth = $btnWidth
+        }
+    }
+    $buttonWidth = $maxButtonWidth
+
+    # Calculate form dimensions to fit all content without clipping
+    $formWidth = $margin + $listViewWidth + $margin + $buttonWidth + $margin
+    $formHeight = $margin + $listViewHeight + $margin + $buttonHeight + $margin + [int](60 * $scaleFactor)
+
+    # Create dialog form with responsive sizing using New-ResponsiveForm
+    $queueForm = New-ResponsiveForm -Title "Manage Installation Queue" `
+        -Width $formWidth `
+        -Height $formHeight `
+        -StartPosition 'CenterParent' `
+        -Resizable $true
+
+    # Create ListView for queue with scaled dimensions
+    $queueListView = New-Object System.Windows.Forms.ListView
+    $queueListView.Location = New-Object System.Drawing.Point($margin, $margin)
+    $queueListView.Size = New-Object System.Drawing.Size($listViewWidth, $listViewHeight)
+    $queueListView.View = [System.Windows.Forms.View]::Details
+    $queueListView.FullRowSelect = $true
+    $queueListView.GridLines = $true
+    $queueListView.AllowDrop = $true
+    $queueListView.HideSelection = $false
+    $queueListView.Font = New-Object System.Drawing.Font("Segoe UI", $tableFontSize)
+    $queueListView.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left
+
+    # Add columns with calculated widths
+    $queueListView.Columns.Add("#", $col1Width) | Out-Null
+    $queueListView.Columns.Add("Application", $col2Width) | Out-Null
+    $queueListView.Columns.Add("Category", $col3Width) | Out-Null
+
+    # Set row height using ImageList for better scaling
+    $rowHeight = [Math]::Max([int](22 * $scaleFactor), 22)
+    $imageList = New-Object System.Windows.Forms.ImageList
+    $imageList.ImageSize = New-Object System.Drawing.Size(1, $rowHeight)
+    $queueListView.SmallImageList = $imageList
+
+    # Helper function to refresh the ListView from workingQueue
+    $refreshListView = {
+        $queueListView.Items.Clear()
+        $i = 1
+        foreach ($app in $workingQueue) {
+            $item = New-Object System.Windows.Forms.ListViewItem($i.ToString())
+            $item.SubItems.Add($app.Name) | Out-Null
+            $item.SubItems.Add($app.Category) | Out-Null
+            $item.Tag = $app
+            $queueListView.Items.Add($item) | Out-Null
+            $i++
+        }
+    }
+
+    # Initial population
+    & $refreshListView
+
+    $queueForm.Controls.Add($queueListView)
+
+    # Create button panel with scaled positions
+    $buttonX = $margin + $listViewWidth + $margin
+    $buttonY = $margin
+
+    # Move Up button
+    $moveUpButton = New-Object System.Windows.Forms.Button
+    $moveUpButton.Location = New-Object System.Drawing.Point($buttonX, $buttonY)
+    $moveUpButton.Size = New-Object System.Drawing.Size($buttonWidth, $buttonHeight)
+    $moveUpButton.Text = "Move Up"
+    $moveUpButton.Font = New-Object System.Drawing.Font("Segoe UI", $fontSize)
+    $moveUpButton.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Right
+    $moveUpButton.Add_Click({
+        if ($queueListView.SelectedIndices.Count -eq 0) { return }
+        $index = $queueListView.SelectedIndices[0]
+        if ($index -eq 0) { return }
+
+        # Swap items in workingQueue
+        $temp = $workingQueue[$index]
+        $workingQueue[$index] = $workingQueue[$index - 1]
+        $workingQueue[$index - 1] = $temp
+
+        # Refresh ListView
+        & $refreshListView
+
+        # Maintain selection
+        if ($index - 1 -lt $queueListView.Items.Count) {
+            $queueListView.Items[$index - 1].Selected = $true
+            $queueListView.Items[$index - 1].EnsureVisible()
+        }
+    }.GetNewClosure())
+    $queueForm.Controls.Add($moveUpButton)
+
+    # Move Down button
+    $buttonY = $buttonY + $buttonHeight + $buttonSpacing
+    $moveDownButton = New-Object System.Windows.Forms.Button
+    $moveDownButton.Location = New-Object System.Drawing.Point($buttonX, $buttonY)
+    $moveDownButton.Size = New-Object System.Drawing.Size($buttonWidth, $buttonHeight)
+    $moveDownButton.Text = "Move Down"
+    $moveDownButton.Font = New-Object System.Drawing.Font("Segoe UI", $fontSize)
+    $moveDownButton.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Right
+    $moveDownButton.Add_Click({
+        if ($queueListView.SelectedIndices.Count -eq 0) { return }
+        $index = $queueListView.SelectedIndices[0]
+        if ($index -eq $workingQueue.Count - 1) { return }
+
+        # Swap items in workingQueue
+        $temp = $workingQueue[$index]
+        $workingQueue[$index] = $workingQueue[$index + 1]
+        $workingQueue[$index + 1] = $temp
+
+        # Refresh ListView
+        & $refreshListView
+
+        # Maintain selection
+        if ($index + 1 -lt $queueListView.Items.Count) {
+            $queueListView.Items[$index + 1].Selected = $true
+            $queueListView.Items[$index + 1].EnsureVisible()
+        }
+    }.GetNewClosure())
+    $queueForm.Controls.Add($moveDownButton)
+
+    # Move to Top button
+    $buttonY = $buttonY + $buttonHeight + $buttonSpacing
+    $moveTopButton = New-Object System.Windows.Forms.Button
+    $moveTopButton.Location = New-Object System.Drawing.Point($buttonX, $buttonY)
+    $moveTopButton.Size = New-Object System.Drawing.Size($buttonWidth, $buttonHeight)
+    $moveTopButton.Text = "Move to Top (Prioritize)"
+    $moveTopButton.Font = New-Object System.Drawing.Font("Segoe UI", $fontSize)
+    $moveTopButton.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Right
+    $moveTopButton.Add_Click({
+        if ($queueListView.SelectedIndices.Count -eq 0) { return }
+        $index = $queueListView.SelectedIndices[0]
+        if ($index -eq 0) { return }
+
+        # Move to top - extract the item
+        $selectedApp = $workingQueue[$index]
+
+        # Remove from current position
+        $workingQueue.RemoveAt($index)
+
+        # Insert at the front
+        $workingQueue.Insert(0, $selectedApp)
+
+        # Refresh ListView
+        & $refreshListView
+
+        # Select the moved item (now at top)
+        if ($queueListView.Items.Count -gt 0) {
+            $queueListView.Items[0].Selected = $true
+            $queueListView.Items[0].EnsureVisible()
+        }
+    }.GetNewClosure())
+    $queueForm.Controls.Add($moveTopButton)
+
+    # Remove from Queue button
+    $buttonY = $buttonY + $buttonHeight + $buttonSpacing
+    $removeButton = New-Object System.Windows.Forms.Button
+    $removeButton.Location = New-Object System.Drawing.Point($buttonX, $buttonY)
+    $removeButton.Size = New-Object System.Drawing.Size($buttonWidth, $buttonHeight)
+    $removeButton.Text = "Remove from Queue"
+    $removeButton.Font = New-Object System.Drawing.Font("Segoe UI", $fontSize)
+    $removeButton.ForeColor = [System.Drawing.Color]::Red
+    $removeButton.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Right
+    $removeButton.Add_Click({
+        if ($queueListView.SelectedIndices.Count -eq 0) { return }
+        $index = $queueListView.SelectedIndices[0]
+
+        # Remove item from workingQueue
+        $workingQueue.RemoveAt($index)
+
+        # Refresh ListView
+        & $refreshListView
+
+        # Select the next item if available, or the previous one
+        if ($workingQueue.Count -gt 0) {
+            if ($index -lt $workingQueue.Count) {
+                $queueListView.Items[$index].Selected = $true
+                $queueListView.Items[$index].EnsureVisible()
+            }
+            else {
+                $queueListView.Items[$workingQueue.Count - 1].Selected = $true
+                $queueListView.Items[$workingQueue.Count - 1].EnsureVisible()
+            }
+        }
+    }.GetNewClosure())
+    $queueForm.Controls.Add($removeButton)
+
+    # OK button (bottom of form)
+    $okCancelButtonWidth = [int](90 * $scaleFactor)
+    $bottomButtonY = $formHeight - $margin - $buttonHeight - [int](40 * $scaleFactor)
+
+    $okButton = New-Object System.Windows.Forms.Button
+    $okButton.Location = New-Object System.Drawing.Point($buttonX, $bottomButtonY)
+    $okButton.Size = New-Object System.Drawing.Size($okCancelButtonWidth, $buttonHeight)
+    $okButton.Text = "OK"
+    $okButton.Font = New-Object System.Drawing.Font("Segoe UI", $fontSize)
+    $okButton.DialogResult = [System.Windows.Forms.DialogResult]::OK
+    $okButton.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Right
+    $queueForm.Controls.Add($okButton)
+
+    # Cancel button
+    $cancelButton = New-Object System.Windows.Forms.Button
+    $cancelButton.Location = New-Object System.Drawing.Point(($buttonX + $okCancelButtonWidth + $spacing), $bottomButtonY)
+    $cancelButton.Size = New-Object System.Drawing.Size($okCancelButtonWidth, $buttonHeight)
+    $cancelButton.Text = "Cancel"
+    $cancelButton.Font = New-Object System.Drawing.Font("Segoe UI", $fontSize)
+    $cancelButton.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
+    $cancelButton.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Right
+    $queueForm.Controls.Add($cancelButton)
+
+    $queueForm.AcceptButton = $okButton
+    $queueForm.CancelButton = $cancelButton
+
+    # Add dynamic resize handler for responsive layout
+    Add-QueueFormResizeHandler -Form $queueForm -ListView $queueListView
+
+    # Show dialog
+    $result = $queueForm.ShowDialog()
+
+    if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
+        Write-Log "Queue management completed - returning modified queue with $($workingQueue.Count) items" -Level INFO
+        # Return the modified workingQueue as an array
+        return $workingQueue.ToArray()
+    }
+    else {
+        Write-Log "Queue management cancelled" -Level INFO
+        return $null
+    }
+}
+
+#endregion Queue Management Functions
+
+#region Update Checker Functions
+
+function Show-UpdatesDialog {
+    <#
+    .SYNOPSIS
+        Shows a dialog with available updates and allows user to select which to install.
+
+    .PARAMETER Updates
+        Array of update objects from Get-AvailableUpdates.
+
+    .OUTPUTS
+        Array of selected update objects to install, or $null if cancelled.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [array]$Updates
+    )
+
+    Write-Log "Showing updates dialog with $($Updates.Count) available update(s)" -Level INFO
+
+    # Get DPI scaling factor using standardized function
+    $scaleInfo = Get-DPIScaleFactor
+    $scaleFactor = $scaleInfo.TotalScale
+    $screenWidth = $scaleInfo.ScreenWidth
+    $screenHeight = $scaleInfo.ScreenHeight
+
+    # Base dimensions (before scaling)
+    $baseMargin = 15
+    $baseTitleHeight = 30
+    $baseListViewHeight = 420
+    $baseButtonHeight = 35
+    $baseFontSize = 10
+    $baseTitleFontSize = 12
+    $baseTableFontSize = 10
+
+    # Apply scaling
+    $margin = [int]($baseMargin * $scaleFactor)
+    $titleHeight = [int]($baseTitleHeight * $scaleFactor)
+    $listViewHeight = [int]($baseListViewHeight * $scaleFactor)
+    $buttonHeight = [int]($baseButtonHeight * $scaleFactor)
+
+    # Calculate font sizes with minimum constraints
+    $fontSize = [Math]::Max([int]($baseFontSize * $scaleFactor), 9)
+    $titleFontSize = [Math]::Max([int]($baseTitleFontSize * $scaleFactor), 10)
+    $tableFontSize = [Math]::Max([int]($baseTableFontSize * $scaleFactor), 9)
+
+    # Create fonts for measurement
+    $buttonFont = New-Object System.Drawing.Font("Segoe UI", $fontSize)
+    $tableFont = New-Object System.Drawing.Font("Segoe UI", $tableFontSize)
+
+    # Calculate dynamic column widths based on update content
+    if ($Updates.Count -gt 0) {
+        # Application name column - measure both data and header
+        $col1Width = Get-DynamicColumnWidth -Items $Updates -PropertyName "Name" -HeaderText "Application" -Font $tableFont -MinWidth ([int](200 * $scaleFactor)) -Padding ([int](30 * $scaleFactor))
+
+        # Version columns - measure both current and available versions, plus headers
+        $maxVersionWidth = 0
+        # Measure header texts
+        $currentHeaderWidth = Measure-TextWidth -Text "Current Version" -Font $tableFont
+        $availableHeaderWidth = Measure-TextWidth -Text "Available Version" -Font $tableFont
+        $maxVersionWidth = [Math]::Max($currentHeaderWidth, $availableHeaderWidth)
+
+        # Measure version data
+        foreach ($update in $Updates) {
+            $currentWidth = Measure-TextWidth -Text $update.CurrentVersion -Font $tableFont
+            $availableWidth = Measure-TextWidth -Text $update.AvailableVersion -Font $tableFont
+            $maxWidth = [Math]::Max($currentWidth, $availableWidth)
+            if ($maxWidth -gt $maxVersionWidth) {
+                $maxVersionWidth = $maxWidth
+            }
+        }
+        $col2Width = [Math]::Max($maxVersionWidth + [int](30 * $scaleFactor), [int](120 * $scaleFactor))
+        $col3Width = $col2Width  # Same width for both version columns
+
+        # Source column - measure both data and header
+        $col4Width = Get-DynamicColumnWidth -Items $Updates -PropertyName "Source" -HeaderText "Source" -Font $tableFont -MinWidth ([int](100 * $scaleFactor)) -Padding ([int](30 * $scaleFactor))
+    }
+    else {
+        # If no updates, just measure headers
+        $col1Width = (Measure-TextWidth -Text "Application" -Font $tableFont) + [int](30 * $scaleFactor)
+        $col1Width = [Math]::Max($col1Width, [int](200 * $scaleFactor))
+
+        $col2Width = (Measure-TextWidth -Text "Current Version" -Font $tableFont) + [int](30 * $scaleFactor)
+        $col2Width = [Math]::Max($col2Width, [int](120 * $scaleFactor))
+
+        $col3Width = (Measure-TextWidth -Text "Available Version" -Font $tableFont) + [int](30 * $scaleFactor)
+        $col3Width = [Math]::Max($col3Width, [int](120 * $scaleFactor))
+
+        $col4Width = (Measure-TextWidth -Text "Source" -Font $tableFont) + [int](30 * $scaleFactor)
+        $col4Width = [Math]::Max($col4Width, [int](100 * $scaleFactor))
+    }
+
+    # Calculate ListView width based on columns
+    $scrollbarWidth = [int](25 * $scaleFactor)
+    $listViewWidth = $col1Width + $col2Width + $col3Width + $col4Width + $scrollbarWidth
+
+    # Calculate dynamic button widths
+    $buttonTexts = @("Select All", "Deselect All", "Update Selected", "Cancel")
+    $maxButtonWidth = 0
+    foreach ($btnText in $buttonTexts) {
+        $btnWidth = Get-DynamicButtonWidth -Text $btnText -Font $buttonFont -MinWidth ([int](100 * $scaleFactor)) -Padding ([int](40 * $scaleFactor))
+        if ($btnWidth -gt $maxButtonWidth) {
+            $maxButtonWidth = $btnWidth
+        }
+    }
+    $buttonWidth = $maxButtonWidth
+
+    # Calculate form dimensions to fit all content
+    $formWidth = [Math]::Max($listViewWidth + ($margin * 2), [int](800 * $scaleFactor))
+    $formHeight = $margin + $titleHeight + $margin + $listViewHeight + $margin + $buttonHeight + $margin + [int](60 * $scaleFactor)
+
+    # Create form with responsive sizing using New-ResponsiveForm
+    $updatesForm = New-ResponsiveForm -Title "Available Updates" `
+        -Width $formWidth `
+        -Height $formHeight `
+        -StartPosition 'CenterScreen' `
+        -Resizable $true
+
+    # Title label with scaled font
+    $titleLabel = New-Object System.Windows.Forms.Label
+    $titleLabel.Location = New-Object System.Drawing.Point($margin, $margin)
+    $titleLabel.Size = New-Object System.Drawing.Size(($formWidth - $margin * 2), $titleHeight)
+    $titleLabel.Text = "Found $($Updates.Count) application(s) with available updates:"
+    $titleLabel.Font = New-Object System.Drawing.Font("Segoe UI", $titleFontSize, [System.Drawing.FontStyle]::Bold)
+    $titleLabel.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right
+    $updatesForm.Controls.Add($titleLabel)
+
+    # ListView for updates with scaled dimensions
+    $listViewTop = $margin + $titleHeight + $margin
+    $updatesListView = New-Object System.Windows.Forms.ListView
+    $updatesListView.Location = New-Object System.Drawing.Point($margin, $listViewTop)
+    $updatesListView.Size = New-Object System.Drawing.Size(($formWidth - $margin * 2), $listViewHeight)
+    $updatesListView.View = [System.Windows.Forms.View]::Details
+    $updatesListView.FullRowSelect = $true
+    $updatesListView.CheckBoxes = $true
+    $updatesListView.GridLines = $true
+    $updatesListView.Font = New-Object System.Drawing.Font("Segoe UI", $tableFontSize)
+    $updatesListView.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right
+
+    # Add columns with dynamic widths
+    $updatesListView.Columns.Add("Application", $col1Width) | Out-Null
+    $updatesListView.Columns.Add("Current Version", $col2Width) | Out-Null
+    $updatesListView.Columns.Add("Available Version", $col3Width) | Out-Null
+    $updatesListView.Columns.Add("Source", $col4Width) | Out-Null
+
+    # Set row height using ImageList for better scaling
+    $rowHeight = [Math]::Max([int](20 * $scaleFactor), 20)
+    $imageList = New-Object System.Windows.Forms.ImageList
+    $imageList.ImageSize = New-Object System.Drawing.Size(1, $rowHeight)
+    $updatesListView.SmallImageList = $imageList
+
+    # Populate ListView
+    foreach ($update in $Updates) {
+        $item = New-Object System.Windows.Forms.ListViewItem($update.Name)
+        $item.SubItems.Add($update.CurrentVersion) | Out-Null
+        $item.SubItems.Add($update.AvailableVersion) | Out-Null
+        $item.SubItems.Add($update.Source) | Out-Null
+        $item.Tag = $update
+        $item.Checked = $true  # Check all by default
+        $updatesListView.Items.Add($item) | Out-Null
+    }
+
+    # Add click-to-select and drag-to-multi-select functionality
+    Add-ListViewClickToSelect -ListView $updatesListView
+
+    $updatesForm.Controls.Add($updatesListView)
+
+    # Calculate button positions with scaling
+    $buttonY = $listViewTop + $listViewHeight + $margin
+    $spacing = [int](10 * $scaleFactor)
+
+    # Select All button
+    $selectAllButton = New-Object System.Windows.Forms.Button
+    $selectAllButton.Location = New-Object System.Drawing.Point($margin, $buttonY)
+    $selectAllButton.Size = New-Object System.Drawing.Size($buttonWidth, $buttonHeight)
+    $selectAllButton.Text = "Select All"
+    $selectAllButton.Font = New-Object System.Drawing.Font("Segoe UI", $fontSize)
+    $selectAllButton.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left
+    $selectAllButton.Add_Click({
+        foreach ($item in $updatesListView.Items) {
+            $item.Checked = $true
+        }
+    })
+    $updatesForm.Controls.Add($selectAllButton)
+
+    # Deselect All button
+    $deselectAllButton = New-Object System.Windows.Forms.Button
+    $deselectAllButton.Location = New-Object System.Drawing.Point(($margin + $buttonWidth + $spacing), $buttonY)
+    $deselectAllButton.Size = New-Object System.Drawing.Size($buttonWidth, $buttonHeight)
+    $deselectAllButton.Text = "Deselect All"
+    $deselectAllButton.Font = New-Object System.Drawing.Font("Segoe UI", $fontSize)
+    $deselectAllButton.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left
+    $deselectAllButton.Add_Click({
+        foreach ($item in $updatesListView.Items) {
+            $item.Checked = $false
+        }
+    })
+    $updatesForm.Controls.Add($deselectAllButton)
+
+    # Update Selected button (right side) - uses same dynamic width as other buttons
+    $updateSelectedButton = New-Object System.Windows.Forms.Button
+    $updateSelectedButton.Location = New-Object System.Drawing.Point(($formWidth - $margin - $buttonWidth - $spacing - $buttonWidth), $buttonY)
+    $updateSelectedButton.Size = New-Object System.Drawing.Size($buttonWidth, $buttonHeight)
+    $updateSelectedButton.Text = "Update Selected"
+    $updateSelectedButton.Font = New-Object System.Drawing.Font("Segoe UI", $fontSize)
+    $updateSelectedButton.BackColor = [System.Drawing.Color]::Green
+    $updateSelectedButton.ForeColor = [System.Drawing.Color]::White
+    $updateSelectedButton.DialogResult = [System.Windows.Forms.DialogResult]::OK
+    $updateSelectedButton.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Right
+    $updatesForm.Controls.Add($updateSelectedButton)
+
+    # Cancel button
+    $cancelButton = New-Object System.Windows.Forms.Button
+    $cancelButton.Location = New-Object System.Drawing.Point(($formWidth - $margin - $buttonWidth), $buttonY)
+    $cancelButton.Size = New-Object System.Drawing.Size($buttonWidth, $buttonHeight)
+    $cancelButton.Text = "Cancel"
+    $cancelButton.Font = New-Object System.Drawing.Font("Segoe UI", $fontSize)
+    $cancelButton.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
+    $cancelButton.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Right
+    $updatesForm.Controls.Add($cancelButton)
+
+    $updatesForm.AcceptButton = $updateSelectedButton
+    $updatesForm.CancelButton = $cancelButton
+
+    # Add dynamic resize handler for responsive layout
+    Add-UpdatesFormResizeHandler -Form $updatesForm -ListView $updatesListView -TitleLabel $titleLabel
+
+    # Show dialog
+    $result = $updatesForm.ShowDialog()
+
+    if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
+        # Get checked items
+        $selectedUpdates = @()
+        foreach ($item in $updatesListView.Items) {
+            if ($item.Checked) {
+                $selectedUpdates += $item.Tag
+            }
+        }
+
+        Write-Log "User selected $($selectedUpdates.Count) update(s) to install" -Level INFO
+        return $selectedUpdates
+    }
+    else {
+        Write-Log "Update dialog cancelled" -Level INFO
+        return $null
+    }
+}
+
+function Check-ForUpdates {
+    <#
+    .SYNOPSIS
+        Main function to check for updates and handle the update process.
+
+    .DESCRIPTION
+        Checks for available updates, shows dialog, and processes selected updates.
+    #>
+    [CmdletBinding()]
+    param()
+
+    Write-Log "User initiated update check" -Level INFO
+    Write-Output "[CHECK] Checking for available updates..." -Color ([System.Drawing.Color]::Cyan)
+
+    # Get available updates
+    $updates = Get-AvailableUpdates
+
+    if ($updates.Count -eq 0) {
+        Write-Log "No updates available" -Level INFO
+        [System.Windows.Forms.MessageBox]::Show(
+            "All applications are up to date!",
+            "No Updates Available",
+            [System.Windows.Forms.MessageBoxButtons]::OK,
+            [System.Windows.Forms.MessageBoxIcon]::Information
+        )
+        return
+    }
+
+    # Show updates dialog
+    $selectedUpdates = Show-UpdatesDialog -Updates $updates
+
+    if ($null -eq $selectedUpdates -or $selectedUpdates.Count -eq 0) {
+        Write-Log "No updates selected or dialog cancelled" -Level INFO
+        return
+    }
+
+    # Confirm update
+    $confirmResult = [System.Windows.Forms.MessageBox]::Show(
+        "Update $($selectedUpdates.Count) application(s)?`n`nThis may take several minutes.",
+        "Confirm Updates",
+        [System.Windows.Forms.MessageBoxButtons]::YesNo,
+        [System.Windows.Forms.MessageBoxIcon]::Question
+    )
+
+    if ($confirmResult -ne [System.Windows.Forms.DialogResult]::Yes) {
+        Write-Log "User cancelled update confirmation" -Level INFO
+        return
+    }
+
+    # Perform updates
+    Write-Output "`r`n=== Starting Updates ===" -Color ([System.Drawing.Color]::Cyan)
+    $result = Update-Applications -Updates $selectedUpdates
+
+    # Show completion message
+    $completionColor = if ($result.FailCount -eq 0) { [System.Drawing.Color]::Green } else { [System.Drawing.Color]::Orange }
+    Write-Output "`r`n=== Updates Complete ===" -Color ([System.Drawing.Color]::Cyan)
+    Write-Output "Updates complete: $($result.SuccessCount) succeeded, $($result.FailCount) failed" -Color $completionColor
+
+    [System.Windows.Forms.MessageBox]::Show(
+        "Updates complete!`n`nSuccessful: $($result.SuccessCount)`nFailed: $($result.FailCount)",
+        "Updates Complete",
+        [System.Windows.Forms.MessageBoxButtons]::OK,
+        [System.Windows.Forms.MessageBoxIcon]::Information
+    )
+}
+
+#endregion Update Checker Functions
+
+#region Profile Export/Import Functions
+
+function Export-InstallationProfile {
+    <#
+    .SYNOPSIS
+        Exports selected applications to a JSON profile file.
+
+    .DESCRIPTION
+        Creates a JSON file containing the list of selected applications along with
+        metadata such as timestamp, computer name, user name, and installer version.
+        Useful for backing up selections or deploying to multiple machines.
+
+    .PARAMETER SelectedApps
+        Array of application names to export.
+
+    .PARAMETER FilePath
+        Optional custom file path. If not specified, uses default naming convention
+        in C:\mytech.today\app_installer\profiles\
+
+    .OUTPUTS
+        String - Path to the created profile file, or $null if export failed.
+
+    .EXAMPLE
+        $apps = @("Google Chrome", "7-Zip", "VLC Media Player")
+        Export-InstallationProfile -SelectedApps $apps
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [array]$SelectedApps,
+
+        [Parameter(Mandatory = $false)]
+        [string]$FilePath
+    )
+
+    try {
+        # Create profiles directory if it doesn't exist
+        $profilesDir = "C:\mytech.today\app_installer\profiles"
+        if (-not (Test-Path $profilesDir)) {
+            New-Item -Path $profilesDir -ItemType Directory -Force | Out-Null
+            Write-Log "Created profiles directory: $profilesDir" -Level INFO
+        }
+
+        # Generate default filename if not specified
+        if ([string]::IsNullOrWhiteSpace($FilePath)) {
+            $timestamp = Get-Date -Format "yyyy-MM-dd-HHmmss"
+            $computerName = $env:COMPUTERNAME
+            $FilePath = Join-Path $profilesDir "profile-$computerName-$timestamp.json"
+        }
+
+        # Create profile object
+        $profile = [PSCustomObject]@{
+            Version = "1.0"
+            Timestamp = (Get-Date).ToString("yyyy-MM-ddTHH:mm:ss")
+            ComputerName = $env:COMPUTERNAME
+            UserName = $env:USERNAME
+            InstallerVersion = $script:ScriptVersion
+            Applications = $SelectedApps
+        }
+
+        # Export to JSON
+        $profile | ConvertTo-Json -Depth 10 | Set-Content -Path $FilePath -Encoding UTF8
+
+        Write-Log "Exported installation profile to: $FilePath" -Level SUCCESS
+        Write-Log "Profile contains $($SelectedApps.Count) application(s)" -Level INFO
+
+        return $FilePath
+    }
+    catch {
+        Write-Log "Failed to export installation profile: $($_.Exception.Message)" -Level ERROR
+        return $null
+    }
+}
+
+function Import-InstallationProfile {
+    <#
+    .SYNOPSIS
+        Imports application selections from a JSON profile file.
+
+    .DESCRIPTION
+        Reads a JSON profile file and returns the list of applications to select.
+        Validates the JSON structure and handles missing applications gracefully.
+
+    .PARAMETER FilePath
+        Path to the JSON profile file to import.
+
+    .OUTPUTS
+        Hashtable with keys: Success (bool), Applications (array), MissingApps (array), Message (string)
+
+    .EXAMPLE
+        $result = Import-InstallationProfile -FilePath "C:\mytech.today\app_installer\profiles\profile-PC01-2025-11-09-160000.json"
+        if ($result.Success) {
+            # Select the applications
+        }
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$FilePath
+    )
+
+    try {
+        # Validate file exists
+        if (-not (Test-Path $FilePath)) {
+            Write-Log "Profile file not found: $FilePath" -Level ERROR
+            return @{
+                Success = $false
+                Applications = @()
+                MissingApps = @()
+                Message = "Profile file not found: $FilePath"
+            }
+        }
+
+        # Read and parse JSON
+        $profileContent = Get-Content -Path $FilePath -Raw -Encoding UTF8
+        $profile = $profileContent | ConvertFrom-Json
+
+        # Validate JSON structure
+        if (-not $profile.Version -or -not $profile.Applications) {
+            Write-Log "Invalid profile format: Missing required fields" -Level ERROR
+            return @{
+                Success = $false
+                Applications = @()
+                MissingApps = @()
+                Message = "Invalid profile format: Missing required fields (Version, Applications)"
+            }
+        }
+
+        Write-Log "Importing profile from: $FilePath" -Level INFO
+        Write-Log "Profile version: $($profile.Version)" -Level INFO
+        Write-Log "Profile created: $($profile.Timestamp)" -Level INFO
+        Write-Log "Profile computer: $($profile.ComputerName)" -Level INFO
+        Write-Log "Profile user: $($profile.UserName)" -Level INFO
+        Write-Log "Profile installer version: $($profile.InstallerVersion)" -Level INFO
+
+        # Get list of available application names
+        $availableAppNames = $script:Applications | ForEach-Object { $_.Name }
+
+        # Check which apps from profile are available
+        $validApps = @()
+        $missingApps = @()
+
+        foreach ($appName in $profile.Applications) {
+            if ($availableAppNames -contains $appName) {
+                $validApps += $appName
+            }
+            else {
+                $missingApps += $appName
+                Write-Log "Application not found in current installer: $appName" -Level WARNING
+            }
+        }
+
+        Write-Log "Profile contains $($profile.Applications.Count) application(s)" -Level INFO
+        Write-Log "Found $($validApps.Count) valid application(s)" -Level INFO
+        if ($missingApps.Count -gt 0) {
+            Write-Log "Missing $($missingApps.Count) application(s) not in current installer" -Level WARNING
+        }
+
+        return @{
+            Success = $true
+            Applications = $validApps
+            MissingApps = $missingApps
+            Message = "Successfully imported profile with $($validApps.Count) application(s)"
+            ProfileInfo = $profile
+        }
+    }
+    catch {
+        Write-Log "Failed to import installation profile: $($_.Exception.Message)" -Level ERROR
+        return @{
+            Success = $false
+            Applications = @()
+            MissingApps = @()
+            Message = "Failed to import profile: $($_.Exception.Message)"
+        }
+    }
+}
+
+#endregion Profile Export/Import Functions
+
 
 function Install-SelectedApplications {
     # Prevent execution during form closing
@@ -2412,7 +5154,6 @@ function Install-SelectedApplications {
 
     # User confirmed - log and set installation flag
     Write-Log "User confirmed installation - proceeding with $($checkedItems.Count) application(s)" -Level INFO
-    $script:IsInstalling = $true
 
     # Log reinstallation information
     if ($alreadyInstalled.Count -gt 0) {
@@ -2427,61 +5168,128 @@ function Install-SelectedApplications {
         }
     }
 
-    # Disable buttons during installation
+    # Build installation queue from checked items
+    $script:InstallationQueue = @($checkedItems | ForEach-Object { $_.Tag })
+
+    # Reorder queue to install O&O ShutUp10 first if present
+    $ooShutUpApp = $script:InstallationQueue | Where-Object { $_.Name -eq "O&O ShutUp10" }
+    if ($ooShutUpApp) {
+        Write-Log "O&O ShutUp10 detected - moving to front of installation queue" -Level INFO
+        $otherApps = $script:InstallationQueue | Where-Object { $_.Name -ne "O&O ShutUp10" }
+        $script:InstallationQueue = @($ooShutUpApp) + $otherApps
+    }
+
+    # Show queue management dialog
+    Write-Log "Showing queue management dialog" -Level INFO
+    $modifiedQueue = Show-QueueManagementDialog -Queue $script:InstallationQueue
+
+    if ($null -eq $modifiedQueue) {
+        Write-Log "Installation cancelled - user closed queue management dialog" -Level INFO
+        return
+    }
+
+    # Update queue with user's modifications
+    $script:InstallationQueue = $modifiedQueue
+    Write-Log "Queue finalized with $($script:InstallationQueue.Count) application(s)" -Level INFO
+
+    # Reset queue state
+    $script:CurrentQueueIndex = 0
+    $script:IsPaused = $false
+    $script:SkipCurrent = $false
+
+    # Save initial queue state
+    Save-QueueState
+
+    # Set installation flag
+    $script:IsInstalling = $true
+
+    # Disable buttons during installation (except pause/skip buttons)
     foreach ($control in $form.Controls) {
         if ($control -is [System.Windows.Forms.Button]) {
             $control.Enabled = $false
         }
     }
 
-    # Reorder checked items to install O&O ShutUp10 first if present
-    $itemsToInstall = $checkedItems
-    $ooShutUpItem = $itemsToInstall | Where-Object { $_.Tag.Name -eq "O&O ShutUp10" }
-    if ($ooShutUpItem) {
-        Write-Log "O&O ShutUp10 detected - moving to front of installation queue" -Level INFO
-        Write-Output "[i] O&O ShutUp10 will be installed first" -Color ([System.Drawing.Color]::Cyan)
-        $otherItems = $itemsToInstall | Where-Object { $_.Tag.Name -ne "O&O ShutUp10" }
-        $itemsToInstall = @($ooShutUpItem) + $otherItems
+    # Show and enable Pause/Resume and Skip buttons
+    if ($script:PauseResumeButton) {
+        $script:PauseResumeButton.Visible = $true
+        $script:PauseResumeButton.Enabled = $true
+    }
+    if ($script:SkipButton) {
+        $script:SkipButton.Visible = $true
+        $script:SkipButton.Enabled = $true
     }
 
     # Setup progress bar
-    $script:ProgressBar.Maximum = $itemsToInstall.Count
+    $script:ProgressBar.Maximum = $script:InstallationQueue.Count
     $script:ProgressBar.Value = 0
 
     Write-Output "`r`n=== Starting Installation ===" -Color ([System.Drawing.Color]::Cyan)
-    Write-Output "Installing $($itemsToInstall.Count) application(s)..." -Color ([System.Drawing.Color]::Blue)
+    Write-Output "Installing $($script:InstallationQueue.Count) application(s)..." -Color ([System.Drawing.Color]::Blue)
+    Write-Output "[i] Queue: $($script:InstallationQueue.Name -join ', ')" -Color ([System.Drawing.Color]::Gray)
 
     $successCount = 0
     $failCount = 0
-    $currentIndex = 0
+    $skippedCount = 0
     $completedCount = 0
     $startTime = Get-Date  # Track installation start time
     $installationTimes = @()  # Track individual installation times for ETA
 
-    foreach ($item in $itemsToInstall) {
-        $currentIndex++
-        $app = $item.Tag
+    # Process queue
+    while ($script:CurrentQueueIndex -lt $script:InstallationQueue.Count) {
+        # Check if paused
+        while ($script:IsPaused) {
+            Write-Output "[PAUSE] Installation paused - waiting for resume..." -Color ([System.Drawing.Color]::Yellow)
+            Save-QueueState
+            [System.Windows.Forms.Application]::DoEvents()
+            Start-Sleep -Milliseconds 500
+        }
+
+        # Get current app from queue
+        $app = $script:InstallationQueue[$script:CurrentQueueIndex]
+        $currentIndex = $script:CurrentQueueIndex + 1
 
         # Calculate percentage
-        $percentComplete = [Math]::Round(($currentIndex / $itemsToInstall.Count) * 100, 1)
+        $percentComplete = [Math]::Round(($currentIndex / $script:InstallationQueue.Count) * 100, 1)
 
-        Write-Output "Installing $($app.Name) ($currentIndex of $($itemsToInstall.Count) - $percentComplete%)..." -Color ([System.Drawing.Color]::Blue)
+        Write-Output "Installing $($app.Name) ($currentIndex of $($script:InstallationQueue.Count) - $percentComplete%)..." -Color ([System.Drawing.Color]::Blue)
 
         # Track individual app installation time
         $appStartTime = Get-Date
 
-        # Install application
-        $success = Install-Application -App $app
+        # Reset skip flag
+        $script:SkipCurrent = $false
+
+        # Install application (unless skipped)
+        if (-not $script:SkipCurrent) {
+            $success = Install-Application -App $app
+        }
+        else {
+            Write-Output "[SKIP] Skipping $($app.Name)" -Color ([System.Drawing.Color]::Yellow)
+            $success = $false
+            $skippedCount++
+        }
 
         # Calculate installation time
         $appEndTime = Get-Date
         $appDuration = ($appEndTime - $appStartTime).TotalSeconds
         $installationTimes += $appDuration
 
+        # Update ListView item if it exists
+        $listViewItem = $script:ListView.Items | Where-Object { $_.Tag.Name -eq $app.Name } | Select-Object -First 1
+        if ($listViewItem) {
+            if ($success) {
+                $listViewItem.SubItems[2].Text = "Installed"
+                $listViewItem.ForeColor = [System.Drawing.Color]::Green
+            }
+            elseif ($script:SkipCurrent) {
+                $listViewItem.SubItems[2].Text = "Skipped"
+                $listViewItem.ForeColor = [System.Drawing.Color]::Orange
+            }
+        }
+
         if ($success) {
             $successCount++
-            $item.SubItems[2].Text = "Installed"
-            $item.ForeColor = [System.Drawing.Color]::Green
         }
         else {
             $failCount++
@@ -2489,28 +5297,44 @@ function Install-SelectedApplications {
 
         # Update progress after installation completes
         $completedCount++
+        $script:CurrentQueueIndex++
         $script:ProgressBar.Value = $completedCount
-        $percentComplete = [Math]::Round(($completedCount / $itemsToInstall.Count) * 100, 1)
+        $percentComplete = [Math]::Round(($completedCount / $script:InstallationQueue.Count) * 100, 1)
 
         # Calculate ETA
         $etaText = ""
-        if ($installationTimes.Count -gt 0 -and $completedCount -lt $itemsToInstall.Count) {
+        if ($installationTimes.Count -gt 0 -and $completedCount -lt $script:InstallationQueue.Count) {
             $avgTime = ($installationTimes | Measure-Object -Average).Average
-            $remainingApps = $itemsToInstall.Count - $completedCount
+            $remainingApps = $script:InstallationQueue.Count - $completedCount
             $etaSeconds = $avgTime * $remainingApps
             $etaMinutes = [Math]::Round($etaSeconds / 60, 1)
             $etaText = " | ETA: $etaMinutes min"
         }
 
-        $script:ProgressLabel.Text = "$completedCount / $($itemsToInstall.Count) applications ($percentComplete%)$etaText"
+        $script:ProgressLabel.Text = "$completedCount / $($script:InstallationQueue.Count) applications ($percentComplete%)$etaText"
+
+        # Save queue state after each installation
+        Save-QueueState
 
         # Process Windows messages to keep UI responsive
         [System.Windows.Forms.Application]::DoEvents()
     }
 
+    # Clear queue state (installation completed successfully)
+    Clear-QueueState
+
     # Reset installation flag
     $script:IsInstalling = $false
+    $script:IsPaused = $false
     Write-Log "Installation process completed - IsInstalling flag reset" -Level INFO
+
+    # Hide Pause/Resume and Skip buttons
+    if ($script:PauseResumeButton) {
+        $script:PauseResumeButton.Visible = $false
+    }
+    if ($script:SkipButton) {
+        $script:SkipButton.Visible = $false
+    }
 
     # Re-enable buttons
     foreach ($control in $form.Controls) {
@@ -2525,33 +5349,264 @@ function Install-SelectedApplications {
     $totalMinutes = [Math]::Round($duration.TotalMinutes, 1)
 
     # Show completion message
-    $completionColor = if ($failCount -eq 0) { [System.Drawing.Color]::Green } else { [System.Drawing.Color]::Orange }
+    $completionColor = if ($failCount -eq 0 -and $skippedCount -eq 0) { [System.Drawing.Color]::Green } else { [System.Drawing.Color]::Orange }
 
     Write-Output "`r`n=== Installation Complete ===" -Color ([System.Drawing.Color]::Cyan)
-    Write-Output "Installation complete: $successCount succeeded, $failCount failed" -Color $completionColor
-    Write-Output "Success: $successCount | Failed: $failCount | Time: $totalMinutes minutes" -Color $completionColor
+    Write-Output "Installation complete: $successCount succeeded, $failCount failed, $skippedCount skipped" -Color $completionColor
+    Write-Output "Success: $successCount | Failed: $failCount | Skipped: $skippedCount | Time: $totalMinutes minutes" -Color $completionColor
 
     # Update status label
     if ($script:StatusLabel) {
-        $script:StatusLabel.Text = "[COMPLETE] All installations complete! ($successCount succeeded, $failCount failed, $totalMinutes min)"
-        $script:StatusLabel.ForeColor = if ($failCount -eq 0) { [System.Drawing.Color]::Green } else { [System.Drawing.Color]::Orange }
+        $statusText = "[COMPLETE] All installations complete! ($successCount succeeded, $failCount failed"
+        if ($skippedCount -gt 0) {
+            $statusText += ", $skippedCount skipped"
+        }
+        $statusText += ", $totalMinutes min)"
+        $script:StatusLabel.Text = $statusText
+        $script:StatusLabel.ForeColor = if ($failCount -eq 0 -and $skippedCount -eq 0) { [System.Drawing.Color]::Green } else { [System.Drawing.Color]::Orange }
         [System.Windows.Forms.Application]::DoEvents()
     }
 
     # Show Windows Toast notification
     $toastTitle = "Installation Complete"
-    $toastMessage = "Successfully installed $successCount of $($checkedItems.Count) applications in $totalMinutes minutes"
+    $toastMessage = "Successfully installed $successCount of $($script:InstallationQueue.Count) applications in $totalMinutes minutes"
     if ($failCount -gt 0) {
         $toastMessage += "`n$failCount installation(s) failed"
     }
-    Show-ToastNotification -Title $toastTitle -Message $toastMessage -Type $(if ($failCount -eq 0) { 'Success' } else { 'Warning' })
+    if ($skippedCount -gt 0) {
+        $toastMessage += "`n$skippedCount installation(s) skipped"
+    }
+    Show-ToastNotification -Title $toastTitle -Message $toastMessage -Type $(if ($failCount -eq 0 -and $skippedCount -eq 0) { 'Success' } else { 'Warning' })
+
+    $completionMessage = "Installation complete!`n`nSuccessful: $successCount`nFailed: $failCount"
+    if ($skippedCount -gt 0) {
+        $completionMessage += "`nSkipped: $skippedCount"
+    }
+    $completionMessage += "`nTotal Time: $totalMinutes minutes"
 
     [System.Windows.Forms.MessageBox]::Show(
-        "Installation complete!`n`nSuccessful: $successCount`nFailed: $failCount`nTotal Time: $totalMinutes minutes",
+        $completionMessage,
         "Installation Complete",
         [System.Windows.Forms.MessageBoxButtons]::OK,
         [System.Windows.Forms.MessageBoxIcon]::Information
     )
+
+    # Refresh the list
+    Refresh-ApplicationList
+}
+
+function Uninstall-SelectedApplications {
+    <#
+    .SYNOPSIS
+        Uninstalls selected applications with confirmation and progress tracking.
+
+    .DESCRIPTION
+        Uninstalls multiple applications selected in the ListView.
+        Shows confirmation dialog, tracks progress, and refreshes the application list.
+    #>
+
+    # Prevent execution during form closing
+    if ($script:IsClosing) {
+        Write-Log "Uninstall blocked: Form is closing" -Level WARNING
+        return
+    }
+
+    # Prevent multiple simultaneous operations
+    if ($script:IsInstalling) {
+        Write-Log "Uninstall blocked: Installation/uninstall already in progress" -Level WARNING
+        [System.Windows.Forms.MessageBox]::Show(
+            "An installation or uninstall is already in progress. Please wait for it to complete.",
+            "Operation In Progress",
+            [System.Windows.Forms.MessageBoxButtons]::OK,
+            [System.Windows.Forms.MessageBoxIcon]::Warning
+        )
+        return
+    }
+
+    # Log that uninstall was explicitly triggered by user
+    Write-Log "Uninstall-SelectedApplications function called by user action" -Level INFO
+
+    # Get checked items
+    $checkedItems = $script:ListView.Items | Where-Object { $_.Checked }
+
+    if ($checkedItems.Count -eq 0) {
+        Write-Log "Uninstall cancelled: No applications selected" -Level INFO
+        [System.Windows.Forms.MessageBox]::Show(
+            "Please select at least one application to uninstall.",
+            "No Selection",
+            [System.Windows.Forms.MessageBoxButtons]::OK,
+            [System.Windows.Forms.MessageBoxIcon]::Information
+        )
+        return
+    }
+
+    # Log which applications were selected
+    Write-Log "User selected $($checkedItems.Count) application(s) for uninstall" -Level INFO
+    foreach ($item in $checkedItems) {
+        Write-Log "  - Selected: $($item.Text)" -Level INFO
+    }
+
+    # Check which apps are actually installed
+    $installedApps = @()
+    $notInstalledApps = @()
+
+    foreach ($item in $checkedItems) {
+        $app = $item.Tag
+        if ($script:InstalledApps.ContainsKey($app.Name)) {
+            $installedApps += $app
+        }
+        else {
+            $notInstalledApps += $app
+        }
+    }
+
+    # If no apps are installed, show message and return
+    if ($installedApps.Count -eq 0) {
+        Write-Log "Uninstall cancelled: None of the selected applications are installed" -Level INFO
+        [System.Windows.Forms.MessageBox]::Show(
+            "None of the selected applications are currently installed.",
+            "Nothing to Uninstall",
+            [System.Windows.Forms.MessageBoxButtons]::OK,
+            [System.Windows.Forms.MessageBoxIcon]::Information
+        )
+        return
+    }
+
+    # Build confirmation message
+    $confirmMessage = "You are about to uninstall $($installedApps.Count) application(s):`r`n`r`n"
+
+    foreach ($app in $installedApps) {
+        $version = $script:InstalledApps[$app.Name]
+        $confirmMessage += "  - $($app.Name) ($version)`r`n"
+    }
+
+    if ($notInstalledApps.Count -gt 0) {
+        $confirmMessage += "`r`nNot installed - will skip ($($notInstalledApps.Count)):`r`n"
+        foreach ($app in $notInstalledApps) {
+            $confirmMessage += "  - $($app.Name)`r`n"
+        }
+    }
+
+    $confirmMessage += "`r`nThis action cannot be undone. Proceed with uninstall?"
+
+    # Confirm uninstall - REQUIRED
+    Write-Log "Displaying uninstall confirmation dialog to user" -Level INFO
+    $result = [System.Windows.Forms.MessageBox]::Show(
+        $confirmMessage,
+        "Confirm Uninstall",
+        [System.Windows.Forms.MessageBoxButtons]::YesNo,
+        [System.Windows.Forms.MessageBoxIcon]::Warning
+    )
+
+    if ($result -ne [System.Windows.Forms.DialogResult]::Yes) {
+        Write-Log "Uninstall cancelled by user (clicked No or closed dialog)" -Level INFO
+        return
+    }
+
+    # User confirmed - log and set installation flag
+    Write-Log "User confirmed uninstall - proceeding with $($installedApps.Count) application(s)" -Level INFO
+
+    # Set installation flag (reuse for uninstall to prevent concurrent operations)
+    $script:IsInstalling = $true
+
+    # Disable buttons during uninstall
+    foreach ($control in $form.Controls) {
+        if ($control -is [System.Windows.Forms.Button]) {
+            $control.Enabled = $false
+        }
+    }
+
+    # Setup progress bar
+    $script:ProgressBar.Maximum = $installedApps.Count
+    $script:ProgressBar.Value = 0
+
+    Write-Output "`r`n=== Starting Uninstall ===" -Color ([System.Drawing.Color]::Cyan)
+    Write-Output "Uninstalling $($installedApps.Count) application(s)..." -Color ([System.Drawing.Color]::Blue)
+    Write-Output "[i] Apps: $($installedApps.Name -join ', ')" -Color ([System.Drawing.Color]::Gray)
+
+    $successCount = 0
+    $failCount = 0
+    $startTime = Get-Date
+
+    # Process each app
+    for ($i = 0; $i -lt $installedApps.Count; $i++) {
+        $app = $installedApps[$i]
+        $currentIndex = $i + 1
+
+        # Calculate percentage
+        $percentComplete = [Math]::Round(($currentIndex / $installedApps.Count) * 100, 1)
+
+        Write-Output "Uninstalling $($app.Name) ($currentIndex of $($installedApps.Count) - $percentComplete%)..." -Color ([System.Drawing.Color]::Blue)
+
+        # Uninstall the application
+        $result = Uninstall-Application -App $app
+
+        if ($result) {
+            $successCount++
+        }
+        else {
+            $failCount++
+        }
+
+        # Update progress bar
+        $script:ProgressBar.Value = $currentIndex
+        [System.Windows.Forms.Application]::DoEvents()
+    }
+
+    # Calculate total time
+    $endTime = Get-Date
+    $duration = $endTime - $startTime
+    $totalMinutes = [Math]::Round($duration.TotalMinutes, 1)
+
+    # Show completion message
+    $completionColor = if ($failCount -eq 0) { [System.Drawing.Color]::Green } else { [System.Drawing.Color]::Orange }
+
+    Write-Output "`r`n=== Uninstall Complete ===" -Color ([System.Drawing.Color]::Cyan)
+    Write-Output "Uninstall complete: $successCount succeeded, $failCount failed" -Color $completionColor
+    Write-Output "Success: $successCount | Failed: $failCount | Time: $totalMinutes minutes" -Color $completionColor
+
+    # Update status label
+    if ($script:StatusLabel) {
+        $statusText = "[COMPLETE] All uninstalls complete! ($successCount succeeded, $failCount failed, $totalMinutes min)"
+        $script:StatusLabel.Text = $statusText
+        $script:StatusLabel.ForeColor = if ($failCount -eq 0) { [System.Drawing.Color]::Green } else { [System.Drawing.Color]::Orange }
+        [System.Windows.Forms.Application]::DoEvents()
+    }
+
+    # Show Windows Toast notification
+    $toastTitle = "Uninstall Complete"
+    $toastMessage = "Successfully uninstalled $successCount of $($installedApps.Count) applications in $totalMinutes minutes"
+    if ($failCount -gt 0) {
+        $toastMessage += "`n$failCount uninstall(s) failed"
+    }
+    Show-ToastNotification -Title $toastTitle -Message $toastMessage -Type $(if ($failCount -eq 0) { 'Success' } else { 'Warning' })
+
+    $completionMessage = "Uninstall complete!`n`nSuccessful: $successCount`nFailed: $failCount`nTotal Time: $totalMinutes minutes"
+
+    [System.Windows.Forms.MessageBox]::Show(
+        $completionMessage,
+        "Uninstall Complete",
+        [System.Windows.Forms.MessageBoxButtons]::OK,
+        [System.Windows.Forms.MessageBoxIcon]::Information
+    )
+
+    # Reset installation flag
+    $script:IsInstalling = $false
+
+    # Re-enable buttons
+    foreach ($control in $form.Controls) {
+        if ($control -is [System.Windows.Forms.Button]) {
+            $control.Enabled = $true
+        }
+    }
+
+    # Hide pause/skip buttons
+    if ($script:PauseResumeButton) {
+        $script:PauseResumeButton.Visible = $false
+    }
+    if ($script:SkipButton) {
+        $script:SkipButton.Visible = $false
+    }
 
     # Refresh the list
     Refresh-ApplicationList
@@ -2656,8 +5711,24 @@ function Show-MarketingInformation {
 try {
     # Initialize logging
     Write-Host "`n[i] Initializing logging..." -ForegroundColor Cyan
-    Initialize-Logging
-    Write-Host "[OK] Logging initialized" -ForegroundColor Green
+
+    if ($script:LoggingModuleLoaded) {
+        # Use generic logging module
+        $logPath = Initialize-Log -ScriptName "AppInstaller-GUI" -ScriptVersion $script:ScriptVersion
+        if ($logPath) {
+            Write-Log "=== myTech.Today Application Installer GUI v$script:ScriptVersion ===" -Level INFO
+            Write-Log "Log initialized at: $logPath" -Level INFO
+            Write-Host "[OK] Logging initialized with generic module" -ForegroundColor Green
+        }
+        else {
+            Write-Host "[WARN] Generic logging module failed to initialize" -ForegroundColor Yellow
+        }
+    }
+    else {
+        # Fallback to old logging method
+        Initialize-Logging
+        Write-Host "[OK] Logging initialized with fallback method" -ForegroundColor Green
+    }
 
     Write-Host "`n[i] Creating GUI form..." -ForegroundColor Cyan
 

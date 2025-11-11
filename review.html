@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>App Installer - Code Review & Future Development</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; }
+        .container { max-width: 1400px; margin: 0 auto; background: white; border-radius: 10px; box-shadow: 0 10px 40px rgba(0,0,0,0.3); overflow: hidden; }
+        header { background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); color: white; padding: 40px; text-align: center; }
+        header h1 { font-size: 2.5em; margin-bottom: 10px; }
+        header p { font-size: 1.2em; opacity: 0.9; }
+        .meta { background: #f8f9fa; padding: 20px 40px; border-bottom: 2px solid #e9ecef; }
+        .meta-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; }
+        .meta-item { display: flex; flex-direction: column; }
+        .meta-label { font-weight: 600; color: #6c757d; font-size: 0.85em; text-transform: uppercase; letter-spacing: 0.5px; }
+        .meta-value { font-size: 1.1em; color: #2a5298; font-weight: 600; margin-top: 5px; }
+        .content { padding: 40px; }
+        h2 { color: #1e3c72; font-size: 2em; margin: 40px 0 20px 0; padding-bottom: 10px; border-bottom: 3px solid #667eea; }
+        h3 { color: #2a5298; font-size: 1.5em; margin: 30px 0 15px 0; }
+        h4 { color: #495057; font-size: 1.2em; margin: 20px 0 10px 0; }
+        p { margin-bottom: 15px; color: #495057; }
+        ul, ol { margin-left: 30px; margin-bottom: 20px; }
+        li { margin-bottom: 10px; color: #495057; }
+        .prompt-box { background: #f8f9fa; border-left: 4px solid #667eea; padding: 20px; margin: 20px 0; border-radius: 5px; position: relative; }
+        .prompt-box::before { content: "🤖 AUGMENT AI PROMPT"; display: block; font-weight: 700; color: #667eea; font-size: 0.85em; margin-bottom: 10px; letter-spacing: 1px; }
+        .prompt-box pre { background: white; padding: 15px; border-radius: 5px; overflow-x: auto; font-family: 'Consolas', 'Monaco', monospace; font-size: 0.9em; line-height: 1.5; border: 1px solid #dee2e6; white-space: pre-wrap; word-wrap: break-word; }
+        .priority-high { border-left-color: #dc3545; }
+        .priority-high::before { content: "🔴 HIGH PRIORITY - AUGMENT AI PROMPT"; color: #dc3545; }
+        .priority-medium { border-left-color: #ffc107; }
+        .priority-medium::before { content: "🟡 MEDIUM PRIORITY - AUGMENT AI PROMPT"; color: #ffc107; }
+        .priority-low { border-left-color: #28a745; }
+        .priority-low::before { content: "🟢 LOW PRIORITY - AUGMENT AI PROMPT"; color: #28a745; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin: 30px 0; }
+        .stat-card { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 25px; border-radius: 10px; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .stat-number { font-size: 3em; font-weight: 700; display: block; margin-bottom: 10px; }
+        .stat-label { font-size: 1.1em; opacity: 0.9; }
+        .feature-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin: 20px 0; }
+        .feature-card { background: #f8f9fa; padding: 20px; border-radius: 8px; border: 1px solid #dee2e6; }
+        .feature-card h4 { color: #667eea; margin-top: 0; }
+        .badge { display: inline-block; padding: 5px 12px; border-radius: 20px; font-size: 0.85em; font-weight: 600; margin-right: 8px; margin-bottom: 8px; }
+        .badge-success { background: #d4edda; color: #155724; }
+        .badge-warning { background: #fff3cd; color: #856404; }
+        .badge-danger { background: #f8d7da; color: #721c24; }
+        .badge-info { background: #d1ecf1; color: #0c5460; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #dee2e6; }
+        th { background: #f8f9fa; font-weight: 600; color: #495057; }
+        tr:hover { background: #f8f9fa; }
+        .toc { background: #f8f9fa; padding: 25px; border-radius: 8px; margin: 30px 0; }
+        .toc h3 { margin-top: 0; color: #1e3c72; }
+        .toc ul { list-style: none; margin-left: 0; }
+        .toc li { margin-bottom: 8px; }
+        .toc a { color: #667eea; text-decoration: none; font-weight: 500; }
+        .toc a:hover { text-decoration: underline; }
+        footer { background: #343a40; color: white; padding: 30px 40px; text-align: center; }
+        footer p { color: #adb5bd; margin-bottom: 5px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📦 App Installer</h1>
+            <p>Comprehensive Code Review & Future Development Roadmap</p>
+        </header>
+        
+        <div class="meta">
+            <div class="meta-grid">
+                <div class="meta-item">
+                    <span class="meta-label">Project</span>
+                    <span class="meta-value">myTech.Today App Installer</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Version</span>
+                    <span class="meta-value">1.3.7 (GUI) / 1.4.0 (CLI)</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Review Date</span>
+                    <span class="meta-value">November 9, 2025</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Total Applications</span>
+                    <span class="meta-value">271 Apps</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Categories</span>
+                    <span class="meta-value">22 Categories</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Lines of Code</span>
+                    <span class="meta-value">~5,000+ LOC</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="content">
+            <div class="toc">
+                <h3>📑 Table of Contents</h3>
+                <ul>
+                    <li><a href="#executive-summary">1. Executive Summary</a></li>
+                    <li><a href="#current-state">2. Current State Analysis</a></li>
+                    <li><a href="#strengths">3. Strengths & Achievements</a></li>
+                    <li><a href="#gaps">4. Feature Gap Analysis</a></li>
+                    <li><a href="#high-priority">5. High Priority Features (Augment AI Prompts)</a></li>
+                    <li><a href="#medium-priority">6. Medium Priority Features (Augment AI Prompts)</a></li>
+                    <li><a href="#low-priority">7. Low Priority Features (Augment AI Prompts)</a></li>
+                    <li><a href="#integration">8. Integration Opportunities (Augment AI Prompts)</a></li>
+                    <li><a href="#conclusion">9. Conclusion & Roadmap</a></li>
+                </ul>
+            </div>
+
+            <h2 id="executive-summary">1. 📊 Executive Summary</h2>
+            
+            <p>The <strong>myTech.Today App Installer</strong> is a mature, feature-rich PowerShell application installer system that has evolved from a simple 27-app installer to a comprehensive solution supporting <strong>271 applications</strong> across <strong>22 categories</strong>. The project demonstrates excellent architecture, professional coding standards, and strong user experience design.</p>
+            
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <span class="stat-number">271</span>
+                    <span class="stat-label">Supported Applications</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-number">22</span>
+                    <span class="stat-label">Categories</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-number">2</span>
+                    <span class="stat-label">Interface Modes</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-number">5,000+</span>
+                    <span class="stat-label">Lines of Code</span>
+                </div>
+            </div>
+            
+            <h3>Key Findings</h3>
+            <ul>
+                <li><strong>✅ Excellent Foundation:</strong> Well-structured codebase with clear separation of concerns</li>
+                <li><strong>✅ Professional UI/UX:</strong> Both GUI and CLI interfaces are polished and user-friendly</li>
+                <li><strong>✅ Comprehensive Logging:</strong> Centralized logging with markdown format</li>
+                <li><strong>⚠️ Integration Opportunity:</strong> Can leverage the new generic logging.ps1 module</li>
+                <li><strong>⚠️ Missing Features:</strong> Several high-value features identified for future development</li>
+                <li><strong>⚠️ Limited Automation:</strong> No profile/configuration export/import functionality</li>
+            </ul>
+
+            <h2 id="current-state">2. 🔍 Current State Analysis</h2>
+            
+            <h3>Existing Features</h3>
+            
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <h4>✅ GUI Features (install-gui.ps1)</h4>
+                    <ul>
+                        <li>Modern Windows Forms interface</li>
+                        <li>Real-time progress tracking</li>
+                        <li>Category-based organization</li>
+                        <li>Checkbox selection system</li>
+                        <li>HTML console output panel</li>
+                        <li>Version detection display</li>
+                        <li>DPI scaling support</li>
+                    </ul>
+                </div>
+                
+                <div class="feature-card">
+                    <h4>✅ CLI Features (install.ps1)</h4>
+                    <ul>
+                        <li>Interactive menu system</li>
+                        <li>Multi-select capability (1,3,5-10)</li>
+                        <li>Category selection (C:Browsers)</li>
+                        <li>Range selection support</li>
+                        <li>Command-line parameters</li>
+                        <li>Batch installation modes</li>
+                        <li>Progress tracking with ETA</li>
+                    </ul>
+                </div>
+                
+                <div class="feature-card">
+                    <h4>✅ Core Capabilities</h4>
+                    <ul>
+                        <li>271 application support</li>
+                        <li>winget integration</li>
+                        <li>Custom installer scripts</li>
+                        <li>Version detection</li>
+                        <li>Centralized logging</li>
+                        <li>Error handling</li>
+                        <li>Self-installation to system</li>
+                    </ul>
+                </div>
+                
+                <div class="feature-card">
+                    <h4>✅ Advanced Features</h4>
+                    <ul>
+                        <li>Automatic winget installation</li>
+                        <li>Chrome Remote Desktop repair</li>
+                        <li>O&O ShutUp10 integration</li>
+                        <li>Web shortcut creation</li>
+                        <li>McAfee removal tool</li>
+                        <li>Monthly update scheduler</li>
+                        <li>Comprehensive error codes</li>
+                    </ul>
+                </div>
+            </div>
+
+            <h3>Technology Stack</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Component</th>
+                        <th>Technology</th>
+                        <th>Version</th>
+                        <th>Purpose</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Language</td>
+                        <td>PowerShell</td>
+                        <td>5.1+</td>
+                        <td>Core scripting language</td>
+                    </tr>
+                    <tr>
+                        <td>GUI Framework</td>
+                        <td>Windows Forms</td>
+                        <td>.NET 4.7.2+</td>
+                        <td>Graphical interface</td>
+                    </tr>
+                    <tr>
+                        <td>Package Manager</td>
+                        <td>winget</td>
+                        <td>Latest</td>
+                        <td>Application installation</td>
+                    </tr>
+                    <tr>
+                        <td>Logging</td>
+                        <td>Markdown</td>
+                        <td>N/A</td>
+                        <td>Centralized logging</td>
+                    </tr>
+                    <tr>
+                        <td>HTML Rendering</td>
+                        <td>WebBrowser Control</td>
+                        <td>.NET</td>
+                        <td>Console output display</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h2 id="strengths">3. 💪 Strengths & Achievements</h2>
+            
+            <h3>What's Working Well</h3>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Feature</th>
+                        <th>Implementation Quality</th>
+                        <th>User Impact</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Application Coverage</td>
+                        <td><span class="badge badge-success">Excellent</span></td>
+                        <td>271 apps cover virtually all common use cases</td>
+                    </tr>
+                    <tr>
+                        <td>GUI Design</td>
+                        <td><span class="badge badge-success">Excellent</span></td>
+                        <td>Professional, responsive, accessible interface</td>
+                    </tr>
+                    <tr>
+                        <td>CLI Usability</td>
+                        <td><span class="badge badge-success">Excellent</span></td>
+                        <td>Multi-select and range features save time</td>
+                    </tr>
+                    <tr>
+                        <td>Version Detection</td>
+                        <td><span class="badge badge-success">Good</span></td>
+                        <td>Helps users avoid duplicate installations</td>
+                    </tr>
+                    <tr>
+                        <td>Logging System</td>
+                        <td><span class="badge badge-success">Good</span></td>
+                        <td>Centralized logs aid troubleshooting</td>
+                    </tr>
+                    <tr>
+                        <td>Error Handling</td>
+                        <td><span class="badge badge-success">Excellent</span></td>
+                        <td>Clear error messages with actionable guidance</td>
+                    </tr>
+                    <tr>
+                        <td>Self-Installation</td>
+                        <td><span class="badge badge-success">Good</span></td>
+                        <td>Automatic deployment to system location</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h2 id="gaps">4. 🔍 Feature Gap Analysis</h2>
+
+            <p>While the app installer is feature-rich, several high-value capabilities are missing that would significantly enhance usability and automation:</p>
+
+            <h3>Missing Features</h3>
+            <ul>
+                <li><strong>❌ Export/Import Profiles:</strong> No way to save and restore application selections</li>
+                <li><strong>❌ Search/Filter:</strong> No search functionality in GUI with 271 apps</li>
+                <li><strong>❌ Offline Installation:</strong> No local package cache for offline scenarios</li>
+                <li><strong>❌ Update Checker:</strong> No way to check for updates to installed applications</li>
+                <li><strong>❌ Uninstall Functionality:</strong> Can only install, not uninstall applications</li>
+                <li><strong>❌ Installation Queue:</strong> No queue management for large batch installations</li>
+                <li><strong>❌ Custom Paths:</strong> All apps install to default locations</li>
+                <li><strong>❌ Application Groups:</strong> No predefined profiles (Developer, Designer, etc.)</li>
+                <li><strong>❌ Chocolatey Fallback:</strong> No alternative package manager support</li>
+                <li><strong>❌ Bandwidth Control:</strong> No throttling for slow connections</li>
+                <li><strong>❌ Pre/Post Hooks:</strong> No custom scripts before/after installation</li>
+                <li><strong>❌ Dependency Management:</strong> No automatic dependency resolution</li>
+                <li><strong>❌ Installation History:</strong> No rollback or history tracking</li>
+                <li><strong>❌ Logging Integration:</strong> Not using the new generic logging.ps1 module</li>
+            </ul>
+
+            <h2 id="high-priority">5. 🔴 High Priority Features (Augment AI Prompts)</h2>
+
+            <p>These features provide the highest value and should be implemented first:</p>
+
+            <h3>Feature 1: Export/Import Configuration Profiles</h3>
+            <div class="prompt-box priority-high">
+                <pre><code class="language-powershell">Add export/import configuration profile functionality to 'Q:\_kyle\temp_documents\GitHub\PowerShellScripts\app_installer\install-gui.ps1' and 'Q:\_kyle\temp_documents\GitHub\PowerShellScripts\app_installer\install.ps1'.
+
+Requirements:
+- Add "Export Selection" button/menu option to save current application selections to a JSON file
+- Add "Import Selection" button/menu option to load application selections from a JSON file
+- JSON format should include: selected apps, timestamp, computer name, user name, installer version
+- Default save location: C:\mytech.today\app_installer\profiles\
+- File naming convention: profile-{ComputerName}-{yyyy-MM-dd-HHmmss}.json
+- GUI: Add buttons next to "Install Selected" button
+- CLI: Add menu options "E" for Export and "I" for Import
+- Validate JSON structure before importing
+- Show confirmation dialog with app count before importing
+- Log all export/import operations to centralized log
+
+Implementation Details:
+- Create Export-InstallationProfile function that accepts array of selected apps
+- Create Import-InstallationProfile function that returns array of apps to select
+- JSON structure: { "Version": "1.0", "Timestamp": "2025-11-09T16:00:00", "ComputerName": "PC01", "UserName": "user", "InstallerVersion": "1.3.7", "Applications": ["Google Chrome", "7-Zip", ...] }
+- Handle missing applications gracefully (app in profile but not in current installer version)
+- Add error handling for file I/O operations
+- Follow .augment/ guidelines for PowerShell scripts (ASCII-only indicators, no emoji in code)
+
+Testing:
+- Export a selection of 10 apps and verify JSON structure
+- Import the profile and verify all apps are selected correctly
+- Test with missing apps in profile
+- Test with corrupted JSON file
+- Verify logging of export/import operations
+
+Documentation:
+- Update README.md with export/import feature documentation
+- Update CHANGELOG.md with version increment (1.3.8 for GUI, 1.4.1 for CLI)
+- Add examples of JSON profile structure
+- Document use cases (backup selections, deploy to multiple machines)</code></pre>
+            </div>
+
+            <h3>Feature 2: Search/Filter Functionality in GUI</h3>
+            <div class="prompt-box priority-high">
+                <pre><code class="language-powershell">Add search/filter functionality to 'Q:\_kyle\temp_documents\GitHub\PowerShellScripts\app_installer\install-gui.ps1' to help users find applications quickly among 271 options.
+
+Requirements:
+- Add search textbox at the top of the application list panel
+- Real-time filtering as user types (no search button needed)
+- Search should match: application name, category, description
+- Case-insensitive search
+- Highlight matching text in results
+- Show count of filtered results (e.g., "Showing 5 of 271 applications")
+- Clear button (X) to reset search
+- Preserve checkbox states when filtering
+- Category headers should hide if no apps in that category match
+
+Implementation Details:
+- Add TextBox control above the CheckedListBox
+- Implement TextChanged event handler for real-time filtering
+- Create Filter-Applications function that accepts search term
+- Use -like operator with wildcards for matching
+- Rebuild CheckedListBox with filtered results
+- Maintain $script:SelectedApps array across filter changes
+- Add Label to show result count
+- Follow responsive design patterns from .augment/patterns.md
+- Use ASCII-only indicators (no emoji in code)
+
+Testing:
+- Search for "chrome" and verify all Chrome-related apps appear
+- Search for "browser" and verify category-based filtering works
+- Search for partial terms like "fire" to find Firefox
+- Verify checkbox states persist when clearing search
+- Test with special characters in search term
+- Verify performance with 271 applications
+
+Documentation:
+- Update README.md with search feature documentation
+- Update CHANGELOG.md with version increment (1.3.8)
+- Add screenshot showing search functionality
+- Document search syntax and capabilities</code></pre>
+            </div>
+
+            <h3>Feature 3: Application Update Checker</h3>
+            <div class="prompt-box priority-high">
+                <pre><code class="language-powershell">Add application update checker functionality to 'Q:\_kyle\temp_documents\GitHub\PowerShellScripts\app_installer\install-gui.ps1' and 'Q:\_kyle\temp_documents\GitHub\PowerShellScripts\app_installer\install.ps1' to identify which installed applications have updates available.
+
+Requirements:
+- Add "Check for Updates" button/menu option
+- Use 'winget upgrade' command to detect available updates
+- Display list of applications with updates available
+- Show current version and available version for each app
+- Add "Update All" and "Update Selected" options
+- Progress tracking during update process
+- Log all update operations to centralized log
+- GUI: Add button in button panel, show results in new dialog
+- CLI: Add menu option "U" for Update Check
+
+Implementation Details:
+- Create Get-AvailableUpdates function that calls 'winget upgrade' and parses output
+- Parse winget output to extract: app name, current version, available version, winget ID
+- Create Update-Applications function that accepts array of apps to update
+- Use 'winget upgrade --id {WingetId}' for each application
+- Show progress bar/indicator during update process
+- Handle errors gracefully (app not found, update failed, etc.)
+- Match winget output to $script:Applications array by WingetId
+- Follow .augment/ guidelines for PowerShell scripts
+
+Testing:
+- Run update check on system with outdated applications
+- Verify version comparison is accurate
+- Test updating single application
+- Test updating multiple applications
+- Verify error handling for failed updates
+- Test with applications not installed via winget
+
+Documentation:
+- Update README.md with update checker documentation
+- Update CHANGELOG.md with version increment (1.3.8 for GUI, 1.4.1 for CLI)
+- Document winget upgrade command usage
+- Add troubleshooting section for update failures</code></pre>
+            </div>
+
+            <h3>Feature 4: Uninstall Functionality</h3>
+            <div class="prompt-box priority-high">
+                <pre><code class="language-powershell">Add uninstall functionality to 'Q:\_kyle\temp_documents\GitHub\PowerShellScripts\app_installer\install-gui.ps1' and 'Q:\_kyle\temp_documents\GitHub\PowerShellScripts\app_installer\install.ps1' to allow users to remove installed applications.
+
+Requirements:
+- Add "Uninstall Selected" button/menu option
+- Only enable for applications that are currently installed
+- Show confirmation dialog before uninstalling (list apps to be removed)
+- Use 'winget uninstall' command for removal
+- Progress tracking during uninstall process
+- Log all uninstall operations to centralized log
+- GUI: Add button next to "Install Selected", disable for non-installed apps
+- CLI: Add menu option "R" for Remove/Uninstall
+- Refresh version detection after uninstall completes
+
+Implementation Details:
+- Create Uninstall-Applications function that accepts array of apps to remove
+- Use 'winget uninstall --id {WingetId} --silent' for each application
+- Show confirmation dialog with app count and names
+- Implement progress tracking (X of Y uninstalled)
+- Handle errors gracefully (app not found, uninstall failed, etc.)
+- Refresh $script:InstalledApps hashtable after uninstall
+- Update UI to reflect new installation status
+- Follow .augment/ guidelines for PowerShell scripts (ASCII-only indicators)
+
+Testing:
+- Install test application and then uninstall it
+- Verify confirmation dialog shows correct app list
+- Test uninstalling multiple applications
+- Verify error handling for failed uninstalls
+- Test with applications not installed via winget
+- Verify UI updates after uninstall completes
+
+Documentation:
+- Update README.md with uninstall feature documentation
+- Update CHANGELOG.md with version increment (1.3.8 for GUI, 1.4.1 for CLI)
+- Add warnings about uninstalling critical applications
+- Document winget uninstall command usage</code></pre>
+            </div>
+
+            <h2 id="medium-priority">6. 🟡 Medium Priority Features (Augment AI Prompts)</h2>
+
+            <p>These features add significant value and should be considered for the next development phase:</p>
+
+            <h3>Feature 5: Offline Installation Cache</h3>
+            <div class="prompt-box priority-medium">
+                <pre><code class="language-powershell">Add offline installation cache functionality to 'Q:\_kyle\temp_documents\GitHub\PowerShellScripts\app_installer\install-gui.ps1' and 'Q:\_kyle\temp_documents\GitHub\PowerShellScripts\app_installer\install.ps1' to support installations without internet connectivity.
+
+Requirements:
+- Add "Download for Offline" button/menu option
+- Download winget packages to local cache directory: C:\mytech.today\app_installer\cache\
+- Store package metadata (name, version, winget ID, download date)
+- Add "Install from Cache" mode that uses cached packages
+- Show cache status (size, number of packages, last updated)
+- Add "Clear Cache" option to free up disk space
+- Verify package integrity before installation
+- GUI: Add cache management dialog
+- CLI: Add menu options for cache operations
+
+Implementation Details:
+- Create Download-PackageCache function using 'winget download --id {WingetId} --download-directory {CachePath}'
+- Create Install-FromCache function that uses cached packages
+- Store metadata in cache-manifest.json file
+- Implement cache size calculation and display
+- Add package integrity verification (hash checking)
+- Handle cache misses gracefully (fall back to online installation)
+- Follow .augment/ guidelines for PowerShell scripts
+
+Testing:
+- Download 5 applications to cache
+- Disconnect from internet and install from cache
+- Verify cache size calculation is accurate
+- Test cache clearing functionality
+- Verify integrity checking works correctly
+
+Documentation:
+- Update README.md with offline cache documentation
+- Update CHANGELOG.md with version increment
+- Document cache directory structure
+- Add troubleshooting for cache-related issues</code></pre>
+            </div>
+
+            <h3>Feature 6: Application Groups/Profiles</h3>
+            <div class="prompt-box priority-medium">
+                <pre><code class="language-powershell">Add predefined application groups/profiles to 'Q:\_kyle\temp_documents\GitHub\PowerShellScripts\app_installer\install-gui.ps1' and 'Q:\_kyle\temp_documents\GitHub\PowerShellScripts\app_installer\install.ps1' for common use cases.
+
+Requirements:
+- Create predefined profiles: Developer, Designer, Office Worker, Gamer, Student, Content Creator
+- Add "Load Profile" button/menu option
+- Each profile contains curated list of applications for that use case
+- Allow users to modify profile selections before installing
+- Save custom profiles for reuse
+- GUI: Add dropdown or dialog to select profile
+- CLI: Add menu option "P" for Profiles, show numbered list
+
+Implementation Details:
+- Create $script:Profiles hashtable with predefined profiles
+- Developer profile: VS Code, Git, GitHub Desktop, Node.js, Python, Docker, Postman, etc.
+- Designer profile: GIMP, Inkscape, Blender, Krita, Figma, etc.
+- Office Worker profile: LibreOffice, PDF readers, Zoom, Teams, etc.
+- Gamer profile: Steam, Discord, OBS Studio, etc.
+- Student profile: Notion, Anki, Calibre, Zoom, etc.
+- Content Creator profile: OBS Studio, Audacity, GIMP, Handbrake, etc.
+- Create Load-Profile function that selects apps based on profile
+- Allow profile customization before installation
+- Follow .augment/ guidelines for PowerShell scripts
+
+Testing:
+- Load Developer profile and verify correct apps are selected
+- Modify profile selection and verify changes persist
+- Test each predefined profile
+- Create and save custom profile
+
+Documentation:
+- Update README.md with profiles documentation
+- Update CHANGELOG.md with version increment
+- Document each predefined profile and included applications
+- Add examples of creating custom profiles</code></pre>
+            </div>
+
+            <h3>Feature 7: Installation Queue Management</h3>
+            <div class="prompt-box priority-medium">
+                <pre><code class="language-powershell">Add installation queue management to 'Q:\_kyle\temp_documents\GitHub\PowerShellScripts\app_installer\install-gui.ps1' and 'Q:\_kyle\temp_documents\GitHub\PowerShellScripts\app_installer\install.ps1' for better control over large batch installations.
+
+Requirements:
+- Show installation queue before starting
+- Allow reordering of queue (move up/down, prioritize)
+- Add pause/resume functionality during installation
+- Add skip functionality to skip current app and continue
+- Show estimated time remaining for entire queue
+- Save queue state if interrupted (resume on next run)
+- GUI: Add queue management dialog with drag-drop reordering
+- CLI: Add queue display with reorder options
+
+Implementation Details:
+- Create $script:InstallationQueue array to track pending installations
+- Create Show-InstallationQueue function to display queue
+- Implement Reorder-Queue function for priority changes
+- Add pause/resume state management
+- Calculate ETA based on average installation time
+- Save queue state to JSON file: C:\mytech.today\app_installer\queue-state.json
+- Restore queue on script startup if interrupted
+- Follow .augment/ guidelines for PowerShell scripts
+
+Testing:
+- Queue 20 applications for installation
+- Reorder queue and verify changes
+- Pause installation and verify state is saved
+- Resume installation and verify it continues correctly
+- Test skip functionality
+- Verify ETA calculation accuracy
+
+Documentation:
+- Update README.md with queue management documentation
+- Update CHANGELOG.md with version increment
+- Document queue state file format
+- Add examples of queue management workflows</code></pre>
+            </div>
+
+            <h2 id="low-priority">7. 🟢 Low Priority Features (Augment AI Prompts)</h2>
+
+            <p>These features are nice-to-have and can be implemented when time permits:</p>
+
+            <h3>Feature 8: Chocolatey Fallback Support</h3>
+            <div class="prompt-box priority-low">
+                <pre><code class="language-powershell">Add Chocolatey package manager fallback support to 'Q:\_kyle\temp_documents\GitHub\PowerShellScripts\app_installer\install-gui.ps1' and 'Q:\_kyle\temp_documents\GitHub\PowerShellScripts\app_installer\install.ps1' for applications not available in winget.
+
+Requirements:
+- Detect if Chocolatey is installed
+- Offer to install Chocolatey if not present
+- Add ChocolateyId property to $script:Applications array for apps available in Chocolatey
+- Attempt winget installation first, fall back to Chocolatey if winget fails
+- Log which package manager was used for each installation
+- Show package manager source in version detection (winget vs choco)
+
+Implementation Details:
+- Create Test-ChocolateyInstalled function
+- Create Install-Chocolatey function
+- Add ChocolateyId to application registry for relevant apps
+- Modify installation logic to try Chocolatey after winget failure
+- Use 'choco install {ChocolateyId} -y' for Chocolatey installations
+- Update version detection to check both winget and Chocolatey
+- Follow .augment/ guidelines for PowerShell scripts
+
+Testing:
+- Test with application available in both winget and Chocolatey
+- Test with application only in Chocolatey
+- Verify fallback logic works correctly
+- Test Chocolatey installation if not present
+
+Documentation:
+- Update README.md with Chocolatey support documentation
+- Update CHANGELOG.md with version increment
+- Document which applications use Chocolatey fallback
+- Add troubleshooting for Chocolatey-related issues</code></pre>
+            </div>
+
+            <h3>Feature 9: Custom Installation Paths</h3>
+            <div class="prompt-box priority-low">
+                <pre><code class="language-powershell">Add custom installation path support to 'Q:\_kyle\temp_documents\GitHub\PowerShellScripts\app_installer\install-gui.ps1' and 'Q:\_kyle\temp_documents\GitHub\PowerShellScripts\app_installer\install.ps1' to allow users to specify installation directories.
+
+Requirements:
+- Add "Custom Path" option in settings/preferences
+- Allow per-application path customization
+- Default to standard installation paths if not specified
+- Validate path exists and is writable before installation
+- Save custom paths to configuration file
+- GUI: Add settings dialog with path configuration
+- CLI: Add settings menu option
+
+Implementation Details:
+- Create $script:CustomPaths hashtable to store custom paths
+- Create Set-CustomInstallPath function
+- Modify installation commands to use --location parameter where supported
+- Save custom paths to: C:\mytech.today\app_installer\custom-paths.json
+- Load custom paths on script startup
+- Validate paths before installation
+- Follow .augment/ guidelines for PowerShell scripts
+
+Testing:
+- Set custom path for test application
+- Verify installation uses custom path
+- Test with invalid path (non-existent, read-only)
+- Verify custom paths persist across script runs
+
+Documentation:
+- Update README.md with custom paths documentation
+- Update CHANGELOG.md with version increment
+- Document winget --location parameter limitations
+- Add examples of custom path configurations</code></pre>
+            </div>
+
+            <h3>Feature 10: Bandwidth Throttling</h3>
+            <div class="prompt-box priority-low">
+                <pre><code class="language-powershell">Add bandwidth throttling support to 'Q:\_kyle\temp_documents\GitHub\PowerShellScripts\app_installer\install-gui.ps1' and 'Q:\_kyle\temp_documents\GitHub\PowerShellScripts\app_installer\install.ps1' for slow or metered connections.
+
+Requirements:
+- Add bandwidth limit option in settings (KB/s or MB/s)
+- Throttle download speed during installations
+- Show current download speed and estimated time
+- Add presets: Slow (256 KB/s), Medium (1 MB/s), Fast (5 MB/s), Unlimited
+- Save bandwidth preference to configuration file
+- GUI: Add settings dialog with bandwidth slider
+- CLI: Add settings menu option
+
+Implementation Details:
+- Use Windows BITS (Background Intelligent Transfer Service) for throttling
+- Create Set-BandwidthLimit function
+- Modify download operations to use BITS with throttling
+- Monitor and display current download speed
+- Save bandwidth setting to: C:\mytech.today\app_installer\settings.json
+- Load bandwidth setting on script startup
+- Follow .augment/ guidelines for PowerShell scripts
+
+Testing:
+- Set bandwidth limit to 1 MB/s and verify throttling works
+- Test with different bandwidth presets
+- Verify download speed display is accurate
+- Test with unlimited bandwidth
+
+Documentation:
+- Update README.md with bandwidth throttling documentation
+- Update CHANGELOG.md with version increment
+- Document BITS usage and limitations
+- Add troubleshooting for throttling issues</code></pre>
+            </div>
+
+            <h2 id="integration">8. 🔗 Integration Opportunities (Augment AI Prompts)</h2>
+
+            <p>These prompts focus on integrating with existing myTech.Today infrastructure:</p>
+
+            <h3>Integration 1: Generic Logging Module</h3>
+            <div class="prompt-box priority-high">
+                <pre><code class="language-powershell">Integrate the generic logging module from 'Q:\_kyle\temp_documents\GitHub\PowerShellScripts\scripts\logging.ps1' into 'Q:\_kyle\temp_documents\GitHub\PowerShellScripts\app_installer\install-gui.ps1' and 'Q:\_kyle\temp_documents\GitHub\PowerShellScripts\app_installer\install.ps1'.
+
+Requirements:
+- Replace existing logging functions with generic logging module
+- Import logging.ps1 from GitHub URL at script startup
+- Use Initialize-Log function to set up logging
+- Replace all Write-Log calls with generic module functions
+- Maintain existing log format and location (C:\mytech.today\logs\)
+- Preserve monthly log rotation (scriptname-yyyy-MM.md format)
+- Ensure all log levels are properly mapped (INFO, SUCCESS, WARNING, ERROR, CRITICAL)
+- Test both local and GitHub import methods
+
+Implementation Details:
+- Add at top of script: $loggingUrl = 'https://raw.githubusercontent.com/mytech-today-now/PowerShellScripts/main/scripts/logging.ps1'
+- Add: Invoke-Expression (Invoke-WebRequest -Uri $loggingUrl -UseBasicParsing).Content
+- Replace Initialize-Logging with Initialize-Log -ScriptName "AppInstaller-GUI" -ScriptVersion $script:ScriptVersion
+- Replace all Write-Log calls with generic module equivalents
+- Remove old logging functions (Initialize-Logging, Write-Log)
+- Test fallback to local logging if GitHub import fails
+- Follow .augment/ guidelines for PowerShell scripts
+
+Testing:
+- Run installer and verify logging works with generic module
+- Check log file format matches expected markdown format
+- Test with internet disconnected (should fall back gracefully)
+- Verify all log levels are working correctly
+- Compare log output before and after integration
+
+Documentation:
+- Update README.md to document logging module integration
+- Update CHANGELOG.md with version increment (1.3.8 for GUI, 1.4.1 for CLI)
+- Document logging module URL and import process
+- Add troubleshooting for logging module import failures</code></pre>
+            </div>
+
+            <h3>Integration 2: Responsive GUI Helper</h3>
+            <div class="prompt-box priority-medium">
+                <pre><code class="language-powershell">Integrate the responsive GUI helper from 'Q:\_kyle\temp_documents\GitHub\PowerShellScripts\scripts\responsive.ps1' into 'Q:\_kyle\temp_documents\GitHub\PowerShellScripts\app_installer\install-gui.ps1' to improve DPI scaling and multi-monitor support.
+
+Requirements:
+- Import responsive.ps1 from GitHub URL at script startup
+- Replace manual DPI scaling calculations with responsive helper functions
+- Use New-ResponsiveForm instead of manual form creation
+- Use New-ResponsiveButton, New-ResponsiveLabel, etc. for all controls
+- Improve multi-monitor support and DPI awareness
+- Test on various screen resolutions and DPI settings
+- Maintain existing form layout and functionality
+
+Implementation Details:
+- Add at top of script: $responsiveUrl = 'https://raw.githubusercontent.com/mytech-today-now/scripts/refs/heads/main/responsive.ps1'
+- Add: Invoke-Expression (Invoke-WebRequest -Uri $responsiveUrl -UseBasicParsing).Content
+- Replace form creation with: $form = New-ResponsiveForm -Title "myTech.Today App Installer" -Width 1200 -Height 800
+- Replace all control creation with responsive equivalents
+- Remove manual DPI scaling code
+- Test on 100%, 125%, 150%, 200% DPI settings
+- Follow .augment/patterns.md responsive GUI guidelines
+
+Testing:
+- Test on 1920x1080 at 100% DPI
+- Test on 1920x1080 at 150% DPI
+- Test on 4K monitor at 200% DPI
+- Test on multi-monitor setup with different DPI settings
+- Verify all controls scale correctly
+
+Documentation:
+- Update README.md with responsive GUI documentation
+- Update CHANGELOG.md with version increment (1.3.8)
+- Document responsive helper URL and import process
+- Add screenshots at different DPI settings</code></pre>
+            </div>
+
+            <h3>Integration 3: Centralized Configuration Management</h3>
+            <div class="prompt-box priority-medium">
+                <pre><code class="language-powershell">Create centralized configuration management for 'Q:\_kyle\temp_documents\GitHub\PowerShellScripts\app_installer\install-gui.ps1' and 'Q:\_kyle\temp_documents\GitHub\PowerShellScripts\app_installer\install.ps1' to store user preferences and settings.
+
+Requirements:
+- Create configuration file: C:\mytech.today\app_installer\config.json
+- Store user preferences: bandwidth limit, custom paths, default profile, auto-update check, etc.
+- Load configuration on script startup
+- Save configuration when settings change
+- Provide default configuration if file doesn't exist
+- Add "Reset to Defaults" option
+- Validate configuration structure before loading
+
+Implementation Details:
+- Create $script:Config hashtable to store configuration
+- Create Load-Configuration function to read config.json
+- Create Save-Configuration function to write config.json
+- Create Reset-Configuration function to restore defaults
+- Default config structure: { "Version": "1.0", "BandwidthLimit": 0, "CustomPaths": {}, "DefaultProfile": null, "AutoUpdateCheck": true, "LogLevel": "INFO" }
+- Validate JSON structure before loading
+- Handle missing or corrupted config file gracefully
+- Follow .augment/ guidelines for PowerShell scripts
+
+Testing:
+- Create config file and verify it loads correctly
+- Modify settings and verify config file is updated
+- Delete config file and verify defaults are used
+- Test with corrupted JSON file
+- Verify reset to defaults works correctly
+
+Documentation:
+- Update README.md with configuration documentation
+- Update CHANGELOG.md with version increment
+- Document configuration file structure and options
+- Add examples of configuration customization</code></pre>
+            </div>
+
+            <h2 id="conclusion">9. 🎯 Conclusion & Roadmap</h2>
+
+            <h3>Summary</h3>
+            <p>The myTech.Today App Installer is a robust, well-designed application installer system with excellent coverage of 271 applications. The codebase demonstrates professional standards, comprehensive error handling, and strong user experience design in both GUI and CLI interfaces.</p>
+
+            <h3>Recommended Development Phases</h3>
+
+            <h4>Phase 1: Core Enhancements (High Priority)</h4>
+            <ul>
+                <li>✅ Export/Import Configuration Profiles</li>
+                <li>✅ Search/Filter Functionality in GUI</li>
+                <li>✅ Application Update Checker</li>
+                <li>✅ Uninstall Functionality</li>
+                <li>✅ Generic Logging Module Integration</li>
+            </ul>
+            <p><strong>Estimated Timeline:</strong> 2-3 weeks</p>
+            <p><strong>Impact:</strong> Significantly improves usability and automation capabilities</p>
+
+            <h4>Phase 2: Advanced Features (Medium Priority)</h4>
+            <ul>
+                <li>✅ Offline Installation Cache</li>
+                <li>✅ Application Groups/Profiles</li>
+                <li>✅ Installation Queue Management</li>
+                <li>✅ Responsive GUI Helper Integration</li>
+                <li>✅ Centralized Configuration Management</li>
+            </ul>
+            <p><strong>Estimated Timeline:</strong> 3-4 weeks</p>
+            <p><strong>Impact:</strong> Adds enterprise-grade features and offline capabilities</p>
+
+            <h4>Phase 3: Polish & Optimization (Low Priority)</h4>
+            <ul>
+                <li>✅ Chocolatey Fallback Support</li>
+                <li>✅ Custom Installation Paths</li>
+                <li>✅ Bandwidth Throttling</li>
+                <li>✅ Pre/Post Installation Hooks</li>
+                <li>✅ Dependency Management</li>
+                <li>✅ Installation History & Rollback</li>
+            </ul>
+            <p><strong>Estimated Timeline:</strong> 4-5 weeks</p>
+            <p><strong>Impact:</strong> Provides advanced customization and enterprise features</p>
+
+            <h3>Key Success Metrics</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Metric</th>
+                        <th>Current</th>
+                        <th>Target (Phase 1)</th>
+                        <th>Target (Phase 3)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>User Satisfaction</td>
+                        <td>High</td>
+                        <td>Very High</td>
+                        <td>Excellent</td>
+                    </tr>
+                    <tr>
+                        <td>Automation Capability</td>
+                        <td>Limited</td>
+                        <td>Good</td>
+                        <td>Excellent</td>
+                    </tr>
+                    <tr>
+                        <td>Offline Support</td>
+                        <td>None</td>
+                        <td>None</td>
+                        <td>Full</td>
+                    </tr>
+                    <tr>
+                        <td>Enterprise Readiness</td>
+                        <td>Good</td>
+                        <td>Very Good</td>
+                        <td>Excellent</td>
+                    </tr>
+                    <tr>
+                        <td>Code Maintainability</td>
+                        <td>Good</td>
+                        <td>Very Good</td>
+                        <td>Excellent</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>Next Steps</h3>
+            <ol>
+                <li><strong>Prioritize Features:</strong> Review the high-priority Augment AI prompts and select features to implement first</li>
+                <li><strong>Create Development Branch:</strong> Create a feature branch for each major feature</li>
+                <li><strong>Implement & Test:</strong> Use the Augment AI prompts to implement features with comprehensive testing</li>
+                <li><strong>Update Documentation:</strong> Keep README.md and CHANGELOG.md up to date with each feature</li>
+                <li><strong>User Feedback:</strong> Gather feedback from users after each phase</li>
+                <li><strong>Iterate:</strong> Refine features based on user feedback and usage patterns</li>
+            </ol>
+
+            <h3>Final Recommendations</h3>
+            <ul>
+                <li><strong>Start with Export/Import Profiles:</strong> This provides immediate value for users managing multiple machines</li>
+                <li><strong>Add Search Functionality:</strong> With 271 apps, search is becoming essential for usability</li>
+                <li><strong>Integrate Generic Logging:</strong> Leverage the new logging module for consistency across all myTech.Today scripts</li>
+                <li><strong>Consider User Feedback:</strong> Gather input from actual users to validate feature priorities</li>
+                <li><strong>Maintain Code Quality:</strong> Continue following .augment/ guidelines and best practices</li>
+                <li><strong>Document Everything:</strong> Keep documentation comprehensive and up-to-date</li>
+            </ul>
+
+            <h3>Conclusion</h3>
+            <p>The myTech.Today App Installer has a solid foundation and clear path forward. By implementing the features outlined in this review using the provided Augment AI prompts, the installer will evolve from an excellent tool to an enterprise-grade application deployment system. The modular architecture and professional coding standards make it well-positioned for these enhancements.</p>
+
+            <p><strong>All Augment AI prompts in this document are ready to use</strong> - simply copy and paste them into Augment AI to begin implementation of each feature.</p>
+        </div>
+
+        <footer>
+            <p><strong>myTech.Today</strong> - Professional IT Solutions</p>
+            <p>Review Generated: November 9, 2025</p>
+            <p>Document Version: 1.0</p>
+        </footer>
+    </div>
+</body>
+</html>
+
