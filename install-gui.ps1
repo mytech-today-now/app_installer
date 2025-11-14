@@ -2986,18 +2986,18 @@ function Create-MainForm {
     # Base dimensions (before scaling) - following .augment/gui-responsiveness.md standards
     $baseDimensions = @{
         # Form dimensions (as percentage of screen)
-        FormWidthPercent = 0.70    # 70% of screen width
-        FormHeightPercent = 0.80   # 80% of screen height
-        MinFormWidth = 1000
-        MinFormHeight = 600
-        MaxFormWidth = 2400
-        MaxFormHeight = 1400
+        FormWidthPercent = 0.60    # 60% of screen width (reduced from 70% to make window smaller)
+        FormHeightPercent = 0.70   # 70% of screen height (reduced from 80% to make window smaller)
+        MinFormWidth = 800
+        MinFormHeight = 300
+        MaxFormWidth = 1000
+        MaxFormHeight = 1000
 
         # Font sizes
         BaseFontSize = 10
         MinFontSize = 9
         TitleFontSize = 14
-        ConsoleFontSize = 9
+        ConsoleFontSize = 12
         TableFontSize = 11
         ButtonFontSize = 8  # Reduced from 9 to make button text smaller
 
@@ -3005,8 +3005,8 @@ function Create-MainForm {
         Margin = 20
         Spacing = 6  # Reduced from 12 to cut spacing in half
         HeaderHeight = 20
-        ButtonAreaHeight = 150
-        ProgressAreaHeight = 50
+        ButtonAreaHeight = 70  # Match ButtonHeight so reserved button area equals actual button height (no bottom margin)
+        ProgressAreaHeight = 130  # Height for progress bar + labels + 45px gap above buttons
 
         # Control dimensions
         ProgressBarHeight = 18
@@ -3085,8 +3085,13 @@ function Create-MainForm {
     $contentTop = $headerHeight
     $searchPanelHeight = [Math]::Max([Math]::Round($normalFontSize * 2.5), 35)  # Height for search controls
     $contentHeight = $formHeight - $headerHeight - $buttonAreaHeight - $progressAreaHeight - $margin
-    $listViewWidth = [Math]::Floor(($formWidth - $margin * 3) * 0.58)  # 58% of width
-    $outputWidth = $formWidth - $listViewWidth - $margin * 3
+    # Reduce left margin to 10px and gap between controls to 5px to create more space
+    $leftMargin = [int](10 * $scaleFactor)
+    $controlGap = [int](5 * $scaleFactor)
+    # ListView gets 80% of available width (after accounting for reduced margins)
+    $listViewWidth = [Math]::Floor(($formWidth - $leftMargin - $controlGap - $margin) * 0.80)
+    # HTML area gets remaining width, extending to right edge (65px wider due to reduced margins)
+    $outputWidth = $formWidth - ($leftMargin + $controlGap + $listViewWidth)
 
     # Create search panel controls
     # Increase label width to show full "Search:" text (90 pixels minimum to ensure full visibility at all DPI settings)
@@ -3158,7 +3163,7 @@ function Create-MainForm {
 
     # Create ListView for applications with responsive sizing
     $script:ListView = New-Object System.Windows.Forms.ListView
-    $script:ListView.Location = New-Object System.Drawing.Point($margin, $listViewTop)
+    $script:ListView.Location = New-Object System.Drawing.Point($leftMargin, $listViewTop)
     $script:ListView.Size = New-Object System.Drawing.Size($listViewWidth, $listViewHeight)
     $script:ListView.View = [System.Windows.Forms.View]::Details
     $script:ListView.FullRowSelect = $true
@@ -3308,9 +3313,10 @@ function Create-MainForm {
 
     # Create WebBrowser control for HTML output (replaces RichTextBox)
     $script:WebBrowser = New-Object System.Windows.Forms.WebBrowser
-    $script:WebBrowser.Location = New-Object System.Drawing.Point(($margin * 2 + $listViewWidth), $listViewTop)
+    $script:WebBrowser.Location = New-Object System.Drawing.Point(($leftMargin + $listViewWidth + $controlGap), $listViewTop)
     $script:WebBrowser.Size = New-Object System.Drawing.Size($outputWidth, $listViewHeight)
-    $script:WebBrowser.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Right
+    # Anchor to all sides so it stretches to fill space and extends to right edge
+    $script:WebBrowser.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right
     $script:WebBrowser.ScriptErrorsSuppressed = $true
     $script:WebBrowser.IsWebBrowserContextMenuEnabled = $false
 
@@ -3636,7 +3642,8 @@ function Create-Buttons {
     $buttonWidth = [int](65 * $scaleFactor)  # Fixed narrow width for all buttons
 
     # Calculate button Y position (scaled offset from bottom)
-    $buttonYOffset = [int](85 * $scaleFactor)
+    # Offset equals button height so button bottoms are flush with form bottom (no extra bottom margin)
+    $buttonYOffset = $buttonHeight
     $buttonY = $formHeight - $buttonYOffset
 
     # Calculate X positions for each button (left-aligned with scaled spacing)
