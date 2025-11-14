@@ -3066,8 +3066,9 @@ function Create-MainForm {
         ScaleInfo = $existingTag.ScaleInfo
         ScaleFactor = $existingTag.ScaleFactor
         BaseDimensions = $existingTag.BaseDimensions
-        FormWidth = $formWidth
-        FormHeight = $formHeight
+        # Use client area dimensions for layout so controls align with the visible region
+        FormWidth = $form.ClientSize.Width
+        FormHeight = $form.ClientSize.Height
         NormalFontSize = $normalFontSize
         TitleFontSize = $titleFontSize
         ConsoleFontSize = $consoleFontSize
@@ -3078,20 +3079,24 @@ function Create-MainForm {
         ButtonHeight = [int]($baseDimensions.ButtonHeight * $scaleFactor)
     }
 
+    # Cache client area dimensions for subsequent layout calculations
+    $clientWidth = $form.ClientSize.Width
+    $clientHeight = $form.ClientSize.Height
+
     # Enable visual styles for modern appearance
     [System.Windows.Forms.Application]::EnableVisualStyles()
 
     # Calculate content area dimensions with scaled values
     $contentTop = $headerHeight
     $searchPanelHeight = [Math]::Max([Math]::Round($normalFontSize * 2.5), 35)  # Height for search controls
-    $contentHeight = $formHeight - $headerHeight - $buttonAreaHeight - $progressAreaHeight - $margin
+    $contentHeight = $clientHeight - $headerHeight - $buttonAreaHeight - $progressAreaHeight - $margin
     # Reduce left margin to 10px and gap between controls to 5px to create more space
     $leftMargin = [int](10 * $scaleFactor)
     $controlGap = [int](5 * $scaleFactor)
     # ListView gets 80% of available width (after accounting for reduced margins)
-    $listViewWidth = [Math]::Floor(($formWidth - $leftMargin - $controlGap - $margin) * 0.80)
-    # HTML area gets remaining width, extending to right edge (65px wider due to reduced margins)
-    $outputWidth = $formWidth - ($leftMargin + $controlGap + $listViewWidth)
+    $listViewWidth = [Math]::Floor(($clientWidth - $leftMargin - $controlGap - $margin) * 0.80)
+    # HTML area gets remaining width, extending to right edge
+    $outputWidth = $clientWidth - ($leftMargin + $controlGap + $listViewWidth)
 
     # Create search panel controls
     # Increase label width to show full "Search:" text (90 pixels minimum to ensure full visibility at all DPI settings)
@@ -3561,7 +3566,7 @@ function Create-MainForm {
     $form.Controls.Add($script:WebBrowser)
 
     # Calculate progress bar position (above buttons) with scaled dimensions
-    $progressTop = $formHeight - $buttonAreaHeight - $progressAreaHeight
+    $progressTop = $clientHeight - $buttonAreaHeight - $progressAreaHeight
 
     # Apply scaling to progress control dimensions
     $progressBarHeight = [int]($baseDimensions.ProgressBarHeight * $scaleFactor)
@@ -3572,7 +3577,7 @@ function Create-MainForm {
     # Create main progress bar with scaled height
     $script:ProgressBar = New-Object System.Windows.Forms.ProgressBar
     $script:ProgressBar.Location = New-Object System.Drawing.Point($margin, $progressTop)
-    $script:ProgressBar.Size = New-Object System.Drawing.Size(($formWidth - $margin * 2), $progressBarHeight)
+    $script:ProgressBar.Size = New-Object System.Drawing.Size(($clientWidth - $margin * 2), $progressBarHeight)
     $script:ProgressBar.Style = [System.Windows.Forms.ProgressBarStyle]::Continuous
     $script:ProgressBar.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right
     $form.Controls.Add($script:ProgressBar)
@@ -3582,7 +3587,7 @@ function Create-MainForm {
     $script:ProgressLabel = New-Object System.Windows.Forms.Label
     $script:ProgressLabel.Text = "0 / 0 applications (0%)"
     $script:ProgressLabel.Location = New-Object System.Drawing.Point($margin, ($progressTop + $progressBarHeight + 4))
-    $script:ProgressLabel.Size = New-Object System.Drawing.Size(($formWidth - $margin * 2), $progressLabelHeight)
+    $script:ProgressLabel.Size = New-Object System.Drawing.Size(($clientWidth - $margin * 2), $progressLabelHeight)
     $script:ProgressLabel.Font = New-Object System.Drawing.Font("Segoe UI", $progressLabelFontSize)
     $script:ProgressLabel.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right
     $script:ProgressLabel.AutoSize = $false
@@ -3595,7 +3600,7 @@ function Create-MainForm {
     $script:StatusLabel = New-Object System.Windows.Forms.Label
     $script:StatusLabel.Text = "Ready to install applications"
     $script:StatusLabel.Location = New-Object System.Drawing.Point($margin, $statusLabelTop)
-    $script:StatusLabel.Size = New-Object System.Drawing.Size(($formWidth - $margin * 2), $statusLabelHeight)
+    $script:StatusLabel.Size = New-Object System.Drawing.Size(($clientWidth - $margin * 2), $statusLabelHeight)
     $script:StatusLabel.Font = New-Object System.Drawing.Font("Consolas", $statusLabelFontSize)
     $script:StatusLabel.ForeColor = [System.Drawing.Color]::Gray
     $script:StatusLabel.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right
@@ -3607,7 +3612,7 @@ function Create-MainForm {
     $appProgressBarTop = $statusLabelTop + $statusLabelHeight + 4
     $script:AppProgressBar = New-Object System.Windows.Forms.ProgressBar
     $script:AppProgressBar.Location = New-Object System.Drawing.Point($margin, $appProgressBarTop)
-    $script:AppProgressBar.Size = New-Object System.Drawing.Size(($formWidth - $margin * 2), $appProgressBarHeight)
+    $script:AppProgressBar.Size = New-Object System.Drawing.Size(($clientWidth - $margin * 2), $appProgressBarHeight)
     $script:AppProgressBar.Style = [System.Windows.Forms.ProgressBarStyle]::Marquee
     $script:AppProgressBar.MarqueeAnimationSpeed = 30
     $script:AppProgressBar.Visible = $false  # Hidden by default
