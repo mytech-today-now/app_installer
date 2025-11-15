@@ -1,0 +1,29 @@
+{
+  "Version": "1.0",
+  "Timestamp": "2025-11-15T00:00:00",
+  "ComputerName": "PROFILE-HOME-OFFICE",
+  "UserName": "Template",
+  "InstallerVersion": "1.4.5",
+  "Applications": [
+    "Google Chrome",
+    "Microsoft Edge",
+    "LibreOffice",
+    "7-Zip",
+    "Adobe Acrobat Reader",
+    "Sumatra PDF",
+    "Obsidian",
+    "Joplin",
+    "Notion",
+    "Todoist",
+    "Trello",
+    "VLC Media Player",
+    "Spotify",
+    "PowerToys",
+    "Everything",
+    "Google Drive",
+    "Dropbox",
+    "OneDrive",
+    "Microsoft Teams",
+    "Zoom"
+  ]
+}

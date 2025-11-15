@@ -19,11 +19,14 @@
     - Chrome Remote Desktop shortcut auto-repair
 
 .PARAMETER Action
-    The action to perform. Valid values: Menu, InstallAll, InstallMissing, Status
+    The action to perform. Valid values: Menu, InstallAll, InstallMissing, Status, InstallProfile
     Default: Menu (interactive mode)
 
 .PARAMETER AppName
     Specific application name to install (when not using menu)
+
+.PARAMETER Profile
+    Path to a JSON profile file to import and install non-interactively.
 
 .EXAMPLE
     .\install.ps1
@@ -40,6 +43,10 @@
 .EXAMPLE
     .\install.ps1 -AppName "Chrome"
     Installs only Google Chrome
+
+.EXAMPLE
+    .\install.ps1 -Profile "C:\mytech.today\app_installer\profiles\profile-home-office.json"
+    Imports the given profile and installs all applications defined in that profile.
 
 .EXAMPLE
     Interactive menu: Enter "1,3,5"
@@ -71,11 +78,14 @@
 [CmdletBinding(SupportsShouldProcess = $true)]
 param(
     [Parameter(Mandatory = $false)]
-    [ValidateSet('Menu', 'InstallAll', 'InstallMissing', 'Status')]
+    [ValidateSet('Menu', 'InstallAll', 'InstallMissing', 'Status', 'InstallProfile')]
     [string]$Action = 'Menu',
 
     [Parameter(Mandatory = $false)]
-    [string]$AppName
+    [string]$AppName,
+
+    [Parameter(Mandatory = $false)]
+    [string]$Profile
 )
 
 #Requires -Version 5.1
@@ -121,6 +131,7 @@ $script:ScriptPath = $script:SystemInstallPath  # Will be updated after copy
 $script:CentralLogPath = "C:\mytech.today\logs\"
 $script:LogPath = $null
 $script:AppsPath = Join-Path $script:ScriptPath "apps"
+$script:ProfilesPath = Join-Path $script:ScriptPath "profiles"
 
 #region Self-Installation to System Location
 
@@ -143,8 +154,10 @@ function Copy-ScriptToSystemLocation {
         # Define paths
         $systemPath = $script:SystemInstallPath
         $systemAppsPath = Join-Path $systemPath "apps"
+        $systemProfilesPath = Join-Path $systemPath "profiles"
         $sourcePath = $script:OriginalScriptPath
         $sourceAppsPath = Join-Path $sourcePath "apps"
+        $sourceProfilesPath = Join-Path $sourcePath "profiles"
 
         # Check if we're already running from the system location
         if ($sourcePath -eq $systemPath) {
@@ -165,6 +178,11 @@ function Copy-ScriptToSystemLocation {
         if (-not (Test-Path $systemAppsPath)) {
             Write-Host "    [>>] Creating directory: $systemAppsPath" -ForegroundColor Yellow
             New-Item -Path $systemAppsPath -ItemType Directory -Force | Out-Null
+        }
+
+        if (-not (Test-Path $systemProfilesPath)) {
+            Write-Host "    [>>] Creating directory: $systemProfilesPath" -ForegroundColor Yellow
+            New-Item -Path $systemProfilesPath -ItemType Directory -Force | Out-Null
         }
 
         # Copy main install.ps1 script
@@ -200,6 +218,21 @@ function Copy-ScriptToSystemLocation {
             }
         }
 
+        # Copy profiles directory (if it exists)
+        if (Test-Path $sourceProfilesPath) {
+            Write-Host "    [>>] Copying profiles directory..." -ForegroundColor Yellow
+
+            if (-not (Test-Path $systemProfilesPath)) {
+                New-Item -Path $systemProfilesPath -ItemType Directory -Force | Out-Null
+            }
+
+            Copy-Item -Path (Join-Path $sourceProfilesPath '*') -Destination $systemProfilesPath -Recurse -Force -ErrorAction Stop
+            Write-Host "    [OK] Copied profiles directory" -ForegroundColor Green
+        }
+        else {
+            Write-Host "    [i] No profiles directory found at source: $sourceProfilesPath" -ForegroundColor DarkGray
+        }
+
         Write-Host "    [OK] Installation to system location complete!" -ForegroundColor Green
         Write-Host "    Location: $systemPath" -ForegroundColor Gray
 
@@ -212,6 +245,7 @@ function Copy-ScriptToSystemLocation {
         # Fall back to original location
         $script:ScriptPath = $script:OriginalScriptPath
         $script:AppsPath = Join-Path $script:ScriptPath "apps"
+        $script:ProfilesPath = Join-Path $script:ScriptPath "profiles"
 
         return $false
     }
@@ -224,6 +258,7 @@ $copiedToSystem = Copy-ScriptToSystemLocation
 if ($copiedToSystem) {
     $script:ScriptPath = $script:SystemInstallPath
     $script:AppsPath = Join-Path $script:ScriptPath "apps"
+    $script:ProfilesPath = Join-Path $script:ScriptPath "profiles"
 }
 
 #endregion Self-Installation to System Location
@@ -535,7 +570,7 @@ function Initialize-Logging {
     #>
     [CmdletBinding()]
     param()
-    
+
     try {
         # Create central log directory if it doesn't exist
         if (-not (Test-Path $script:CentralLogPath)) {
@@ -552,10 +587,10 @@ function Initialize-Logging {
             $logHeader = @"
 # $scriptName Log
 
-**Script Version:** $script:ScriptVersion  
-**Log Started:** $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')  
-**Computer:** $env:COMPUTERNAME  
-**User:** $env:USERNAME  
+**Script Version:** $script:ScriptVersion
+**Log Started:** $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
+**Computer:** $env:COMPUTERNAME
+**User:** $env:USERNAME
 
 ---
 
@@ -567,7 +602,7 @@ function Initialize-Logging {
 "@
             Set-Content -Path $script:LogPath -Value $logHeader -Force
         }
-        
+
         Write-Log "Logging initialized" -Level INFO
     }
     catch {
@@ -814,45 +849,45 @@ function Get-InstalledApplications {
     #>
     [CmdletBinding()]
     param()
-    
+
     $installedApps = @{}
-    
+
     try {
         # Try using winget list first (faster and more accurate)
         if (Test-WingetAvailable) {
             $wingetList = winget list --accept-source-agreements 2>$null | Out-String
-            
+
             foreach ($app in $script:Applications) {
                 if ($app.WingetId) {
                     if ($wingetList -match [regex]::Escape($app.WingetId)) {
                         # Extract version from winget output
                         $lines = $wingetList -split "`n"
                         $matchingLine = $lines | Where-Object { $_ -match [regex]::Escape($app.WingetId) } | Select-Object -First 1
-                        
+
                         if ($matchingLine -match '\s+([\d\.]+)\s+') {
                             $version = $matches[1]
                         }
                         else {
                             $version = "Installed"
                         }
-                        
+
                         $installedApps[$app.Name] = $version
                     }
                 }
             }
         }
-        
+
         # Fallback: Check registry for installed programs
         $registryPaths = @(
             "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*",
             "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*",
             "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*"
         )
-        
+
         $registryApps = Get-ItemProperty $registryPaths -ErrorAction SilentlyContinue |
             Where-Object { $_.DisplayName } |
             Select-Object DisplayName, DisplayVersion
-        
+
         foreach ($app in $script:Applications) {
             if (-not $installedApps.ContainsKey($app.Name)) {
                 $match = $registryApps | Where-Object { $_.DisplayName -like "*$($app.Name)*" } | Select-Object -First 1
@@ -972,7 +1007,7 @@ function Export-InstallationProfile {
 
     try {
         # Create profiles directory if it doesn't exist
-        $profilesDir = "C:\mytech.today\app_installer\profiles"
+        $profilesDir = $script:ProfilesPath
         if (-not (Test-Path $profilesDir)) {
             New-Item -Path $profilesDir -ItemType Directory -Force | Out-Null
             Write-Log "Created profiles directory: $profilesDir" -Level INFO
@@ -2979,6 +3014,8 @@ function Install-MonthlyUpdateTask {
         Write-Host "      Location: Task Scheduler > $taskFolder > $taskName" -ForegroundColor Gray
 
         return $true
+
+
     }
     catch {
         Write-Log "Error creating scheduled task: $_" -Level ERROR
@@ -2989,6 +3026,12 @@ function Install-MonthlyUpdateTask {
 
 #endregion
 
+# If -Profile is supplied (and -Action is not explicitly set), use InstallProfile mode
+if ($PSBoundParameters.ContainsKey('Profile') -and -not $PSBoundParameters.ContainsKey('Action')) {
+    $Action = 'InstallProfile'
+}
+
+
 # Initialize logging
 if ($script:LoggingModuleLoaded) {
     # Use generic logging module
@@ -2996,6 +3039,9 @@ if ($script:LoggingModuleLoaded) {
     if ($logPath) {
         Write-Log "=== App Installer v$script:ScriptVersion Started ===" -Level INFO
         Write-Log "Action: $Action" -Level INFO
+        if ($Profile) {
+            Write-Log "Profile: $Profile" -Level INFO
+        }
         Write-Host "[OK] Logging initialized with generic module" -ForegroundColor Green
     }
     else {
@@ -3007,6 +3053,9 @@ else {
     Initialize-Logging
     Write-Log "=== App Installer v$script:ScriptVersion Started ===" -Level INFO
     Write-Log "Action: $Action" -Level INFO
+    if ($Profile) {
+        Write-Log "Profile: $Profile" -Level INFO
+    }
     Write-Host "[OK] Logging initialized with fallback method" -ForegroundColor Green
 }
 
@@ -3079,7 +3128,7 @@ try {
                     }
 
                     # Create profiles directory if it doesn't exist
-                    $profilesDir = "C:\mytech.today\app_installer\profiles"
+                    $profilesDir = $script:ProfilesPath
                     if (-not (Test-Path $profilesDir)) {
                         New-Item -Path $profilesDir -ItemType Directory -Force | Out-Null
                     }
@@ -3124,7 +3173,7 @@ try {
                     Write-Host ""
 
                     # List available profiles
-                    $profilesDir = "C:\mytech.today\app_installer\profiles"
+                    $profilesDir = $script:ProfilesPath
                     if (Test-Path $profilesDir) {
                         $profiles = Get-ChildItem -Path $profilesDir -Filter "*.json" | Sort-Object LastWriteTime -Descending
 
@@ -3374,6 +3423,52 @@ try {
 
         'InstallMissing' {
             Install-MissingApplications
+        }
+
+        'InstallProfile' {
+            if (-not $Profile) {
+                Write-Host "`n[ERROR] -Profile parameter is required when using Action 'InstallProfile'." -ForegroundColor Red
+                Write-Log "InstallProfile action requested but -Profile parameter was not supplied." -Level ERROR
+                break
+            }
+
+            Write-Host "`n+===================================================================+" -ForegroundColor Cyan
+            Write-Host "|                 Installing from Profile Selection                 |" -ForegroundColor Cyan
+            Write-Host "+===================================================================+" -ForegroundColor Cyan
+            Write-Host ""
+            Write-Host "[INFO] Importing profile from: $Profile" -ForegroundColor Cyan
+            Write-Log "Starting profile-based installation from: $Profile" -Level INFO
+
+            $result = Import-InstallationProfile -FilePath $Profile
+
+            if (-not $result.Success) {
+                Write-Host "`n[ERROR] Failed to import profile:" -ForegroundColor Red
+                Write-Host "  $($result.Message)" -ForegroundColor Gray
+                Write-Log "Profile import failed: $($result.Message)" -Level ERROR
+                break
+            }
+
+            Write-Host ""
+            Write-Host "[SUCCESS] Profile imported successfully" -ForegroundColor Green
+            Write-Host "  Found $($result.Applications.Count) valid application(s)" -ForegroundColor Cyan
+
+            if ($result.MissingApps.Count -gt 0) {
+                Write-Host ""
+                Write-Host "[WARNING] $($result.MissingApps.Count) application(s) from profile not found in current installer:" -ForegroundColor Yellow
+                foreach ($missingApp in $result.MissingApps) {
+                    Write-Host "  - $missingApp" -ForegroundColor DarkYellow
+                    Write-Log "Profile references application not present in installer list: $missingApp" -Level WARNING
+                }
+            }
+
+            if ($result.Applications.Count -eq 0) {
+                Write-Host ""
+                Write-Host "[INFO] Profile contains no applications to install." -ForegroundColor Yellow
+                Write-Log "Profile import resulted in zero valid applications to install." -Level WARNING
+                break
+            }
+
+            Install-SelectedApplications -Apps $result.Applications
         }
 
         'Status' {

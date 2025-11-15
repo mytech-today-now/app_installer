@@ -830,6 +830,7 @@ $script:ScriptPath = $script:SystemInstallPath
 $script:CentralLogPath = "C:\mytech.today\logs\"
 $script:LogPath = $null
 $script:AppsPath = Join-Path $script:ScriptPath "apps"
+$script:ProfilesPath = Join-Path $script:ScriptPath "profiles"
 $script:InstalledApps = @{}
 $script:SelectedApps = @()
 $script:IsClosing = $false  # Flag to prevent event handlers during form closing
@@ -1163,8 +1164,10 @@ function Copy-ScriptToSystemLocation {
         # Define paths
         $systemPath = $script:SystemInstallPath
         $systemAppsPath = Join-Path $systemPath "apps"
+        $systemProfilesPath = Join-Path $systemPath "profiles"
         $sourcePath = $script:OriginalScriptPath
         $sourceAppsPath = Join-Path $sourcePath "apps"
+        $sourceProfilesPath = Join-Path $sourcePath "profiles"
 
         # Check if we're already running from the system location
         if ($sourcePath -eq $systemPath) {
@@ -1185,6 +1188,11 @@ function Copy-ScriptToSystemLocation {
         if (-not (Test-Path $systemAppsPath)) {
             Write-Host "    [>>] Creating directory: $systemAppsPath" -ForegroundColor Yellow
             New-Item -Path $systemAppsPath -ItemType Directory -Force | Out-Null
+        }
+
+        if (-not (Test-Path $systemProfilesPath)) {
+            Write-Host "    [>>] Creating directory: $systemProfilesPath" -ForegroundColor Yellow
+            New-Item -Path $systemProfilesPath -ItemType Directory -Force | Out-Null
         }
 
         # Copy main install.ps1 script
@@ -1229,6 +1237,21 @@ function Copy-ScriptToSystemLocation {
             }
         }
 
+        # Copy profiles directory (if it exists)
+        if (Test-Path $sourceProfilesPath) {
+            Write-Host "    [>>] Copying profiles directory..." -ForegroundColor Yellow
+
+            if (-not (Test-Path $systemProfilesPath)) {
+                New-Item -Path $systemProfilesPath -ItemType Directory -Force | Out-Null
+            }
+
+            Copy-Item -Path (Join-Path $sourceProfilesPath '*') -Destination $systemProfilesPath -Recurse -Force -ErrorAction Stop
+            Write-Host "    [OK] Copied profiles directory" -ForegroundColor Green
+        }
+        else {
+            Write-Host "    [i] No profiles directory found at source: $sourceProfilesPath" -ForegroundColor DarkGray
+        }
+
         Write-Host "    [OK] Installation to system location complete!" -ForegroundColor Green
         Write-Host "    Location: $systemPath" -ForegroundColor Gray
 
@@ -1241,6 +1264,7 @@ function Copy-ScriptToSystemLocation {
         # Fall back to original location
         $script:ScriptPath = $script:OriginalScriptPath
         $script:AppsPath = Join-Path $script:ScriptPath "apps"
+        $script:ProfilesPath = Join-Path $script:ScriptPath "profiles"
 
         return $false
     }
@@ -1258,6 +1282,7 @@ Write-Host ""  # Blank line for spacing
 if ($copiedToSystem) {
     $script:ScriptPath = $script:SystemInstallPath
     $script:AppsPath = Join-Path $script:ScriptPath "apps"
+    $script:ProfilesPath = Join-Path $script:ScriptPath "profiles"
 }
 
 #endregion Self-Installation to System Location
@@ -2987,7 +3012,7 @@ function Create-MainForm {
     $baseDimensions = @{
         # Form dimensions (as percentage of screen)
         FormWidthPercent = 0.60    # 60% of screen width (reduced from 70% to make window smaller)
-        FormHeightPercent = 0.70   # 70% of screen height (reduced from 80% to make window smaller)
+        FormHeightPercent = 0.80   # 80% of screen height
         MinFormWidth = 800
         MinFormHeight = 300
         MaxFormWidth = 1000
@@ -3060,6 +3085,70 @@ function Create-MainForm {
         -StartPosition 'CenterScreen' `
         -Resizable $true
 
+    # Enable visual styles for modern appearance
+    [System.Windows.Forms.Application]::EnableVisualStyles()
+
+    # Use the same content margin for the main layout so controls align cleanly
+    $leftMargin = $margin
+    $controlGap = [int](5 * $scaleFactor)
+
+    # Approximate width needed for ~180 characters in the HTML/console area
+    $consoleFont = New-Object System.Drawing.Font("Consolas", $consoleFontSize)
+    try {
+        $targetChars = 180
+        $sampleText = "W" * $targetChars
+        $targetOutputWidth = Measure-TextWidth -Text $sampleText -Font $consoleFont
+    }
+    finally {
+        $consoleFont.Dispose()
+    }
+    if ($targetOutputWidth -le 0) {
+        # Fallback: ensure a reasonable minimum width if measurement fails
+        $targetOutputWidth = [int](600 * $scaleFactor)
+    }
+
+    # Determine baseline ListView width using the existing 80/20 split
+    $initialClientWidth = $form.ClientSize.Width
+    $baselineListViewWidth = [Math]::Floor(($initialClientWidth - $leftMargin - $controlGap - $margin) * 0.80)
+    if ($baselineListViewWidth -lt 0) { $baselineListViewWidth = 0 }
+
+    # Make the ListView up to ~30px wider than before, but never smaller
+    $extraListViewWidth = [int](30 * $scaleFactor)
+    $desiredListViewWidth = $baselineListViewWidth + $extraListViewWidth
+
+    # Compute required client width to fit the desired ListView width and target HTML/console width
+    $requiredClientWidth = $leftMargin + $controlGap + $desiredListViewWidth + $targetOutputWidth
+
+    # Widen the form if necessary (but keep it within ~95% of the screen width)
+    $clientWidth = $initialClientWidth
+    if ($requiredClientWidth -gt $clientWidth) {
+        $maxClientWidth = [int]($screenWidth * 0.95)
+        $targetClientWidth = [Math]::Min($requiredClientWidth, $maxClientWidth)
+        $extraWidth = $targetClientWidth - $clientWidth
+        if ($extraWidth -gt 0) {
+            $form.Width += $extraWidth
+        }
+    }
+
+    # Cache final client area dimensions for subsequent layout calculations
+    $clientWidth = $form.ClientSize.Width
+    $clientHeight = $form.ClientSize.Height
+
+    # Final ListView and HTML/console widths
+    $maxOutputWidth = $clientWidth - ($leftMargin + $controlGap + $baselineListViewWidth)
+    if ($maxOutputWidth -lt $targetOutputWidth) {
+        # Not enough room for both desired ListView and full HTML width:
+        # keep ListView at least as wide as the baseline and give the rest to the HTML area.
+        $listViewWidth = $baselineListViewWidth
+        $outputWidth = $clientWidth - ($leftMargin + $controlGap + $listViewWidth)
+    }
+    else {
+        # We have enough room for a slightly wider ListView and the target HTML width.
+        $listViewWidth = $desiredListViewWidth
+        $outputWidth = $clientWidth - ($leftMargin + $controlGap + $listViewWidth)
+    }
+    if ($outputWidth -lt 0) { $outputWidth = 0 }
+
     # Merge additional properties into form Tag (New-ResponsiveForm already sets ScaleInfo, ScaleFactor, BaseDimensions)
     $existingTag = $form.Tag
     $form.Tag = @{
@@ -3067,8 +3156,8 @@ function Create-MainForm {
         ScaleFactor = $existingTag.ScaleFactor
         BaseDimensions = $existingTag.BaseDimensions
         # Use client area dimensions for layout so controls align with the visible region
-        FormWidth = $form.ClientSize.Width
-        FormHeight = $form.ClientSize.Height
+        FormWidth = $clientWidth
+        FormHeight = $clientHeight
         NormalFontSize = $normalFontSize
         TitleFontSize = $titleFontSize
         ConsoleFontSize = $consoleFontSize
@@ -3079,24 +3168,10 @@ function Create-MainForm {
         ButtonHeight = [int]($baseDimensions.ButtonHeight * $scaleFactor)
     }
 
-    # Cache client area dimensions for subsequent layout calculations
-    $clientWidth = $form.ClientSize.Width
-    $clientHeight = $form.ClientSize.Height
-
-    # Enable visual styles for modern appearance
-    [System.Windows.Forms.Application]::EnableVisualStyles()
-
     # Calculate content area dimensions with scaled values
     $contentTop = $headerHeight
     $searchPanelHeight = [Math]::Max([Math]::Round($normalFontSize * 2.5), 35)  # Height for search controls
     $contentHeight = $clientHeight - $headerHeight - $buttonAreaHeight - $progressAreaHeight - $margin
-    # Reduce left margin to 10px and gap between controls to 5px to create more space
-    $leftMargin = [int](10 * $scaleFactor)
-    $controlGap = [int](5 * $scaleFactor)
-    # ListView gets 80% of available width (after accounting for reduced margins)
-    $listViewWidth = [Math]::Floor(($clientWidth - $leftMargin - $controlGap - $margin) * 0.80)
-    # HTML area gets remaining width, extending to right edge
-    $outputWidth = $clientWidth - ($leftMargin + $controlGap + $listViewWidth)
 
     # Create search panel controls
     # Increase label width to show full "Search:" text (90 pixels minimum to ensure full visibility at all DPI settings)
@@ -3166,17 +3241,28 @@ function Create-MainForm {
     $listViewTop = $contentTop + $searchPanelHeight + 5
     $listViewHeight = $contentHeight - $searchPanelHeight - 5
 
-    # Create ListView for applications with responsive sizing
+    # Create a SplitContainer so the user can resize the width between the ListView and HTML/console area
+    $splitContainerWidth = $listViewWidth + $controlGap + $outputWidth
+    $script:MainSplitContainer = New-Object System.Windows.Forms.SplitContainer
+    $script:MainSplitContainer.Orientation = [System.Windows.Forms.Orientation]::Vertical
+    $script:MainSplitContainer.Location = New-Object System.Drawing.Point($leftMargin, $listViewTop)
+    $script:MainSplitContainer.Size = New-Object System.Drawing.Size($splitContainerWidth, $listViewHeight)
+    $script:MainSplitContainer.SplitterWidth = [int](5 * $scaleFactor)
+    $script:MainSplitContainer.SplitterDistance = $listViewWidth
+    $script:MainSplitContainer.Panel1MinSize = [int](200 * $scaleFactor)
+    $script:MainSplitContainer.Panel2MinSize = [int](200 * $scaleFactor)
+    $script:MainSplitContainer.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right
+    $form.Controls.Add($script:MainSplitContainer)
+
+    # Create ListView for applications with responsive sizing (left side of SplitContainer)
     $script:ListView = New-Object System.Windows.Forms.ListView
-    $script:ListView.Location = New-Object System.Drawing.Point($leftMargin, $listViewTop)
-    $script:ListView.Size = New-Object System.Drawing.Size($listViewWidth, $listViewHeight)
+    $script:ListView.Dock = [System.Windows.Forms.DockStyle]::Fill
     $script:ListView.View = [System.Windows.Forms.View]::Details
     $script:ListView.FullRowSelect = $true
     $script:ListView.GridLines = $true
     $script:ListView.CheckBoxes = $true
     $script:ListView.Sorting = [System.Windows.Forms.SortOrder]::None
     $script:ListView.Font = New-Object System.Drawing.Font("Segoe UI", $tableFontSize)
-    $script:ListView.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right
 
     # Create ImageList to control row height based on scaled font size
     # Row height = font size * row height multiplier for comfortable spacing
@@ -3314,14 +3400,12 @@ function Create-MainForm {
     # Add click-to-select and drag-to-multi-select functionality
     Add-ListViewClickToSelect -ListView $script:ListView
 
-    $form.Controls.Add($script:ListView)
+    $script:MainSplitContainer.Panel1.Controls.Add($script:ListView)
 
-    # Create WebBrowser control for HTML output (replaces RichTextBox)
+    # Create WebBrowser control for HTML output (right side of SplitContainer)
     $script:WebBrowser = New-Object System.Windows.Forms.WebBrowser
-    $script:WebBrowser.Location = New-Object System.Drawing.Point(($leftMargin + $listViewWidth + $controlGap), $listViewTop)
-    $script:WebBrowser.Size = New-Object System.Drawing.Size($outputWidth, $listViewHeight)
-    # Anchor to all sides so it stretches to fill space and extends to right edge
-    $script:WebBrowser.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right
+    $script:WebBrowser.Dock = [System.Windows.Forms.DockStyle]::Fill
+    $script:MainSplitContainer.Panel2.Controls.Add($script:WebBrowser)
     $script:WebBrowser.ScriptErrorsSuppressed = $true
     $script:WebBrowser.IsWebBrowserContextMenuEnabled = $false
 
@@ -3563,7 +3647,6 @@ function Create-MainForm {
 "@
 
     $script:WebBrowser.DocumentText = $script:HtmlContent
-    $form.Controls.Add($script:WebBrowser)
 
     # Calculate progress bar position (above buttons) with scaled dimensions
     $progressTop = $clientHeight - $buttonAreaHeight - $progressAreaHeight
@@ -3732,9 +3815,27 @@ function Create-Buttons {
     $deselectAllButton.Add_Click({
         if ($script:IsClosing) { return }
         Write-Log "User clicked Deselect All button" -Level INFO
+
         foreach ($item in $script:ListView.Items) {
             $item.Checked = $false
+
+            # Clear any profile-based ignore flag when user deselects everything
+            $app = $item.Tag
+            if ($app -and $app.PSObject.Properties.Match('IgnoreProfileInstall').Count -gt 0) {
+                $app.IgnoreProfileInstall = $false
+            }
+
+            # Reset color based on installed status
+            if ($app) {
+                if ($script:InstalledApps.ContainsKey($app.Name)) {
+                    $item.ForeColor = [System.Drawing.Color]::Green
+                }
+                else {
+                    $item.ForeColor = [System.Drawing.Color]::Red
+                }
+            }
         }
+
         # Update progress label after deselecting all
         $checkedCount = 0
         $script:ProgressBar.Maximum = 1  # Avoid division by zero
@@ -3779,7 +3880,7 @@ function Create-Buttons {
             $saveDialog = New-Object System.Windows.Forms.SaveFileDialog
             $saveDialog.Filter = "JSON files (*.json)|*.json|All files (*.*)|*.*"
             $saveDialog.Title = "Export Installation Profile"
-            $saveDialog.InitialDirectory = "C:\mytech.today\app_installer\profiles"
+            $saveDialog.InitialDirectory = $script:ProfilesPath
             $timestamp = Get-Date -Format "yyyy-MM-dd-HHmmss"
             $computerName = $env:COMPUTERNAME
             $saveDialog.FileName = "profile-$computerName-$timestamp.json"
@@ -3828,7 +3929,7 @@ function Create-Buttons {
             $openDialog = New-Object System.Windows.Forms.OpenFileDialog
             $openDialog.Filter = "JSON files (*.json)|*.json|All files (*.*)|*.*"
             $openDialog.Title = "Import Installation Profile"
-            $openDialog.InitialDirectory = "C:\mytech.today\app_installer\profiles"
+            $openDialog.InitialDirectory = $script:ProfilesPath
 
             if ($openDialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
                 $result = Import-InstallationProfile -FilePath $openDialog.FileName
@@ -3850,24 +3951,65 @@ function Create-Buttons {
                     )
 
                     if ($confirmResult -eq [System.Windows.Forms.DialogResult]::Yes) {
-                        # Deselect all first
-                        foreach ($item in $script:ListView.Items) {
-                            $item.Checked = $false
-                        }
-
-                        # Select applications from profile
-                        $selectedCount = 0
-                        foreach ($item in $script:ListView.Items) {
-                            if ($result.Applications -contains $item.Tag.Name) {
-                                $item.Checked = $true
-                                $selectedCount++
+                        # Clear any previous profile-based ignore flags
+                        foreach ($app in $script:Applications) {
+                            if ($app.PSObject.Properties.Match('IgnoreProfileInstall').Count -gt 0) {
+                                $app.IgnoreProfileInstall = $false
                             }
                         }
 
-                        Write-Log "Imported and selected $selectedCount application(s) from profile" -Level SUCCESS
+                        # Deselect all first and reset colors
+                        foreach ($item in $script:ListView.Items) {
+                            $item.Checked = $false
+
+                            $app = $item.Tag
+                            if ($app) {
+                                if ($script:InstalledApps.ContainsKey($app.Name)) {
+                                    $item.ForeColor = [System.Drawing.Color]::Green
+                                }
+                                else {
+                                    $item.ForeColor = [System.Drawing.Color]::Red
+                                }
+                            }
+                        }
+
+                        # Select applications from profile
+                        $selectedCount = 0          # apps that will actually be installed
+                        $skippedInstalledCount = 0  # apps already installed that will be ignored
+
+                        foreach ($item in $script:ListView.Items) {
+                            $app = $item.Tag
+                            if ($app -and ($result.Applications -contains $app.Name)) {
+                                if ($script:InstalledApps.ContainsKey($app.Name)) {
+                                    # Mark installed apps as checked but grayed out to indicate they will be skipped
+                                    if ($app.PSObject.Properties.Match('IgnoreProfileInstall').Count -eq 0) {
+                                        $app | Add-Member -NotePropertyName IgnoreProfileInstall -NotePropertyValue $true -Force
+                                    }
+                                    else {
+                                        $app.IgnoreProfileInstall = $true
+                                    }
+
+                                    $item.Checked = $true
+                                    $item.ForeColor = [System.Drawing.Color]::DarkGray
+                                    $skippedInstalledCount++
+                                }
+                                else {
+                                    # Not installed - will be installed
+                                    $item.Checked = $true
+                                    $selectedCount++
+                                }
+                            }
+                        }
+
+                        Write-Log ("Imported profile: {0} app(s) selected for installation, {1} already installed and marked to be skipped" -f $selectedCount, $skippedInstalledCount) -Level SUCCESS
+
+                        $importMessage = "Successfully selected $selectedCount application(s) from profile."
+                        if ($skippedInstalledCount -gt 0) {
+                            $importMessage += "`r`n`r`nNote: $skippedInstalledCount application(s) are already installed. They are checked but grayed out and will be skipped during installation."
+                        }
 
                         [System.Windows.Forms.MessageBox]::Show(
-                            "Successfully selected $selectedCount application(s) from profile.",
+                            $importMessage,
                             "Import Successful",
                             [System.Windows.Forms.MessageBoxButtons]::OK,
                             [System.Windows.Forms.MessageBoxIcon]::Information
@@ -4020,6 +4162,26 @@ function Create-Buttons {
 
     # Add dynamic resize handler for responsive column width adjustment
     Add-MainFormResizeHandler -Form $form -ListView $script:ListView -WebBrowser $script:WebBrowser
+
+    # Ensure Description column resizes when the user moves the splitter between ListView and HTML/console
+    if ($script:MainSplitContainer) {
+        $script:MainSplitContainer.Add_SplitterMoved({
+            try {
+                if ($script:ListView -and $script:ListView.Columns.Count -ge 5) {
+                    $usedWidth = 0
+                    for ($i = 0; $i -lt 4; $i++) {
+                        $usedWidth += $script:ListView.Columns[$i].Width
+                    }
+                    $scrollbarWidth = 25
+                    $newDescWidth = [Math]::Max($script:ListView.Width - $usedWidth - $scrollbarWidth, 200)
+                    $script:ListView.Columns[4].Width = $newDescWidth
+                }
+            }
+            catch {
+                # Silently ignore errors during splitter move
+            }
+        })
+    }
 }
 
 #endregion GUI Creation
@@ -4100,8 +4262,19 @@ function Filter-Applications {
             # Store app object in Tag
             $item.Tag = $app
 
-            # Restore checkbox state if it was checked before filtering
-            if ($checkedApps.ContainsKey($app.Name)) {
+            # If this app was marked to be ignored for profile-based installs, keep it
+            # checked and gray to indicate it will be skipped.
+            $ignoreProfileInstall = $false
+            if ($app.PSObject.Properties.Match('IgnoreProfileInstall').Count -gt 0 -and $app.IgnoreProfileInstall) {
+                $ignoreProfileInstall = $true
+            }
+
+            if ($ignoreProfileInstall) {
+                $item.Checked = $true
+                $item.ForeColor = [System.Drawing.Color]::DarkGray
+            }
+            elseif ($checkedApps.ContainsKey($app.Name)) {
+                # Restore checkbox state if it was checked before filtering
                 $item.Checked = $true
             }
 
@@ -4317,7 +4490,8 @@ function Show-QueueManagementDialog {
 
     # Base dimensions (before scaling)
     $baseMargin = 15
-    $baseListViewHeight = 600
+    # Use a more compact default height for the queue ListView to avoid excessive blank space
+    $baseListViewHeight = 420
     $baseButtonHeight = 35
     $baseButtonSpacing = 12
     $baseFontSize = 9  # Button font size
@@ -4376,9 +4550,9 @@ function Show-QueueManagementDialog {
     }
     $buttonWidth = $maxButtonWidth
 
-    # Calculate form dimensions to fit all content without clipping
+    # Calculate form dimensions to fit all content without clipping (avoid excessive vertical padding)
     $formWidth = $margin + $listViewWidth + $margin + $buttonWidth + $margin
-    $formHeight = $margin + $listViewHeight + $margin + $buttonHeight + $margin + [int](60 * $scaleFactor)
+    $formHeight = $margin + $listViewHeight + $margin + $buttonHeight + $margin
 
     # Create dialog form with responsive sizing using New-ResponsiveForm
     $queueForm = New-ResponsiveForm -Title "Manage Installation Queue" `
@@ -4558,7 +4732,8 @@ function Show-QueueManagementDialog {
 
     # OK button (bottom of form)
     $okCancelButtonWidth = [int](90 * $scaleFactor)
-    $bottomButtonY = $formHeight - $margin - $buttonHeight - [int](40 * $scaleFactor)
+    # Align bottom buttons with a standard bottom margin (no extra padding block)
+    $bottomButtonY = $formHeight - $margin - $buttonHeight
 
     $okButton = New-Object System.Windows.Forms.Button
     $okButton.Location = New-Object System.Drawing.Point($buttonX, $bottomButtonY)
@@ -4955,7 +5130,7 @@ function Export-InstallationProfile {
 
     try {
         # Create profiles directory if it doesn't exist
-        $profilesDir = "C:\mytech.today\app_installer\profiles"
+        $profilesDir = $script:ProfilesPath
         if (-not (Test-Path $profilesDir)) {
             New-Item -Path $profilesDir -ItemType Directory -Force | Out-Null
             Write-Log "Created profiles directory: $profilesDir" -Level INFO
@@ -5120,10 +5295,10 @@ function Install-SelectedApplications {
     # Log that installation was explicitly triggered by user
     Write-Log "Install-SelectedApplications function called by user action" -Level INFO
 
-    # Get checked items
-    $checkedItems = $script:ListView.Items | Where-Object { $_.Checked }
+    # Get checked items (including ones that may be ignored because they are already installed)
+    $allCheckedItems = $script:ListView.Items | Where-Object { $_.Checked }
 
-    if ($checkedItems.Count -eq 0) {
+    if ($allCheckedItems.Count -eq 0) {
         Write-Log "Installation cancelled: No applications selected" -Level INFO
         [System.Windows.Forms.MessageBox]::Show(
             "Please select at least one application to install.",
@@ -5134,13 +5309,48 @@ function Install-SelectedApplications {
         return
     }
 
-    # Log which applications were selected
+    # Separate apps that are marked to be ignored (profile-selected but already installed)
+    $ignoredItems = @()
+    $checkedItems = @()
+
+    foreach ($item in $allCheckedItems) {
+        $app = $item.Tag
+        $ignoreProfileInstall = $false
+        if ($app -and $app.PSObject.Properties.Match('IgnoreProfileInstall').Count -gt 0 -and $app.IgnoreProfileInstall) {
+            $ignoreProfileInstall = $true
+        }
+
+        if ($ignoreProfileInstall) {
+            $ignoredItems += $item
+        }
+        else {
+            $checkedItems += $item
+        }
+    }
+
+    if ($checkedItems.Count -eq 0) {
+        # Everything selected is already installed and flagged to be skipped
+        Write-Log "Installation cancelled: All selected applications are already installed and marked to be skipped" -Level INFO
+        [System.Windows.Forms.MessageBox]::Show(
+            "All selected applications are already installed and will be skipped. There is nothing to install.",
+            "Nothing to Install",
+            [System.Windows.Forms.MessageBoxButtons]::OK,
+            [System.Windows.Forms.MessageBoxIcon]::Information
+        )
+        return
+    }
+
+    # Log which applications were selected for installation (excluding ignored ones)
     Write-Log "User selected $($checkedItems.Count) application(s) for installation" -Level INFO
     foreach ($item in $checkedItems) {
         Write-Log "  - Selected: $($item.Text)" -Level INFO
     }
 
-    # Check which apps are already installed
+    if ($ignoredItems.Count -gt 0) {
+        Write-Log "Additionally, $($ignoredItems.Count) selected application(s) are already installed and will be skipped" -Level INFO
+    }
+
+    # Check which apps are already installed among those that will be processed
     $alreadyInstalled = @()
     $notInstalled = @()
 
@@ -5155,19 +5365,32 @@ function Install-SelectedApplications {
     }
 
     # Build confirmation message
+    # NOTE: Limit the number of applications listed to keep the confirmation dialog
+    # from growing taller than the screen when many apps are selected.
+    $maxAppsToListInConfirm = 20
     $confirmMessage = ""
 
     if ($notInstalled.Count -gt 0) {
         $confirmMessage += "New installations ($($notInstalled.Count)):`r`n"
-        foreach ($app in $notInstalled) {
+
+        $appsToShow = $notInstalled | Select-Object -First $maxAppsToListInConfirm
+        foreach ($app in $appsToShow) {
             $confirmMessage += "  - $($app.Name)`r`n"
         }
+
+        if ($notInstalled.Count -gt $maxAppsToListInConfirm) {
+            $remaining = $notInstalled.Count - $maxAppsToListInConfirm
+            $confirmMessage += "  ... and $remaining more new application(s)`r`n"
+        }
+
         $confirmMessage += "`r`n"
     }
 
     if ($alreadyInstalled.Count -gt 0) {
         $confirmMessage += "Already installed - will reinstall ($($alreadyInstalled.Count)):`r`n"
-        foreach ($app in $alreadyInstalled) {
+
+        $appsToShow = $alreadyInstalled | Select-Object -First $maxAppsToListInConfirm
+        foreach ($app in $appsToShow) {
             $version = $script:InstalledApps[$app.Name]
             if ($app.Name -eq "O&O ShutUp10") {
                 $confirmMessage += "  - $($app.Name) ($version) [Will re-run configuration]`r`n"
@@ -5176,7 +5399,17 @@ function Install-SelectedApplications {
                 $confirmMessage += "  - $($app.Name) ($version)`r`n"
             }
         }
+
+        if ($alreadyInstalled.Count -gt $maxAppsToListInConfirm) {
+            $remaining = $alreadyInstalled.Count - $maxAppsToListInConfirm
+            $confirmMessage += "  ... and $remaining more reinstall(s)`r`n"
+        }
+
         $confirmMessage += "`r`n"
+    }
+
+    if ($ignoredItems.Count -gt 0) {
+        $confirmMessage += "Note: $($ignoredItems.Count) selected application(s) are already installed, checked, and grayed out in the list. They will be skipped during installation.`r`n`r`n"
     }
 
     $confirmMessage += "Proceed with installation?"
@@ -5211,7 +5444,7 @@ function Install-SelectedApplications {
         }
     }
 
-    # Build installation queue from checked items
+    # Build installation queue from checked items (excluding ignored ones)
     $script:InstallationQueue = @($checkedItems | ForEach-Object { $_.Tag })
 
     # Reorder queue to install O&O ShutUp10 first if present
@@ -5563,6 +5796,11 @@ function Uninstall-SelectedApplications {
     $script:ProgressBar.Maximum = $installedApps.Count
     $script:ProgressBar.Value = 0
 
+    # Initialize progress label for uninstall operation
+    if ($script:ProgressLabel) {
+        $script:ProgressLabel.Text = "0 / $($installedApps.Count) applications (0%)"
+    }
+
     Write-Output "`r`n=== Starting Uninstall ===" -Color ([System.Drawing.Color]::Cyan)
     Write-Output "Uninstalling $($installedApps.Count) application(s)..." -Color ([System.Drawing.Color]::Blue)
     Write-Output "[i] Apps: $($installedApps.Name -join ', ')" -Color ([System.Drawing.Color]::Gray)
@@ -5593,6 +5831,12 @@ function Uninstall-SelectedApplications {
 
         # Update progress bar
         $script:ProgressBar.Value = $currentIndex
+
+        # Update progress label to reflect uninstall progress
+        if ($script:ProgressLabel) {
+            $script:ProgressLabel.Text = "$currentIndex / $($installedApps.Count) applications ($percentComplete%)"
+        }
+
         [System.Windows.Forms.Application]::DoEvents()
     }
 
