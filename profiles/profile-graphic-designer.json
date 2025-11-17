@@ -1,0 +1,37 @@
+{
+  "Version": "2.0",
+  "Name": "Graphic Designer",
+  "Description": "Vector, raster, and layout tools for designers.",
+  "LongDescription": "Curated selection of illustration, photography, and layout applications for graphic designers and digital artists.",
+  "IconPath": "",
+  "Categories": [
+    "Browsers",
+    "Media",
+    "Photography",
+    "Mockups & Wireframe",
+    "Productivity"
+  ],
+  "Timestamp": "2025-11-15T00:00:00",
+  "ComputerName": "PROFILE-GRAPHIC-DESIGNER",
+  "UserName": "Template",
+  "InstallerVersion": "1.4.5",
+  "Applications": [
+    "Google Chrome",
+    "GIMP",
+    "Inkscape",
+    "Krita",
+    "darktable",
+    "RawTherapee",
+    "digiKam",
+    "ImageGlass",
+    "XnView MP",
+    "Scribus",
+    "Figma",
+    "Draw.io Desktop",
+    "Lunacy",
+    "Pencil Project",
+    "Adobe Acrobat Reader",
+    "Everything"
+  ]
+}
+

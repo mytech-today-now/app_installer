@@ -1,0 +1,33 @@
+{
+  "Version": "2.0",
+  "Name": "Music Producer / Audio Engineer",
+  "Description": "DAWs, editors, and tools for music production.",
+  "LongDescription": "Environment for music producers and audio engineers with DAWs, multitrack editors, virtual instruments, and supporting media tools.",
+  "IconPath": "",
+  "Categories": [
+    "Browsers",
+    "Media",
+    "Audio Production"
+  ],
+  "Timestamp": "2025-11-15T00:00:00",
+  "ComputerName": "PROFILE-MUSIC-PRODUCER",
+  "UserName": "Template",
+  "InstallerVersion": "1.4.5",
+  "Applications": [
+    "Google Chrome",
+    "Audacity",
+    "Tenacity",
+    "Cakewalk by BandLab",
+    "LMMS",
+    "Ardour",
+    "Reaper",
+    "Ocenaudio",
+    "Mixxx",
+    "Hydrogen",
+    "Foobar2000",
+    "Spotify",
+    "MuseScore",
+    "VLC Media Player"
+  ]
+}
+

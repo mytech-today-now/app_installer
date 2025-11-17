@@ -1,0 +1,48 @@
+{
+  "Version": "2.0",
+  "Name": "UX / UI Designer",
+  "Description": "Design, prototyping, and collaboration tools for UX and UI designers.",
+  "LongDescription": "Workspace for UX and UI designers with wireframing and prototyping tools, vector and raster graphics editors, screenshot and screen recording utilities, and collaboration apps for design reviews.",
+  "IconPath": "",
+  "Categories": [
+    "Browsers",
+    "Productivity",
+    "Mockups & Wireframe",
+    "Media",
+    "Screen Recording",
+    "Utilities",
+    "Communication"
+  ],
+  "Timestamp": "2025-11-15T00:00:00",
+  "ComputerName": "PROFILE-UX-UI-DESIGNER",
+  "UserName": "Template",
+  "InstallerVersion": "1.4.5",
+  "Applications": [
+    "Google Chrome",
+    "Firefox",
+    "LibreOffice",
+    "7-Zip",
+    "Obsidian",
+    "Notion",
+    "Joplin",
+    "Figma",
+    "Penpot",
+    "Draw.io Desktop",
+    "Lunacy",
+    "Pencil Project",
+    "GIMP",
+    "Inkscape",
+    "Krita",
+    "Paint.NET",
+    "ScreenToGif",
+    "Flameshot",
+    "VLC Media Player",
+    "Spotify",
+    "PowerToys",
+    "Everything",
+    "Slack",
+    "Zoom",
+    "Microsoft Teams"
+  ]
+}
+

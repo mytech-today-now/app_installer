@@ -1,5 +1,16 @@
 {
-  "Version": "1.0",
+  "Version": "2.0",
+  "Name": "IT Technician Toolkit",
+  "Description": "Diagnostics, networking, backup, and remote support tools for technicians.",
+  "LongDescription": "Comprehensive toolkit for IT technicians including disk and system diagnostics, network scanners, remote access tools, imaging and backup utilities, and troubleshooting helpers for end-user systems.",
+  "IconPath": "",
+  "Categories": [
+    "Browsers",
+    "Utilities",
+    "Networking",
+    "Remote Desktop",
+    "Backup"
+  ],
   "Timestamp": "2025-11-15T00:00:00",
   "ComputerName": "PROFILE-IT-TECHNICIAN",
   "UserName": "Template",

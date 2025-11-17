@@ -1,0 +1,38 @@
+{
+  "Version": "2.0",
+  "Name": "Data Analyst / Data Scientist",
+  "Description": "Data analysis, visualization, and notebook tooling.",
+  "LongDescription": "Environment with Python, notebooks, database clients, and visualization tools for analysts and data scientists working with structured and semi-structured data.",
+  "IconPath": "",
+  "Categories": [
+    "Browsers",
+    "Development",
+    "Database Tools",
+    "Productivity",
+    "Education"
+  ],
+  "Timestamp": "2025-11-15T00:00:00",
+  "ComputerName": "PROFILE-DATA-ANALYST",
+  "UserName": "Template",
+  "InstallerVersion": "1.4.5",
+  "Applications": [
+    "Google Chrome",
+    "Visual Studio Code",
+    "Notepad++",
+    "Git",
+    "GitHub Desktop",
+    "Python",
+    "Node.js",
+    "DBeaver",
+    "HeidiSQL",
+    "Azure Data Studio",
+    "SQL Server Management Studio",
+    "MongoDB Compass",
+    "Anki",
+    "GeoGebra",
+    "Obsidian",
+    "Joplin",
+    "Everything"
+  ]
+}
+

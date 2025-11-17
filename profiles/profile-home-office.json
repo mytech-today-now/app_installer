@@ -1,5 +1,17 @@
 {
-  "Version": "1.0",
+  "Version": "2.0",
+  "Name": "Home Office Professional",
+  "Description": "Remote work essentials for home office and small business users.",
+  "LongDescription": "Balanced selection of browsers, office tools, note-taking, task management, media, and collaboration apps for day-to-day remote and hybrid work in a home office.",
+  "IconPath": "",
+  "Categories": [
+    "Browsers",
+    "Productivity",
+    "Media",
+    "Utilities",
+    "Cloud Storage",
+    "Communication"
+  ],
   "Timestamp": "2025-11-15T00:00:00",
   "ComputerName": "PROFILE-HOME-OFFICE",
   "UserName": "Template",
@@ -7,6 +19,7 @@
   "Applications": [
     "Google Chrome",
     "Microsoft Edge",
+    "Brave",
     "LibreOffice",
     "7-Zip",
     "Adobe Acrobat Reader",

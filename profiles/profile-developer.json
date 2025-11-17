@@ -1,5 +1,15 @@
 {
-  "Version": "1.0",
+  "Version": "2.0",
+  "Name": "Developer Workstation",
+  "Description": "Language runtimes, IDEs, terminals, and developer utilities.",
+  "LongDescription": "Focused environment for software developers with code editors, version control, databases, terminals, and common language runtimes for modern application development.",
+  "IconPath": "",
+  "Categories": [
+    "Browsers",
+    "Development",
+    "Runtime",
+    "Utilities"
+  ],
   "Timestamp": "2025-11-15T00:00:00",
   "ComputerName": "PROFILE-DEVELOPER",
   "UserName": "Template",

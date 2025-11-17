@@ -1,0 +1,36 @@
+{
+  "Version": "2.0",
+  "Name": "Kids Learning & Play",
+  "Description": "Safe browsing and educational apps for kids and younger students.",
+  "LongDescription": "Child-friendly profile with privacy-conscious browsers, office basics, flashcard and math tools, astronomy and music software, and media players suitable for supervised learning and play.",
+  "IconPath": "",
+  "Categories": [
+    "Browsers",
+    "Productivity",
+    "Education",
+    "Media",
+    "Utilities"
+  ],
+  "Timestamp": "2025-11-15T00:00:00",
+  "ComputerName": "PROFILE-KIDS-ACCOUNT",
+  "UserName": "Template",
+  "InstallerVersion": "1.4.5",
+  "Applications": [
+    "Firefox",
+    "LibreWolf",
+    "LibreOffice",
+    "7-Zip",
+    "Sumatra PDF",
+    "Anki",
+    "GeoGebra",
+    "Stellarium",
+    "MuseScore",
+    "Moodle Desktop",
+    "Scratch Desktop",
+    "Celestia",
+    "VLC Media Player",
+    "Spotify",
+    "Everything"
+  ]
+}
+

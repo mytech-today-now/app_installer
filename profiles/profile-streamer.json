@@ -1,0 +1,38 @@
+{
+  "Version": "2.0",
+  "Name": "Content Creator / Streamer",
+  "Description": "Streaming, audio routing, and monitoring tools.",
+  "LongDescription": "Preset of streaming, audio routing, capture, and monitoring tools for live content creators on platforms like Twitch and YouTube.",
+  "IconPath": "",
+  "Categories": [
+    "Browsers",
+    "Media",
+    "Streaming Tools",
+    "Screen Recording",
+    "Communication",
+    "Utilities",
+    "System Monitoring"
+  ],
+  "Timestamp": "2025-11-15T00:00:00",
+  "ComputerName": "PROFILE-STREAMER",
+  "UserName": "Template",
+  "InstallerVersion": "1.4.5",
+  "Applications": [
+    "Google Chrome",
+    "Discord",
+    "OBS Studio",
+    "Streamlabs Desktop",
+    "Twitch Studio",
+    "Voicemeeter Banana",
+    "Streamlink",
+    "Spotify",
+    "Flameshot",
+    "ScreenToGif",
+    "PowerToys",
+    "AutoHotkey",
+    "Everything",
+    "HWiNFO",
+    "MSI Afterburner"
+  ]
+}
+

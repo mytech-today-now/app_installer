@@ -1,0 +1,45 @@
+{
+  "Version": "2.0",
+  "Name": "System Administrator / Power User",
+  "Description": "Remote administration, virtualization, monitoring, backup, and troubleshooting tools.",
+  "LongDescription": "Focused toolkit for system administrators and power users, including remote access, virtualization platforms, monitoring utilities, backup tools, and core troubleshooting utilities for managing Windows workstations and small servers.",
+  "IconPath": "",
+  "Categories": [
+    "Utilities",
+    "Networking",
+    "Remote Desktop",
+    "Virtualization",
+    "System Monitoring",
+    "Backup",
+    "Security"
+  ],
+  "Timestamp": "2025-11-15T00:00:00",
+  "ComputerName": "PROFILE-SYSTEM-ADMINISTRATOR",
+  "UserName": "Template",
+  "InstallerVersion": "1.5.4",
+  "Applications": [
+    "PowerToys",
+    "Everything",
+    "WinDirStat",
+    "Sysinternals Suite",
+    "Process Hacker",
+    "Wireshark",
+    "Nmap",
+    "PuTTY",
+    "Advanced IP Scanner",
+    "TeamViewer",
+    "AnyDesk",
+    "Chrome Remote Desktop",
+    "RustDesk",
+    "Oracle VM VirtualBox",
+    "VMware Workstation Player",
+    "Multipass",
+    "Open Hardware Monitor",
+    "Rainmeter",
+    "NetWorx",
+    "Veeam Agent FREE",
+    "Macrium Reflect Free",
+    "Syncthing"
+  ]
+}
+

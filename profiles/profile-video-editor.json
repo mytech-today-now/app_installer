@@ -1,0 +1,39 @@
+{
+  "Version": "2.0",
+  "Name": "Video Editor / Motion",
+  "Description": "Video editing, transcoding, and capture toolkit.",
+  "LongDescription": "Complete toolkit for video editors with NLEs, capture tools, transcoders, and media utilities for modern content production workflows.",
+  "IconPath": "",
+  "Categories": [
+    "Browsers",
+    "Media",
+    "Video Editing",
+    "Screen Recording"
+  ],
+  "Timestamp": "2025-11-15T00:00:00",
+  "ComputerName": "PROFILE-VIDEO-EDITOR",
+  "UserName": "Template",
+  "InstallerVersion": "1.4.5",
+  "Applications": [
+    "Google Chrome",
+    "VLC Media Player",
+    "OBS Studio",
+    "Streamlabs Desktop",
+    "Handbrake",
+    "OpenShot",
+    "Kdenlive",
+    "Shotcut",
+    "DaVinci Resolve",
+    "Lightworks",
+    "VSDC Free Video Editor",
+    "Olive Video Editor",
+    "LosslessCut",
+    "VidCutter",
+    "ScreenToGif",
+    "MKVToolNix",
+    "FFmpeg",
+    "MediaInfo",
+    "SimpleScreenRecorder"
+  ]
+}
+
