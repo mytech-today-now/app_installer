@@ -1,17 +1,5 @@
 {
-  "Version": "2.0",
-  "Name": "Student Academic",
-  "Description": "Learning, research, and writing tools for students.",
-  "LongDescription": "Academic-focused environment with office tools, citation and ebook managers, flashcards, math and astronomy tools, note-taking apps, and cloud storage for coursework and research.",
-  "IconPath": "",
-  "Categories": [
-    "Browsers",
-    "Productivity",
-    "Education",
-    "Media",
-    "Utilities",
-    "Cloud Storage"
-  ],
+  "Version": "1.0",
   "Timestamp": "2025-11-15T00:00:00",
   "ComputerName": "PROFILE-STUDENT-ACADEMIC",
   "UserName": "Template",

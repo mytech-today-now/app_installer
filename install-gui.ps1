@@ -29,34 +29,34 @@
 
 #region Load Responsive GUI Helper
 
-# Import responsive GUI helper (prefer local copy, fall back to GitHub) for improved DPI scaling and multi-monitor support
+# Import responsive GUI helper from GitHub for improved DPI scaling and multi-monitor support
+$responsiveUrl = 'https://raw.githubusercontent.com/mytech-today-now/scripts/main/responsive.ps1'
 $script:ResponsiveHelperLoaded = $false
 
-# First, try to load from local path
-$localResponsivePath = Join-Path $PSScriptRoot "..\scripts\responsive.ps1"
-if (Test-Path $localResponsivePath) {
-    try {
-        Write-Host "Loading responsive GUI helper from local path..." -ForegroundColor Cyan
-        . $localResponsivePath
-        $script:ResponsiveHelperLoaded = $true
-        Write-Host "[OK] Loaded responsive helper from local path" -ForegroundColor Green
-    }
-    catch {
-        Write-Host "[ERROR] Failed to load local responsive helper: $_" -ForegroundColor Red
-    }
+try {
+    Write-Host "Loading responsive GUI helper..." -ForegroundColor Cyan
+    Invoke-Expression (Invoke-WebRequest -Uri $responsiveUrl -UseBasicParsing).Content
+    $script:ResponsiveHelperLoaded = $true
+    Write-Host "[OK] Responsive GUI helper loaded successfully" -ForegroundColor Green
 }
+catch {
+    Write-Host "[ERROR] Failed to load responsive GUI helper: $_" -ForegroundColor Red
+    Write-Host "[INFO] Falling back to local responsive helper implementation" -ForegroundColor Yellow
 
-# If local load failed, fall back to GitHub version
-if (-not $script:ResponsiveHelperLoaded) {
-    $responsiveUrl = 'https://raw.githubusercontent.com/mytech-today-now/scripts/main/responsive.ps1'
-    try {
-        Write-Host "Loading responsive GUI helper from GitHub..." -ForegroundColor Cyan
-        Invoke-Expression (Invoke-WebRequest -Uri $responsiveUrl -UseBasicParsing).Content
-        $script:ResponsiveHelperLoaded = $true
-        Write-Host "[OK] Responsive GUI helper loaded successfully from GitHub" -ForegroundColor Green
+    # Try to load from local path as fallback
+    $localResponsivePath = Join-Path $PSScriptRoot "..\scripts\responsive.ps1"
+    if (Test-Path $localResponsivePath) {
+        try {
+            . $localResponsivePath
+            $script:ResponsiveHelperLoaded = $true
+            Write-Host "[OK] Loaded responsive helper from local path" -ForegroundColor Green
+        }
+        catch {
+            Write-Host "[ERROR] Failed to load local responsive helper: $_" -ForegroundColor Red
+        }
     }
-    catch {
-        Write-Host "[ERROR] Failed to load responsive GUI helper from GitHub: $_" -ForegroundColor Red
+    else {
+        Write-Host "[WARNING] Local responsive helper not found at: $localResponsivePath" -ForegroundColor Yellow
     }
 }
 
@@ -65,7 +65,7 @@ if (-not $script:ResponsiveHelperLoaded) {
 #region Load Generic Logging Module
 
 # Import generic logging module from GitHub for centralized logging
-$loggingUrl = 'https://raw.githubusercontent.com/mytech-today-now/scripts/refs/heads/main/logging.ps1'
+$loggingUrl = 'https://raw.githubusercontent.com/mytech-today-now/scripts/main/logging.ps1'
 $script:LoggingModuleLoaded = $false
 
 try {
@@ -270,62 +270,6 @@ function Get-DynamicColumnWidth {
 }
 
 #endregion Dynamic Sizing Helper Functions
-
-function New-InstallerPoint {
-    <#
-    .SYNOPSIS
-    Wrapper around System.Drawing.Point that defensively normalizes X/Y inputs
-    so that only two integer arguments are ever passed to the constructor.
-
-    .DESCRIPTION
-    This helps avoid intermittent "Cannot find an overload for 'Point' and the
-    argument count: '4'" errors that can occur when values are expanded in
-    unexpected ways (e.g., array values, splatting, or mis-bound parameters).
-    It also handles the common call style New-InstallerPoint($x, $y) by
-    unpacking the array PowerShell creates for the arguments.
-    #>
-    param(
-        [Parameter(Position = 0)]
-        [object]$X,
-        [Parameter(Position = 1)]
-        [object]$Y
-    )
-
-    # Preserve raw values for logging.
-    $rawX = $X
-    $rawY = $Y
-
-    # If called as New-InstallerPoint($x, $y), PowerShell passes a single
-    # array argument. When Y is not explicitly provided, unpack X into X/Y.
-    if ($null -eq $Y -and $X -is [System.Array] -and $X.Count -ge 2) {
-        $Y = $X[1]
-        $X = $X[0]
-    }
-
-    # Flatten any remaining arrays and coerce to integers.
-    if ($X -is [System.Array] -and $X.Count -gt 0) { $X = $X[0] }
-    if ($Y -is [System.Array] -and $Y.Count -gt 0) { $Y = $Y[0] }
-
-    try {
-        $intX = [int]$X
-        $intY = [int]$Y
-
-        return New-Object System.Drawing.Point($intX, $intY)
-    }
-    catch {
-        $message = "New-InstallerPoint failed to construct System.Drawing.Point. RawX='$rawX', RawY='$rawY', X='$X', Y='$Y'. Error: $($_.Exception.Message)"
-        $writeLog = Get-Command -Name Write-Log -ErrorAction SilentlyContinue
-        if ($writeLog) {
-            & $writeLog -Message $message -Level ERROR
-        }
-        else {
-            Write-Warning $message
-        }
-
-        throw
-    }
-}
-
 
 #region ListView Click-to-Select Helper Functions
 
@@ -883,7 +827,7 @@ $script:ScriptVersion = '1.4.5'
 $script:OriginalScriptPath = $PSScriptRoot
 $script:SystemInstallPath = "$env:SystemDrive\mytech.today\app_installer"
 $script:ScriptPath = $script:SystemInstallPath
-$script:CentralLogPath = "$env:USERPROFILE\myTech.Today\"
+$script:CentralLogPath = "C:\mytech.today\logs\"
 $script:LogPath = $null
 $script:AppsPath = Join-Path $script:ScriptPath "apps"
 $script:ProfilesPath = Join-Path $script:ScriptPath "profiles"
@@ -896,7 +840,7 @@ $script:FilteredApplications = @()  # Filtered application list
 
 # Queue management variables
 $script:InstallationQueue = @()  # Array of apps in installation queue
-$script:QueueStatePath = "$env:USERPROFILE\myTech.Today\app_installer\queue-state.json"  # Queue state file
+$script:QueueStatePath = "C:\mytech.today\app_installer\queue-state.json"  # Queue state file
 $script:IsPaused = $false  # Flag to track if installation is paused
 $script:SkipCurrent = $false  # Flag to skip current installation
 $script:CurrentQueueIndex = 0  # Current position in queue
@@ -1197,31 +1141,6 @@ $script:Applications = @(
     [PSCustomObject]@{ Name = "Kap"; ScriptName = "kap.ps1"; WingetId = $null; Category = "Screen Recording"; Description = "Open-source screen recorder" }
     [PSCustomObject]@{ Name = "Peek"; ScriptName = "peek.ps1"; WingetId = $null; Category = "Screen Recording"; Description = "Simple animated GIF screen recorder" }
     [PSCustomObject]@{ Name = "SimpleScreenRecorder"; ScriptName = "simplescreenrecorder.ps1"; WingetId = $null; Category = "Screen Recording"; Description = "Feature-rich screen recorder" }
-
-    # Photography
-    [PSCustomObject]@{ Name = "digiKam"; ScriptName = "digikam.ps1"; WingetId = "KDE.digiKam"; Category = "Photography"; Description = "Photo management and RAW processing" }
-    [PSCustomObject]@{ Name = "ImageGlass"; ScriptName = "imageglass.ps1"; WingetId = "DuongDieuPhap.ImageGlass"; Category = "Photography"; Description = "Fast, lightweight image viewer" }
-    [PSCustomObject]@{ Name = "XnView MP"; ScriptName = "xnviewmp.ps1"; WingetId = "XnSoft.XnViewMP"; Category = "Photography"; Description = "Image viewer and organizer" }
-
-    # Virtualization
-    [PSCustomObject]@{ Name = "Oracle VM VirtualBox"; ScriptName = "virtualbox.ps1"; WingetId = "Oracle.VirtualBox"; Category = "Virtualization"; Description = "General-purpose x86 virtualization platform" }
-    [PSCustomObject]@{ Name = "VMware Workstation Player"; ScriptName = "vmwareplayer.ps1"; WingetId = "VMware.WorkstationPlayer"; Category = "Virtualization"; Description = "Free virtual machine player for Windows" }
-    [PSCustomObject]@{ Name = "Multipass"; ScriptName = "multipass.ps1"; WingetId = "Canonical.Multipass"; Category = "Virtualization"; Description = "Lightweight VM manager for Ubuntu instances" }
-
-    # Database Tools
-    [PSCustomObject]@{ Name = "SQL Server Management Studio"; ScriptName = "ssms.ps1"; WingetId = "Microsoft.SQLServerManagementStudio"; Category = "Database Tools"; Description = "SQL Server administration and query tool" }
-    [PSCustomObject]@{ Name = "Azure Data Studio"; ScriptName = "azuredatastudio.ps1"; WingetId = "Microsoft.AzureDataStudio"; Category = "Database Tools"; Description = "Cross-platform database development tool" }
-    [PSCustomObject]@{ Name = "MongoDB Compass"; ScriptName = "mongodbcompass.ps1"; WingetId = "MongoDB.Compass"; Category = "Database Tools"; Description = "GUI for MongoDB databases" }
-
-    # System Monitoring
-    [PSCustomObject]@{ Name = "Open Hardware Monitor"; ScriptName = "openhardwaremonitor.ps1"; WingetId = "OpenHardwareMonitor.OpenHardwareMonitor"; Category = "System Monitoring"; Description = "Hardware temperature and load monitoring" }
-    [PSCustomObject]@{ Name = "Rainmeter"; ScriptName = "rainmeter.ps1"; WingetId = "Rainmeter.Rainmeter"; Category = "System Monitoring"; Description = "Customizable desktop system monitoring widgets" }
-    [PSCustomObject]@{ Name = "NetWorx"; ScriptName = "networx.ps1"; WingetId = "SoftPerfect.NetWorx"; Category = "System Monitoring"; Description = "Network bandwidth usage monitor" }
-
-    # Streaming Tools
-    [PSCustomObject]@{ Name = "Twitch Studio"; ScriptName = "twitchstudio.ps1"; WingetId = "Twitch.TwitchStudio"; Category = "Streaming Tools"; Description = "Streaming studio for Twitch creators" }
-    [PSCustomObject]@{ Name = "Voicemeeter Banana"; ScriptName = "voicemeeterbanana.ps1"; WingetId = "VB-Audio.VoicemeeterBanana"; Category = "Streaming Tools"; Description = "Virtual audio mixer for streaming setups" }
-    [PSCustomObject]@{ Name = "Streamlink"; ScriptName = "streamlink.ps1"; WingetId = "Streamlink.Streamlink"; Category = "Streaming Tools"; Description = "Command-line utility to pipe online streams to media players" }
 )
 
 #region Self-Installation to System Location
@@ -1698,7 +1617,7 @@ function Get-InstalledApplications {
 
         # Special handling: Check for Manage Restore Points script
         if (-not $installedApps.ContainsKey("Manage Restore Points")) {
-            $manageRPPath = "$env:USERPROFILE\myTech.Today\ManageRestorePoints\Manage-RestorePoints.ps1"
+            $manageRPPath = "C:\myTech.Today\ManageRestorePoints\Manage-RestorePoints.ps1"
             if (Test-Path $manageRPPath) {
                 try {
                     $scriptContent = Get-Content $manageRPPath -Raw -ErrorAction SilentlyContinue
@@ -3091,12 +3010,13 @@ function Create-MainForm {
 
     # Base dimensions (before scaling) - following .augment/gui-responsiveness.md standards
     $baseDimensions = @{
-        # Form dimensions (relative to screen resolution)
-        # Target: 1920x1080 window on a 2194x1234 screen (~87.5% of width/height)
-        FormWidthRatio  = 1920.0 / 2194.0
-        FormHeightRatio = 1080.0 / 1234.0
-        MinFormWidth  = 800
-        MinFormHeight = 600
+        # Form dimensions (as percentage of screen)
+        FormWidthPercent = 0.60    # 60% of screen width (reduced from 70% to make window smaller)
+        FormHeightPercent = 0.80   # 80% of screen height
+        MinFormWidth = 800
+        MinFormHeight = 300
+        MaxFormWidth = 1000
+        MaxFormHeight = 1000
 
         # Font sizes
         BaseFontSize = 10
@@ -3122,21 +3042,22 @@ function Create-MainForm {
         RowHeightMultiplier = 2.2
     }
 
-    # Calculate target window size based on screen resolution ratio (Option A)
-    $widthRatio = $baseDimensions.FormWidthRatio
-    $heightRatio = $baseDimensions.FormHeightRatio
+    # Calculate form size as percentage of screen with min/max constraints
+    $formWidth = [Math]::Min(
+        [Math]::Max(
+            [Math]::Floor($screenWidth * $baseDimensions.FormWidthPercent * $scaleFactor),
+            $baseDimensions.MinFormWidth
+        ),
+        $baseDimensions.MaxFormWidth
+    )
 
-    $targetWidthPixels  = [Math]::Floor($screenWidth  * $widthRatio)
-    $targetHeightPixels = [Math]::Floor($screenHeight * $heightRatio)
-
-    # Convert to base values for New-ResponsiveForm (which will apply DPI scaling)
-    if ($scaleFactor -le 0) { $scaleFactor = 1.0 }
-    $baseWidth  = [int]($targetWidthPixels  / $scaleFactor)
-    $baseHeight = [int]($targetHeightPixels / $scaleFactor)
-
-    # Enforce minimum form size
-    $formWidth  = [Math]::Max($baseWidth,  $baseDimensions.MinFormWidth)
-    $formHeight = [Math]::Max($baseHeight, $baseDimensions.MinFormHeight)
+    $formHeight = [Math]::Min(
+        [Math]::Max(
+            [Math]::Floor($screenHeight * $baseDimensions.FormHeightPercent * $scaleFactor),
+            $baseDimensions.MinFormHeight
+        ),
+        $baseDimensions.MaxFormHeight
+    )
 
     # Apply scaling to all dimensions
     $margin = [int]($baseDimensions.Margin * $scaleFactor)
@@ -3265,7 +3186,7 @@ function Create-MainForm {
 
     # Search label
     $searchLabel = New-Object System.Windows.Forms.Label
-    $searchLabel.Location = New-InstallerPoint($margin, ($contentTop + 5))
+    $searchLabel.Location = New-Object System.Drawing.Point($margin, ($contentTop + 5))
     $searchLabel.Size = New-Object System.Drawing.Size($searchLabelWidth, ($searchPanelHeight - 10))
     $searchLabel.Text = "Search:"
     $searchLabel.Font = New-Object System.Drawing.Font("Segoe UI", $normalFontSize)
@@ -3274,7 +3195,7 @@ function Create-MainForm {
 
     # Search textbox
     $script:SearchTextBox = New-Object System.Windows.Forms.TextBox
-    $script:SearchTextBox.Location = New-InstallerPoint($searchTextBoxX, ($contentTop + 5))
+    $script:SearchTextBox.Location = New-Object System.Drawing.Point($searchTextBoxX, ($contentTop + 5))
     $script:SearchTextBox.Size = New-Object System.Drawing.Size($searchTextBoxWidth, ($searchPanelHeight - 10))
     $script:SearchTextBox.Font = New-Object System.Drawing.Font("Segoe UI", $normalFontSize)
     $script:SearchTextBox.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right
@@ -3282,7 +3203,7 @@ function Create-MainForm {
 
     # Clear search button (aligned with ListView scrollbar)
     $clearSearchButton = New-Object System.Windows.Forms.Button
-    $clearSearchButton.Location = New-InstallerPoint($clearButtonX, ($contentTop + 5))
+    $clearSearchButton.Location = New-Object System.Drawing.Point($clearButtonX, ($contentTop + 5))
     $clearSearchButton.Size = New-Object System.Drawing.Size($clearButtonWidth, ($searchPanelHeight - 10))
     $clearSearchButton.Text = "X"
     $clearSearchButton.Font = New-Object System.Drawing.Font("Segoe UI", $normalFontSize, [System.Drawing.FontStyle]::Bold)
@@ -3307,7 +3228,7 @@ function Create-MainForm {
 
     # Result count label (positioned on the right side, above output panel)
     $script:ResultCountLabel = New-Object System.Windows.Forms.Label
-    $script:ResultCountLabel.Location = New-InstallerPoint(($margin * 2 + $listViewWidth), ($contentTop + 5))
+    $script:ResultCountLabel.Location = New-Object System.Drawing.Point(($margin * 2 + $listViewWidth), ($contentTop + 5))
     $script:ResultCountLabel.Size = New-Object System.Drawing.Size($outputWidth, ($searchPanelHeight - 10))
     $script:ResultCountLabel.Text = "Showing 0 of 0 applications"
     $script:ResultCountLabel.Font = New-Object System.Drawing.Font("Segoe UI", ($normalFontSize - 1))
@@ -3324,7 +3245,7 @@ function Create-MainForm {
     $splitContainerWidth = $listViewWidth + $controlGap + $outputWidth
     $script:MainSplitContainer = New-Object System.Windows.Forms.SplitContainer
     $script:MainSplitContainer.Orientation = [System.Windows.Forms.Orientation]::Vertical
-    $script:MainSplitContainer.Location = New-InstallerPoint($leftMargin, $listViewTop)
+    $script:MainSplitContainer.Location = New-Object System.Drawing.Point($leftMargin, $listViewTop)
     $script:MainSplitContainer.Size = New-Object System.Drawing.Size($splitContainerWidth, $listViewHeight)
     $script:MainSplitContainer.SplitterWidth = [int](5 * $scaleFactor)
     $script:MainSplitContainer.SplitterDistance = $listViewWidth
@@ -3738,7 +3659,7 @@ function Create-MainForm {
 
     # Create main progress bar with scaled height
     $script:ProgressBar = New-Object System.Windows.Forms.ProgressBar
-    $script:ProgressBar.Location = New-InstallerPoint($margin, $progressTop)
+    $script:ProgressBar.Location = New-Object System.Drawing.Point($margin, $progressTop)
     $script:ProgressBar.Size = New-Object System.Drawing.Size(($clientWidth - $margin * 2), $progressBarHeight)
     $script:ProgressBar.Style = [System.Windows.Forms.ProgressBarStyle]::Continuous
     $script:ProgressBar.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right
@@ -3748,7 +3669,7 @@ function Create-MainForm {
     $progressLabelFontSize = [Math]::Max($normalFontSize - 1, $baseDimensions.MinFontSize)
     $script:ProgressLabel = New-Object System.Windows.Forms.Label
     $script:ProgressLabel.Text = "0 / 0 applications (0%)"
-    $script:ProgressLabel.Location = New-InstallerPoint($margin, ($progressTop + $progressBarHeight + 4))
+    $script:ProgressLabel.Location = New-Object System.Drawing.Point($margin, ($progressTop + $progressBarHeight + 4))
     $script:ProgressLabel.Size = New-Object System.Drawing.Size(($clientWidth - $margin * 2), $progressLabelHeight)
     $script:ProgressLabel.Font = New-Object System.Drawing.Font("Segoe UI", $progressLabelFontSize)
     $script:ProgressLabel.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right
@@ -3761,7 +3682,7 @@ function Create-MainForm {
     $statusLabelTop = $progressTop + $progressBarHeight + $progressLabelHeight + 8
     $script:StatusLabel = New-Object System.Windows.Forms.Label
     $script:StatusLabel.Text = "Ready to install applications"
-    $script:StatusLabel.Location = New-InstallerPoint($margin, $statusLabelTop)
+    $script:StatusLabel.Location = New-Object System.Drawing.Point($margin, $statusLabelTop)
     $script:StatusLabel.Size = New-Object System.Drawing.Size(($clientWidth - $margin * 2), $statusLabelHeight)
     $script:StatusLabel.Font = New-Object System.Drawing.Font("Consolas", $statusLabelFontSize)
     $script:StatusLabel.ForeColor = [System.Drawing.Color]::Gray
@@ -3773,7 +3694,7 @@ function Create-MainForm {
     # Create secondary progress bar for individual app installation (scaled height)
     $appProgressBarTop = $statusLabelTop + $statusLabelHeight + 4
     $script:AppProgressBar = New-Object System.Windows.Forms.ProgressBar
-    $script:AppProgressBar.Location = New-InstallerPoint($margin, $appProgressBarTop)
+    $script:AppProgressBar.Location = New-Object System.Drawing.Point($margin, $appProgressBarTop)
     $script:AppProgressBar.Size = New-Object System.Drawing.Size(($clientWidth - $margin * 2), $appProgressBarHeight)
     $script:AppProgressBar.Style = [System.Windows.Forms.ProgressBarStyle]::Marquee
     $script:AppProgressBar.MarqueeAnimationSpeed = 30
@@ -3818,7 +3739,7 @@ function Create-Buttons {
 
     # Refresh button
     $refreshButton = New-Object System.Windows.Forms.Button
-    $refreshButton.Location = New-InstallerPoint($currentX, $buttonY)
+    $refreshButton.Location = New-Object System.Drawing.Point($currentX, $buttonY)
     $refreshButton.Size = New-Object System.Drawing.Size($buttonWidth, $buttonHeight)
     $refreshButton.Text = "Refresh`nStatus"
     $refreshButton.Font = $buttonFont
@@ -3836,7 +3757,7 @@ function Create-Buttons {
 
     # Select All button
     $selectAllButton = New-Object System.Windows.Forms.Button
-    $selectAllButton.Location = New-InstallerPoint($currentX, $buttonY)
+    $selectAllButton.Location = New-Object System.Drawing.Point($currentX, $buttonY)
     $selectAllButton.Size = New-Object System.Drawing.Size($buttonWidth, $buttonHeight)
     $selectAllButton.Text = "Select`nAll"
     $selectAllButton.Font = $buttonFont
@@ -3860,7 +3781,7 @@ function Create-Buttons {
 
     # Select Missing button
     $selectMissingButton = New-Object System.Windows.Forms.Button
-    $selectMissingButton.Location = New-InstallerPoint($currentX, $buttonY)
+    $selectMissingButton.Location = New-Object System.Drawing.Point($currentX, $buttonY)
     $selectMissingButton.Size = New-Object System.Drawing.Size($buttonWidth, $buttonHeight)
     $selectMissingButton.Text = "Select`nMissing"
     $selectMissingButton.Font = $buttonFont
@@ -3884,7 +3805,7 @@ function Create-Buttons {
 
     # Deselect All button
     $deselectAllButton = New-Object System.Windows.Forms.Button
-    $deselectAllButton.Location = New-InstallerPoint($currentX, $buttonY)
+    $deselectAllButton.Location = New-Object System.Drawing.Point($currentX, $buttonY)
     $deselectAllButton.Size = New-Object System.Drawing.Size($buttonWidth, $buttonHeight)
     $deselectAllButton.Text = "Deselect`nAll"
     $deselectAllButton.Font = $buttonFont
@@ -3926,7 +3847,7 @@ function Create-Buttons {
 
     # Export Selection button
     $exportButton = New-Object System.Windows.Forms.Button
-    $exportButton.Location = New-InstallerPoint($currentX, $buttonY)
+    $exportButton.Location = New-Object System.Drawing.Point($currentX, $buttonY)
     $exportButton.Size = New-Object System.Drawing.Size($buttonWidth, $buttonHeight)
     $exportButton.Text = "Export`nSelection"
     $exportButton.Font = $buttonFont
@@ -3991,7 +3912,7 @@ function Create-Buttons {
 
     # Import Selection button
     $importButton = New-Object System.Windows.Forms.Button
-    $importButton.Location = New-InstallerPoint($currentX, $buttonY)
+    $importButton.Location = New-Object System.Drawing.Point($currentX, $buttonY)
     $importButton.Size = New-Object System.Drawing.Size($buttonWidth, $buttonHeight)
     $importButton.Text = "Import`nSelection"
     $importButton.Font = $buttonFont
@@ -4004,113 +3925,105 @@ function Create-Buttons {
         if (-not $script:IsClosing) {
             Write-Log "User clicked Import Selection button" -Level INFO
 
-            # Show the combined Import Installation Profile dialog (slideshow + import)
-            $profileFilePath = Show-ProfileBrowserDialog
+            # Show open file dialog
+            $openDialog = New-Object System.Windows.Forms.OpenFileDialog
+            $openDialog.Filter = "JSON files (*.json)|*.json|All files (*.*)|*.*"
+            $openDialog.Title = "Import Installation Profile"
+            $openDialog.InitialDirectory = $script:ProfilesPath
 
-            if (-not $profileFilePath) {
-                Write-Log "Import Selection cancelled - no profile chosen from Import Installation Profile dialog" -Level INFO
-                return
-            }
+            if ($openDialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
+                $result = Import-InstallationProfile -FilePath $openDialog.FileName
 
-            if ([string]::IsNullOrWhiteSpace($profileFilePath)) {
-                Write-Log "Import Selection cancelled - resolved profile file path is empty" -Level WARNING
-                return
-            }
-
-            Write-Log "Import Selection proceeding with profile file: $profileFilePath" -Level INFO
-
-            $result = Import-InstallationProfile -FilePath $profileFilePath
-
-            if ($result.Success) {
-                # Show confirmation dialog
-                $message = "Found $($result.Applications.Count) application(s) in profile."
-                if ($result.MissingApps.Count -gt 0) {
-                    $message += "`n`nWarning: $($result.MissingApps.Count) application(s) from the profile are not available in the current installer:"
-                    $message += "`n" + ($result.MissingApps -join ", ")
-                }
-                $message += "`n`nDo you want to select these applications?"
-
-                $confirmResult = [System.Windows.Forms.MessageBox]::Show(
-                    $message,
-                    "Import Profile",
-                    [System.Windows.Forms.MessageBoxButtons]::YesNo,
-                    [System.Windows.Forms.MessageBoxIcon]::Question
-                )
-
-                if ($confirmResult -eq [System.Windows.Forms.DialogResult]::Yes) {
-                    # Clear any previous profile-based ignore flags
-                    foreach ($app in $script:Applications) {
-                        if ($app.PSObject.Properties.Match('IgnoreProfileInstall').Count -gt 0) {
-                            $app.IgnoreProfileInstall = $false
-                        }
+                if ($result.Success) {
+                    # Show confirmation dialog
+                    $message = "Found $($result.Applications.Count) application(s) in profile."
+                    if ($result.MissingApps.Count -gt 0) {
+                        $message += "`n`nWarning: $($result.MissingApps.Count) application(s) from the profile are not available in the current installer:"
+                        $message += "`n" + ($result.MissingApps -join ", ")
                     }
+                    $message += "`n`nDo you want to select these applications?"
 
-                    # Deselect all first and reset colors
-                    foreach ($item in $script:ListView.Items) {
-                        $item.Checked = $false
+                    $confirmResult = [System.Windows.Forms.MessageBox]::Show(
+                        $message,
+                        "Import Profile",
+                        [System.Windows.Forms.MessageBoxButtons]::YesNo,
+                        [System.Windows.Forms.MessageBoxIcon]::Question
+                    )
 
-                        $app = $item.Tag
-                        if ($app) {
-                            if ($script:InstalledApps.ContainsKey($app.Name)) {
-                                $item.ForeColor = [System.Drawing.Color]::Green
-                            }
-                            else {
-                                $item.ForeColor = [System.Drawing.Color]::Red
+                    if ($confirmResult -eq [System.Windows.Forms.DialogResult]::Yes) {
+                        # Clear any previous profile-based ignore flags
+                        foreach ($app in $script:Applications) {
+                            if ($app.PSObject.Properties.Match('IgnoreProfileInstall').Count -gt 0) {
+                                $app.IgnoreProfileInstall = $false
                             }
                         }
-                    }
 
-                    # Select applications from profile
-                    $selectedCount = 0          # apps that will actually be installed
-                    $skippedInstalledCount = 0  # apps already installed that will be ignored
+                        # Deselect all first and reset colors
+                        foreach ($item in $script:ListView.Items) {
+                            $item.Checked = $false
 
-                    foreach ($item in $script:ListView.Items) {
-                        $app = $item.Tag
-                        if ($app -and ($result.Applications -contains $app.Name)) {
-                            if ($script:InstalledApps.ContainsKey($app.Name)) {
-                                # Mark installed apps as checked but grayed out to indicate they will be skipped
-                                if ($app.PSObject.Properties.Match('IgnoreProfileInstall').Count -eq 0) {
-                                    $app | Add-Member -NotePropertyName IgnoreProfileInstall -NotePropertyValue $true -Force
+                            $app = $item.Tag
+                            if ($app) {
+                                if ($script:InstalledApps.ContainsKey($app.Name)) {
+                                    $item.ForeColor = [System.Drawing.Color]::Green
                                 }
                                 else {
-                                    $app.IgnoreProfileInstall = $true
+                                    $item.ForeColor = [System.Drawing.Color]::Red
                                 }
-
-                                $item.Checked = $true
-                                $item.ForeColor = [System.Drawing.Color]::DarkGray
-                                $skippedInstalledCount++
-                            }
-                            else {
-                                # Not installed - will be installed
-                                $item.Checked = $true
-                                $selectedCount++
                             }
                         }
+
+                        # Select applications from profile
+                        $selectedCount = 0          # apps that will actually be installed
+                        $skippedInstalledCount = 0  # apps already installed that will be ignored
+
+                        foreach ($item in $script:ListView.Items) {
+                            $app = $item.Tag
+                            if ($app -and ($result.Applications -contains $app.Name)) {
+                                if ($script:InstalledApps.ContainsKey($app.Name)) {
+                                    # Mark installed apps as checked but grayed out to indicate they will be skipped
+                                    if ($app.PSObject.Properties.Match('IgnoreProfileInstall').Count -eq 0) {
+                                        $app | Add-Member -NotePropertyName IgnoreProfileInstall -NotePropertyValue $true -Force
+                                    }
+                                    else {
+                                        $app.IgnoreProfileInstall = $true
+                                    }
+
+                                    $item.Checked = $true
+                                    $item.ForeColor = [System.Drawing.Color]::DarkGray
+                                    $skippedInstalledCount++
+                                }
+                                else {
+                                    # Not installed - will be installed
+                                    $item.Checked = $true
+                                    $selectedCount++
+                                }
+                            }
+                        }
+
+                        Write-Log ("Imported profile: {0} app(s) selected for installation, {1} already installed and marked to be skipped" -f $selectedCount, $skippedInstalledCount) -Level SUCCESS
+
+                        $importMessage = "Successfully selected $selectedCount application(s) from profile."
+                        if ($skippedInstalledCount -gt 0) {
+                            $importMessage += "`r`n`r`nNote: $skippedInstalledCount application(s) are already installed. They are checked but grayed out and will be skipped during installation."
+                        }
+
+                        [System.Windows.Forms.MessageBox]::Show(
+                            $importMessage,
+                            "Import Successful",
+                            [System.Windows.Forms.MessageBoxButtons]::OK,
+                            [System.Windows.Forms.MessageBoxIcon]::Information
+                        )
                     }
-
-                    $importedProfileName = [System.IO.Path]::GetFileName($profileFilePath)
-                    Write-Log ("Imported profile '{0}': {1} app(s) selected for installation, {2} already installed and marked to be skipped" -f $importedProfileName, $selectedCount, $skippedInstalledCount) -Level SUCCESS
-
-                    $importMessage = "Successfully selected $selectedCount application(s) from profile."
-                    if ($skippedInstalledCount -gt 0) {
-                        $importMessage += "`r`n`r`nNote: $skippedInstalledCount application(s) are already installed. They are checked but grayed out and will be skipped during installation."
-                    }
-
+                }
+                else {
                     [System.Windows.Forms.MessageBox]::Show(
-                        $importMessage,
-                        "Import Successful",
+                        "Failed to import profile:`n$($result.Message)",
+                        "Import Failed",
                         [System.Windows.Forms.MessageBoxButtons]::OK,
-                        [System.Windows.Forms.MessageBoxIcon]::Information
+                        [System.Windows.Forms.MessageBoxIcon]::Error
                     )
                 }
-            }
-            else {
-                [System.Windows.Forms.MessageBox]::Show(
-                    "Failed to import profile:`n$($result.Message)",
-                    "Import Failed",
-                    [System.Windows.Forms.MessageBoxButtons]::OK,
-                    [System.Windows.Forms.MessageBoxIcon]::Error
-                )
             }
         }
     })
@@ -4119,7 +4032,7 @@ function Create-Buttons {
 
     # Install Selected button
     $installButton = New-Object System.Windows.Forms.Button
-    $installButton.Location = New-InstallerPoint($currentX, $buttonY)
+    $installButton.Location = New-Object System.Drawing.Point($currentX, $buttonY)
     $installButton.Size = New-Object System.Drawing.Size($buttonWidth, $buttonHeight)
     $installButton.Text = "Install`nSelected"
     $installButton.Font = $buttonFontBold
@@ -4139,7 +4052,7 @@ function Create-Buttons {
 
     # Uninstall Selected button
     $uninstallButton = New-Object System.Windows.Forms.Button
-    $uninstallButton.Location = New-InstallerPoint($currentX, $buttonY)
+    $uninstallButton.Location = New-Object System.Drawing.Point($currentX, $buttonY)
     $uninstallButton.Size = New-Object System.Drawing.Size($buttonWidth, $buttonHeight)
     $uninstallButton.Text = "Uninstall`nSelected"
     $uninstallButton.Font = $buttonFontBold
@@ -4159,7 +4072,7 @@ function Create-Buttons {
 
     # Check for Updates button
     $checkUpdatesButton = New-Object System.Windows.Forms.Button
-    $checkUpdatesButton.Location = New-InstallerPoint($currentX, $buttonY)
+    $checkUpdatesButton.Location = New-Object System.Drawing.Point($currentX, $buttonY)
     $checkUpdatesButton.Size = New-Object System.Drawing.Size($buttonWidth, $buttonHeight)
     $checkUpdatesButton.Text = "Check for`nUpdates"
     $checkUpdatesButton.Font = $buttonFont
@@ -4179,7 +4092,7 @@ function Create-Buttons {
 
     # Pause/Resume button (initially hidden, shown during installation)
     $script:PauseResumeButton = New-Object System.Windows.Forms.Button
-    $script:PauseResumeButton.Location = New-InstallerPoint($currentX, $buttonY)
+    $script:PauseResumeButton.Location = New-Object System.Drawing.Point($currentX, $buttonY)
     $script:PauseResumeButton.Size = New-Object System.Drawing.Size($buttonWidth, $buttonHeight)
     $script:PauseResumeButton.Text = "Pause"
     $script:PauseResumeButton.Font = $buttonFont
@@ -4215,7 +4128,7 @@ function Create-Buttons {
 
     # Skip button (initially hidden, shown during installation)
     $script:SkipButton = New-Object System.Windows.Forms.Button
-    $script:SkipButton.Location = New-InstallerPoint($currentX, $buttonY)
+    $script:SkipButton.Location = New-Object System.Drawing.Point($currentX, $buttonY)
     $script:SkipButton.Size = New-Object System.Drawing.Size($buttonWidth, $buttonHeight)
     $script:SkipButton.Text = "Skip`nCurrent"
     $script:SkipButton.Font = $buttonFont
@@ -4237,7 +4150,7 @@ function Create-Buttons {
 
     # Exit button
     $exitButton = New-Object System.Windows.Forms.Button
-    $exitButton.Location = New-InstallerPoint($currentX, $buttonY)
+    $exitButton.Location = New-Object System.Drawing.Point($currentX, $buttonY)
     $exitButton.Size = New-Object System.Drawing.Size($buttonWidth, $buttonHeight)
     $exitButton.Text = "Exit"
     $exitButton.Font = $buttonFont
@@ -4650,7 +4563,7 @@ function Show-QueueManagementDialog {
 
     # Create ListView for queue with scaled dimensions
     $queueListView = New-Object System.Windows.Forms.ListView
-    $queueListView.Location = New-InstallerPoint($margin, $margin)
+    $queueListView.Location = New-Object System.Drawing.Point($margin, $margin)
     $queueListView.Size = New-Object System.Drawing.Size($listViewWidth, $listViewHeight)
     $queueListView.View = [System.Windows.Forms.View]::Details
     $queueListView.FullRowSelect = $true
@@ -4696,7 +4609,7 @@ function Show-QueueManagementDialog {
 
     # Move Up button
     $moveUpButton = New-Object System.Windows.Forms.Button
-    $moveUpButton.Location = New-InstallerPoint($buttonX, $buttonY)
+    $moveUpButton.Location = New-Object System.Drawing.Point($buttonX, $buttonY)
     $moveUpButton.Size = New-Object System.Drawing.Size($buttonWidth, $buttonHeight)
     $moveUpButton.Text = "Move Up"
     $moveUpButton.Font = New-Object System.Drawing.Font("Segoe UI", $fontSize)
@@ -4725,7 +4638,7 @@ function Show-QueueManagementDialog {
     # Move Down button
     $buttonY = $buttonY + $buttonHeight + $buttonSpacing
     $moveDownButton = New-Object System.Windows.Forms.Button
-    $moveDownButton.Location = New-InstallerPoint($buttonX, $buttonY)
+    $moveDownButton.Location = New-Object System.Drawing.Point($buttonX, $buttonY)
     $moveDownButton.Size = New-Object System.Drawing.Size($buttonWidth, $buttonHeight)
     $moveDownButton.Text = "Move Down"
     $moveDownButton.Font = New-Object System.Drawing.Font("Segoe UI", $fontSize)
@@ -4754,7 +4667,7 @@ function Show-QueueManagementDialog {
     # Move to Top button
     $buttonY = $buttonY + $buttonHeight + $buttonSpacing
     $moveTopButton = New-Object System.Windows.Forms.Button
-    $moveTopButton.Location = New-InstallerPoint($buttonX, $buttonY)
+    $moveTopButton.Location = New-Object System.Drawing.Point($buttonX, $buttonY)
     $moveTopButton.Size = New-Object System.Drawing.Size($buttonWidth, $buttonHeight)
     $moveTopButton.Text = "Move to Top (Prioritize)"
     $moveTopButton.Font = New-Object System.Drawing.Font("Segoe UI", $fontSize)
@@ -4787,7 +4700,7 @@ function Show-QueueManagementDialog {
     # Remove from Queue button
     $buttonY = $buttonY + $buttonHeight + $buttonSpacing
     $removeButton = New-Object System.Windows.Forms.Button
-    $removeButton.Location = New-InstallerPoint($buttonX, $buttonY)
+    $removeButton.Location = New-Object System.Drawing.Point($buttonX, $buttonY)
     $removeButton.Size = New-Object System.Drawing.Size($buttonWidth, $buttonHeight)
     $removeButton.Text = "Remove from Queue"
     $removeButton.Font = New-Object System.Drawing.Font("Segoe UI", $fontSize)
@@ -4823,7 +4736,7 @@ function Show-QueueManagementDialog {
     $bottomButtonY = $formHeight - $margin - $buttonHeight
 
     $okButton = New-Object System.Windows.Forms.Button
-    $okButton.Location = New-InstallerPoint($buttonX, $bottomButtonY)
+    $okButton.Location = New-Object System.Drawing.Point($buttonX, $bottomButtonY)
     $okButton.Size = New-Object System.Drawing.Size($okCancelButtonWidth, $buttonHeight)
     $okButton.Text = "OK"
     $okButton.Font = New-Object System.Drawing.Font("Segoe UI", $fontSize)
@@ -4833,7 +4746,7 @@ function Show-QueueManagementDialog {
 
     # Cancel button
     $cancelButton = New-Object System.Windows.Forms.Button
-    $cancelButton.Location = New-InstallerPoint(($buttonX + $okCancelButtonWidth + $spacing), $bottomButtonY)
+    $cancelButton.Location = New-Object System.Drawing.Point(($buttonX + $okCancelButtonWidth + $spacing), $bottomButtonY)
     $cancelButton.Size = New-Object System.Drawing.Size($okCancelButtonWidth, $buttonHeight)
     $cancelButton.Text = "Cancel"
     $cancelButton.Font = New-Object System.Drawing.Font("Segoe UI", $fontSize)
@@ -4984,7 +4897,7 @@ function Show-UpdatesDialog {
 
     # Title label with scaled font
     $titleLabel = New-Object System.Windows.Forms.Label
-    $titleLabel.Location = New-InstallerPoint($margin, $margin)
+    $titleLabel.Location = New-Object System.Drawing.Point($margin, $margin)
     $titleLabel.Size = New-Object System.Drawing.Size(($formWidth - $margin * 2), $titleHeight)
     $titleLabel.Text = "Found $($Updates.Count) application(s) with available updates:"
     $titleLabel.Font = New-Object System.Drawing.Font("Segoe UI", $titleFontSize, [System.Drawing.FontStyle]::Bold)
@@ -4994,7 +4907,7 @@ function Show-UpdatesDialog {
     # ListView for updates with scaled dimensions
     $listViewTop = $margin + $titleHeight + $margin
     $updatesListView = New-Object System.Windows.Forms.ListView
-    $updatesListView.Location = New-InstallerPoint($margin, $listViewTop)
+    $updatesListView.Location = New-Object System.Drawing.Point($margin, $listViewTop)
     $updatesListView.Size = New-Object System.Drawing.Size(($formWidth - $margin * 2), $listViewHeight)
     $updatesListView.View = [System.Windows.Forms.View]::Details
     $updatesListView.FullRowSelect = $true
@@ -5037,7 +4950,7 @@ function Show-UpdatesDialog {
 
     # Select All button
     $selectAllButton = New-Object System.Windows.Forms.Button
-    $selectAllButton.Location = New-InstallerPoint($margin, $buttonY)
+    $selectAllButton.Location = New-Object System.Drawing.Point($margin, $buttonY)
     $selectAllButton.Size = New-Object System.Drawing.Size($buttonWidth, $buttonHeight)
     $selectAllButton.Text = "Select All"
     $selectAllButton.Font = New-Object System.Drawing.Font("Segoe UI", $fontSize)
@@ -5051,7 +4964,7 @@ function Show-UpdatesDialog {
 
     # Deselect All button
     $deselectAllButton = New-Object System.Windows.Forms.Button
-    $deselectAllButton.Location = New-InstallerPoint(($margin + $buttonWidth + $spacing), $buttonY)
+    $deselectAllButton.Location = New-Object System.Drawing.Point(($margin + $buttonWidth + $spacing), $buttonY)
     $deselectAllButton.Size = New-Object System.Drawing.Size($buttonWidth, $buttonHeight)
     $deselectAllButton.Text = "Deselect All"
     $deselectAllButton.Font = New-Object System.Drawing.Font("Segoe UI", $fontSize)
@@ -5065,7 +4978,7 @@ function Show-UpdatesDialog {
 
     # Update Selected button (right side) - uses same dynamic width as other buttons
     $updateSelectedButton = New-Object System.Windows.Forms.Button
-    $updateSelectedButton.Location = New-InstallerPoint(($formWidth - $margin - $buttonWidth - $spacing - $buttonWidth), $buttonY)
+    $updateSelectedButton.Location = New-Object System.Drawing.Point(($formWidth - $margin - $buttonWidth - $spacing - $buttonWidth), $buttonY)
     $updateSelectedButton.Size = New-Object System.Drawing.Size($buttonWidth, $buttonHeight)
     $updateSelectedButton.Text = "Update Selected"
     $updateSelectedButton.Font = New-Object System.Drawing.Font("Segoe UI", $fontSize)
@@ -5077,7 +4990,7 @@ function Show-UpdatesDialog {
 
     # Cancel button
     $cancelButton = New-Object System.Windows.Forms.Button
-    $cancelButton.Location = New-InstallerPoint(($formWidth - $margin - $buttonWidth), $buttonY)
+    $cancelButton.Location = New-Object System.Drawing.Point(($formWidth - $margin - $buttonWidth), $buttonY)
     $cancelButton.Size = New-Object System.Drawing.Size($buttonWidth, $buttonHeight)
     $cancelButton.Text = "Cancel"
     $cancelButton.Font = New-Object System.Drawing.Font("Segoe UI", $fontSize)
@@ -5212,22 +5125,7 @@ function Export-InstallationProfile {
         [array]$SelectedApps,
 
         [Parameter(Mandatory = $false)]
-        [string]$FilePath,
-
-        [Parameter(Mandatory = $false)]
-        [string]$Name,
-
-        [Parameter(Mandatory = $false)]
-        [string]$Description,
-
-        [Parameter(Mandatory = $false)]
-        [string]$LongDescription,
-
-        [Parameter(Mandatory = $false)]
-        [string]$IconPath,
-
-        [Parameter(Mandatory = $false)]
-        [string[]]$Categories
+        [string]$FilePath
     )
 
     try {
@@ -5245,100 +5143,14 @@ function Export-InstallationProfile {
             $FilePath = Join-Path $profilesDir "profile-$computerName-$timestamp.json"
         }
 
-        # Normalize selected applications into names and application objects
-        $appNames = @()
-        $appObjects = @()
-
-        foreach ($item in $SelectedApps) {
-            if ($null -eq $item) { continue }
-
-            if ($item -is [string]) {
-                $appNames += $item
-                $app = $script:Applications | Where-Object { $_.Name -eq $item } | Select-Object -First 1
-                if ($app) {
-                    $appObjects += $app
-                }
-            }
-            else {
-                if ($item.PSObject.Properties.Match('Name').Count -gt 0 -and -not [string]::IsNullOrWhiteSpace($item.Name)) {
-                    $appNames += $item.Name
-                    $appObjects += $item
-                }
-            }
-        }
-
-        if ($appNames.Count -eq 0) {
-            Write-Log "Export-InstallationProfile (GUI) called with no valid applications" -Level ERROR
-            return $null
-        }
-
-        # Derive metadata for profile export (Name, Description, LongDescription, IconPath, Categories)
-        $profileName = if (-not [string]::IsNullOrWhiteSpace($Name)) {
-            $Name
-        }
-        else {
-            "Custom profile from $($env:COMPUTERNAME)"
-        }
-
-        $shortDescription = if (-not [string]::IsNullOrWhiteSpace($Description)) {
-            $Description
-        }
-        else {
-            "Profile containing $($appNames.Count) application(s) exported from $($env:COMPUTERNAME)."
-        }
-
-        $longDescription = if (-not [string]::IsNullOrWhiteSpace($LongDescription)) {
-            $LongDescription
-        }
-        else {
-            $shortDescription
-        }
-
-        $iconPathValue = if (-not [string]::IsNullOrWhiteSpace($IconPath)) {
-            $IconPath
-        }
-        else {
-            $null
-        }
-
-        if (-not $Categories -or $Categories.Count -eq 0) {
-            $derivedCategories = @()
-
-            $sourceApps = if ($appObjects.Count -gt 0) {
-                $appObjects
-            }
-            else {
-                $script:Applications | Where-Object { $appNames -contains $_.Name }
-            }
-
-            foreach ($app in $sourceApps) {
-                if ($app.PSObject.Properties.Match('Category').Count -gt 0 -and -not [string]::IsNullOrWhiteSpace($app.Category)) {
-                    if (-not ($derivedCategories -contains $app.Category)) {
-                        $derivedCategories += $app.Category
-                    }
-                }
-            }
-
-            if ($derivedCategories.Count -eq 0) {
-                $derivedCategories = @('Uncategorized')
-            }
-
-            $Categories = $derivedCategories
-        }
-
         # Create profile object
         $profile = [PSCustomObject]@{
-            Version         = "2.0"
-            Name            = $profileName
-            Description     = $shortDescription
-            LongDescription = $longDescription
-            IconPath        = $iconPathValue
-            Categories      = $Categories
-            Timestamp       = (Get-Date).ToString("yyyy-MM-ddTHH:mm:ss")
-            ComputerName    = $env:COMPUTERNAME
-            UserName        = $env:USERNAME
+            Version = "1.0"
+            Timestamp = (Get-Date).ToString("yyyy-MM-ddTHH:mm:ss")
+            ComputerName = $env:COMPUTERNAME
+            UserName = $env:USERNAME
             InstallerVersion = $script:ScriptVersion
-            Applications    = $appNames
+            Applications = $SelectedApps
         }
 
         # Export to JSON
@@ -5396,190 +5208,25 @@ function Import-InstallationProfile {
 
         # Read and parse JSON
         $profileContent = Get-Content -Path $FilePath -Raw -Encoding UTF8
+        $profile = $profileContent | ConvertFrom-Json
 
-        if ([string]::IsNullOrWhiteSpace($profileContent)) {
-            Write-Log "Profile file is empty: $FilePath" -Level ERROR
+        # Validate JSON structure
+        if (-not $profile.Version -or -not $profile.Applications) {
+            Write-Log "Invalid profile format: Missing required fields" -Level ERROR
             return @{
-                Success      = $false
+                Success = $false
                 Applications = @()
-                MissingApps  = @()
-                Message      = "Profile file is empty: $FilePath"
+                MissingApps = @()
+                Message = "Invalid profile format: Missing required fields (Version, Applications)"
             }
         }
-
-        try {
-            $profile = $profileContent | ConvertFrom-Json
-        }
-        catch {
-            Write-Log "Failed to parse profile JSON from '$FilePath': $($_.Exception.Message)" -Level ERROR
-            return @{
-                Success      = $false
-                Applications = @()
-                MissingApps  = @()
-                Message      = "Invalid profile JSON format in file: $FilePath"
-            }
-        }
-
-        if (-not $profile) {
-            Write-Log "Profile JSON did not produce an object for file: $FilePath" -Level ERROR
-            return @{
-                Success      = $false
-                Applications = @()
-                MissingApps  = @()
-                Message      = "Profile JSON is invalid or empty in file: $FilePath"
-            }
-        }
-
-        # Normalize application list
-        if (-not $profile.PSObject.Properties.Match('Applications').Count -or -not $profile.Applications) {
-            Write-Log "Invalid profile format: Missing Applications array" -Level ERROR
-            return @{
-                Success      = $false
-                Applications = @()
-                MissingApps  = @()
-                Message      = "Invalid profile format: Missing required field 'Applications'"
-            }
-        }
-
-        if ($profile.Applications -is [System.Array]) {
-            $appList = @($profile.Applications)
-        }
-        else {
-            $appList = @($profile.Applications)
-        }
-
-        # Normalize metadata (Version, Name, Description, LongDescription, IconPath, Categories)
-        $profileVersion = if ($profile.PSObject.Properties.Match('Version').Count -gt 0 -and $profile.Version) {
-            [string]$profile.Version
-        }
-        else {
-            "1.0"
-        }
-
-        $profileName = if ($profile.PSObject.Properties.Match('Name').Count -gt 0 -and -not [string]::IsNullOrWhiteSpace($profile.Name)) {
-            [string]$profile.Name
-        }
-        else {
-            [System.IO.Path]::GetFileNameWithoutExtension($FilePath)
-        }
-
-        $shortDescription = if ($profile.PSObject.Properties.Match('Description').Count -gt 0 -and -not [string]::IsNullOrWhiteSpace($profile.Description)) {
-            [string]$profile.Description
-        }
-        else {
-            "Profile '$profileName' with $($appList.Count) application(s)."
-        }
-
-        $longDescription = if ($profile.PSObject.Properties.Match('LongDescription').Count -gt 0 -and -not [string]::IsNullOrWhiteSpace($profile.LongDescription)) {
-            [string]$profile.LongDescription
-        }
-        else {
-            $shortDescription
-        }
-
-        $iconPathValue = $null
-        if ($profile.PSObject.Properties.Match('IconPath').Count -gt 0 -and -not [string]::IsNullOrWhiteSpace($profile.IconPath)) {
-            $iconPathValue = [string]$profile.IconPath
-        }
-
-        # Normalize categories
-        $categories = @()
-        if ($profile.PSObject.Properties.Match('Categories').Count -gt 0 -and $profile.Categories) {
-            if ($profile.Categories -is [System.Array]) {
-                $categoriesInput = @($profile.Categories)
-            }
-            else {
-                $categoriesInput = @([string]$profile.Categories)
-            }
-
-            foreach ($cat in $categoriesInput) {
-                if (-not [string]::IsNullOrWhiteSpace($cat)) {
-                    if (-not ($categories -contains $cat)) {
-                        $categories += $cat
-                    }
-                }
-            }
-        }
-
-        if ($categories.Count -eq 0) {
-            $derivedCategories = @()
-            foreach ($appName in $appList) {
-                $app = $script:Applications | Where-Object { $_.Name -eq $appName } | Select-Object -First 1
-                if ($app -and $app.PSObject.Properties.Match('Category').Count -gt 0 -and -not [string]::IsNullOrWhiteSpace($app.Category)) {
-                    if (-not ($derivedCategories -contains $app.Category)) {
-                        $derivedCategories += $app.Category
-                    }
-                }
-            }
-
-            if ($derivedCategories.Count -eq 0) {
-                $derivedCategories = @('Uncategorized')
-            }
-
-            $categories = $derivedCategories
-        }
-
-        # Push normalized metadata back into profile object for downstream consumers
-        if (-not $profile.PSObject.Properties.Match('Version').Count) {
-            $profile | Add-Member -NotePropertyName 'Version' -NotePropertyValue $profileVersion
-        }
-        else {
-            $profile.Version = $profileVersion
-        }
-
-        if (-not $profile.PSObject.Properties.Match('Name').Count) {
-            $profile | Add-Member -NotePropertyName 'Name' -NotePropertyValue $profileName
-        }
-        else {
-            if ([string]::IsNullOrWhiteSpace($profile.Name)) {
-                $profile.Name = $profileName
-            }
-        }
-
-        if (-not $profile.PSObject.Properties.Match('Description').Count) {
-            $profile | Add-Member -NotePropertyName 'Description' -NotePropertyValue $shortDescription
-        }
-        else {
-            if ([string]::IsNullOrWhiteSpace($profile.Description)) {
-                $profile.Description = $shortDescription
-            }
-        }
-
-        if (-not $profile.PSObject.Properties.Match('LongDescription').Count) {
-            $profile | Add-Member -NotePropertyName 'LongDescription' -NotePropertyValue $longDescription
-        }
-        else {
-            if ([string]::IsNullOrWhiteSpace($profile.LongDescription)) {
-                $profile.LongDescription = $longDescription
-            }
-        }
-
-        if (-not $profile.PSObject.Properties.Match('IconPath').Count) {
-            $profile | Add-Member -NotePropertyName 'IconPath' -NotePropertyValue $iconPathValue
-        }
-        else {
-            if ([string]::IsNullOrWhiteSpace($profile.IconPath)) {
-                $profile.IconPath = $iconPathValue
-            }
-        }
-
-        if (-not $profile.PSObject.Properties.Match('Categories').Count) {
-            $profile | Add-Member -NotePropertyName 'Categories' -NotePropertyValue $categories
-        }
-        else {
-            $profile.Categories = $categories
-        }
-
-        $profile.Applications = $appList
 
         Write-Log "Importing profile from: $FilePath" -Level INFO
-        Write-Log "Profile name: $profileName" -Level INFO
-        Write-Log "Profile version: $profileVersion" -Level INFO
+        Write-Log "Profile version: $($profile.Version)" -Level INFO
         Write-Log "Profile created: $($profile.Timestamp)" -Level INFO
         Write-Log "Profile computer: $($profile.ComputerName)" -Level INFO
         Write-Log "Profile user: $($profile.UserName)" -Level INFO
         Write-Log "Profile installer version: $($profile.InstallerVersion)" -Level INFO
-        Write-Log "Profile categories: $([string]::Join(', ', $categories))" -Level INFO
 
         # Get list of available application names
         $availableAppNames = $script:Applications | ForEach-Object { $_.Name }
@@ -5605,11 +5252,11 @@ function Import-InstallationProfile {
         }
 
         return @{
-            Success      = $true
+            Success = $true
             Applications = $validApps
-            MissingApps  = $missingApps
-            Message      = "Successfully imported profile with $($validApps.Count) application(s)"
-            ProfileInfo  = $profile
+            MissingApps = $missingApps
+            Message = "Successfully imported profile with $($validApps.Count) application(s)"
+            ProfileInfo = $profile
         }
     }
     catch {
@@ -5622,398 +5269,6 @@ function Import-InstallationProfile {
         }
     }
 }
-
-
-function Show-ProfileBrowserDialog {
-    <#
-    .SYNOPSIS
-        Shows a dialog that lets the user browse available profiles as cards.
-
-    .OUTPUTS
-        String - Full path to the selected profile file, or $null if cancelled.
-    #>
-    [CmdletBinding()]
-    param()
-
-    Write-Log "Preparing profile browser dialog" -Level INFO
-
-    $profileFiles = @()
-    try {
-        if (Test-Path $script:ProfilesPath) {
-            $profileFiles = Get-ChildItem -Path $script:ProfilesPath -Filter "*.json" -File -ErrorAction SilentlyContinue | Sort-Object Name
-        }
-    }
-    catch {
-        Write-Log "Failed to enumerate profiles directory '$script:ProfilesPath': $($_.Exception.Message)" -Level WARNING
-    }
-
-    if (-not $profileFiles -or $profileFiles.Count -eq 0) {
-        [System.Windows.Forms.MessageBox]::Show(
-            "No profile JSON files were found in:`n$($script:ProfilesPath)`n`nUse Export Selection to create a profile first, then try again.",
-            "No Profiles Found",
-            [System.Windows.Forms.MessageBoxButtons]::OK,
-            [System.Windows.Forms.MessageBoxIcon]::Information
-        ) | Out-Null
-        Write-Log "No profile JSON files found in $script:ProfilesPath" -Level INFO
-        return $null
-    }
-
-    $profiles = @()
-    foreach ($file in $profileFiles) {
-        try {
-            $importResult = Import-InstallationProfile -FilePath $file.FullName
-            if (-not $importResult -or -not $importResult.Success) {
-                Write-Log "Skipping profile file '$($file.FullName)' because Import-InstallationProfile reported failure: $($importResult.Message)" -Level WARNING
-                continue
-            }
-
-            $profileData = $importResult.ProfileInfo
-            if (-not $profileData -or -not $profileData.Applications -or $profileData.Applications.Count -eq 0) { continue }
-
-            $profiles += [PSCustomObject]@{
-                FilePath        = $file.FullName
-                FileName        = $file.Name
-                Profile         = $profileData
-                Applications    = @($profileData.Applications)
-                Name            = $profileData.Name
-                Description     = $profileData.Description
-                LongDescription = $profileData.LongDescription
-                IconPath        = $profileData.IconPath
-                Categories      = @($profileData.Categories)
-            }
-        }
-        catch {
-            Write-Log "Failed to load profile file '$($file.FullName)': $($_.Exception.Message)" -Level WARNING
-        }
-    }
-
-    if ($profiles.Count -eq 0) {
-        [System.Windows.Forms.MessageBox]::Show(
-            "No valid profiles were found in:`n$($script:ProfilesPath)`n`nEnsure the JSON files contain an Applications array.",
-            "No Valid Profiles",
-            [System.Windows.Forms.MessageBoxButtons]::OK,
-            [System.Windows.Forms.MessageBoxIcon]::Information
-        ) | Out-Null
-        Write-Log "No valid profiles (with Applications) found in $script:ProfilesPath" -Level INFO
-        return $null
-    }
-
-    Write-Log "Showing profile browser dialog with $($profiles.Count) profile(s)" -Level INFO
-
-    $scaleInfo = Get-DPIScaleFactor
-    $scaleFactor = $scaleInfo.TotalScale
-
-    $baseMargin = 15
-    $baseFormWidth = 820
-    $baseFormHeight = 560
-    $baseTitleHeight = 26
-    $baseMetaHeight = 80
-    $baseButtonHeight = 35
-    $baseFontSize = 10
-    $baseTableFontSize = 10
-
-    $margin = [int]($baseMargin * $scaleFactor)
-    $formWidth = [int]($baseFormWidth * $scaleFactor)
-    $formHeight = [int]($baseFormHeight * $scaleFactor)
-    $titleHeight = [int]($baseTitleHeight * $scaleFactor)
-    $metaHeight = [int]($baseMetaHeight * $scaleFactor)
-    $buttonHeight = [int]($baseButtonHeight * $scaleFactor)
-    $fontSize = [Math]::Max([int]($baseFontSize * $scaleFactor), 9)
-    $tableFontSize = [Math]::Max([int]($baseTableFontSize * $scaleFactor), 9)
-    $spacing = [int](10 * $scaleFactor)
-    $navButtonWidth = [int](40 * $scaleFactor)
-    $navButtonHeight = [int](40 * $scaleFactor)
-
-    # Create profile form without relying on external responsive helpers to avoid
-    # potential constructor overload issues (e.g., System.Drawing.Point with 4 args).
-    $profileForm = New-Object System.Windows.Forms.Form
-    $profileForm.Text = "Import Installation Profile"
-    $profileForm.StartPosition = [System.Windows.Forms.FormStartPosition]::CenterScreen
-    $profileForm.Size = New-Object System.Drawing.Size($formWidth, $formHeight)
-    $profileForm.MinimumSize = New-Object System.Drawing.Size([int]($formWidth * 0.7), [int]($formHeight * 0.7))
-    $profileForm.AutoScaleMode = [System.Windows.Forms.AutoScaleMode]::Dpi
-    $profileForm.AutoScaleDimensions = New-Object System.Drawing.SizeF(96, 96)
-    $profileForm.Font = New-Object System.Drawing.Font("Segoe UI", $fontSize, [System.Drawing.FontStyle]::Regular)
-
-    $titleLabel = New-Object System.Windows.Forms.Label
-    $titleLabel.Location = New-InstallerPoint($margin, $margin)
-    $titleLabelWidthBase = 2 * $margin
-    $titleLabelWidth = $formWidth + [int]::Negate($titleLabelWidthBase)
-    $titleLabel.Size = New-Object System.Drawing.Size($titleLabelWidth, $titleHeight)
-    $titleLabel.Font = New-Object System.Drawing.Font("Segoe UI", $fontSize, [System.Drawing.FontStyle]::Bold)
-    $titleLabel.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right
-    $profileForm.Controls.Add($titleLabel)
-
-    # Icon for the profile (loaded from IconPath if available)
-    $iconSize = [int](64 * $scaleFactor)
-    $iconPictureBox = New-Object System.Windows.Forms.PictureBox
-    $iconXAdjustment = $margin + $iconSize
-    $iconX = $formWidth + [int]::Negate($iconXAdjustment)
-    $iconPictureBox.Location = New-InstallerPoint($iconX, $margin)
-    $iconPictureBox.Size = New-Object System.Drawing.Size($iconSize, $iconSize)
-    $iconPictureBox.SizeMode = [System.Windows.Forms.PictureBoxSizeMode]::Zoom
-    $iconPictureBox.BorderStyle = [System.Windows.Forms.BorderStyle]::FixedSingle
-    $iconPictureBox.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Right
-    $profileForm.Controls.Add($iconPictureBox)
-
-    $metaLabel = New-Object System.Windows.Forms.Label
-    $metaLabel.Location = New-InstallerPoint($margin, $margin + $titleHeight + [int](4 * $scaleFactor))
-    $metaWidthBase = 2 * $margin
-    $metaWidth = $formWidth + [int]::Negate($metaWidthBase)
-    $metaLabel.Size = New-Object System.Drawing.Size($metaWidth, $metaHeight)
-    $metaLabel.Font = New-Object System.Drawing.Font("Segoe UI", $fontSize)
-    $metaLabel.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right
-    $metaLabel.AutoSize = $false
-    $metaLabel.TextAlign = [System.Drawing.ContentAlignment]::TopLeft
-    $profileForm.Controls.Add($metaLabel)
-
-    $listTop = $margin + $titleHeight + [int](4 * $scaleFactor) + $metaHeight + $margin
-    $listHeightSubTotal = $listTop + $margin + $buttonHeight + $margin
-    $listHeight = $formHeight + [int]::Negate($listHeightSubTotal)
-    if ($listHeight -lt 0) { $listHeight = 0 }
-
-    $listLeft = $margin + $navButtonWidth + $spacing
-    $listWidthSubTotal = (2 * $margin) + (2 * $navButtonWidth) + (2 * $spacing)
-    $listWidth = $formWidth + [int]::Negate($listWidthSubTotal)
-    if ($listWidth -lt 0) { $listWidth = 0 }
-
-    $appsListView = New-Object System.Windows.Forms.ListView
-    $appsListView.Location = New-InstallerPoint($listLeft, $listTop)
-    $appsListView.Size = New-Object System.Drawing.Size($listWidth, $listHeight)
-    $appsListView.View = [System.Windows.Forms.View]::Details
-    $appsListView.FullRowSelect = $true
-    $appsListView.GridLines = $true
-    $appsListView.Font = New-Object System.Drawing.Font("Segoe UI", $tableFontSize)
-    $appsListView.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right
-
-    $scrollbarWidth = [int](25 * $scaleFactor)
-    $listViewWidth = $appsListView.Size.Width
-    $colCategoryWidth = [Math]::Max([int](140 * $scaleFactor), [int](120 * $scaleFactor))
-    $colAppWidthSubTotal = $colCategoryWidth + $scrollbarWidth
-    $colAppWidth = $listViewWidth + [int]::Negate($colAppWidthSubTotal)
-    if ($colAppWidth -lt 0) { $colAppWidth = 0 }
-
-    $appsListView.Columns.Add("Category", $colCategoryWidth) | Out-Null
-    $appsListView.Columns.Add("Application", $colAppWidth) | Out-Null
-
-    $rowHeight = [Math]::Max([int](20 * $scaleFactor), 20)
-    $imageList = New-Object System.Windows.Forms.ImageList
-    $imageList.ImageSize = New-Object System.Drawing.Size(1, $rowHeight)
-    $appsListView.SmallImageList = $imageList
-
-    $profileForm.Controls.Add($appsListView)
-
-    $buttonFont = New-Object System.Drawing.Font("Segoe UI", $fontSize)
-
-    # Navigation buttons on left and right of the profile list (slideshow-style)
-    $navHeightDelta = $listHeight + [int]::Negate($navButtonHeight)
-    if ($navHeightDelta -lt 0) { $navHeightDelta = 0 }
-    $navOffsetY = [int]($navHeightDelta / 2)
-    $navCenterY = $listTop + $navOffsetY
-
-    $prevButton = New-Object System.Windows.Forms.Button
-    $prevButton.Location = New-InstallerPoint($margin, $navCenterY)
-    $prevButton.Size = New-Object System.Drawing.Size($navButtonWidth, $navButtonHeight)
-    $prevButton.Text = "<"
-    $prevButton.Font = $buttonFont
-    $prevButton.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left
-    $profileForm.Controls.Add($prevButton)
-
-    $nextButton = New-Object System.Windows.Forms.Button
-    $nextButtonXOffset = $margin + $navButtonWidth
-    $nextButtonX = $formWidth + [int]::Negate($nextButtonXOffset)
-    $nextButton.Location = New-InstallerPoint($nextButtonX, $navCenterY)
-    $nextButton.Size = New-Object System.Drawing.Size($navButtonWidth, $navButtonHeight)
-    $nextButton.Text = ">"
-    $nextButton.Font = $buttonFont
-    $nextButton.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Right
-    $profileForm.Controls.Add($nextButton)
-
-    # Bottom action buttons: Choose Profile, Import a Profile, Cancel (right-aligned)
-    $buttonYOffset = $margin + $buttonHeight
-    $buttonY = $formHeight + [int]::Negate($buttonYOffset)
-
-    $selectWidth = [int](140 * $scaleFactor)
-    $importWidth = [int](150 * $scaleFactor)
-
-    $selectButton = New-Object System.Windows.Forms.Button
-    $selectButton.Size = New-Object System.Drawing.Size($selectWidth, $buttonHeight)
-    $selectButton.Text = "Choose Profile"
-    $selectButton.Font = $buttonFont
-    $selectButton.BackColor = [System.Drawing.Color]::Green
-    $selectButton.ForeColor = [System.Drawing.Color]::White
-    $selectButton.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Right
-
-    $importButton = New-Object System.Windows.Forms.Button
-    $importButton.Size = New-Object System.Drawing.Size($importWidth, $buttonHeight)
-    $importButton.Text = "Import a Profile"
-    $importButton.Font = $buttonFont
-    $importButton.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Right
-
-    $cancelButton = New-Object System.Windows.Forms.Button
-    $cancelButton.Size = New-Object System.Drawing.Size([int](100 * $scaleFactor), $buttonHeight)
-    $cancelButton.Text = "Cancel"
-    $cancelButton.Font = $buttonFont
-    $cancelButton.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Right
-
-    $cancelOffset = $margin + $cancelButton.Width
-    $cancelButtonX = $formWidth + [int]::Negate($cancelOffset)
-    $cancelButton.Location = New-InstallerPoint($cancelButtonX, $buttonY)
-
-    $importOffset = $spacing + $importButton.Width
-    $importButtonX = $cancelButtonX + [int]::Negate($importOffset)
-    $importButton.Location = New-InstallerPoint($importButtonX, $buttonY)
-
-    $selectOffset = $spacing + $selectButton.Width
-    $selectButtonX = $importButtonX + [int]::Negate($selectOffset)
-    $selectButton.Location = New-InstallerPoint($selectButtonX, $buttonY)
-
-    $profileForm.Controls.Add($selectButton)
-    $profileForm.Controls.Add($importButton)
-    $profileForm.Controls.Add($cancelButton)
-
-    $profileForm.AcceptButton = $selectButton
-    $profileForm.CancelButton = $cancelButton
-
-    $currentIndex = 0
-
-    $updateDisplay = {
-        param([int]$index)
-
-        $info = $profiles[$index]
-        $p = $info.Profile
-
-        $profileName = if (-not [string]::IsNullOrWhiteSpace($info.Name)) { $info.Name } else { $info.FileName }
-        $shortDescription = if (-not [string]::IsNullOrWhiteSpace($info.Description)) { $info.Description } else { "Profile with $($info.Applications.Count) application(s)." }
-        $longDescription = if (-not [string]::IsNullOrWhiteSpace($info.LongDescription)) { $info.LongDescription } else { $shortDescription }
-        $categories = @($info.Categories | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
-
-        $titleLabel.Text = "Profile {0} of {1}: {2}" -f ($index + 1), $profiles.Count, $profileName
-
-        $categoryText = if ($categories.Count -gt 0) { [string]::Join(', ', $categories) } else { 'Uncategorized' }
-
-        $metaLabel.Text = "{0}`nCategories: {1}`nSource: {2} (Created: {3})" -f `
-            $longDescription,
-            $categoryText,
-            $info.FileName,
-            $p.Timestamp
-
-        # Load icon if available
-        $iconPictureBox.Image = $null
-        if ($info.IconPath -and -not [string]::IsNullOrWhiteSpace($info.IconPath)) {
-            try {
-                if ($info.IconPath -match '^(http|https)://') {
-                    $client = New-Object System.Net.WebClient
-                    $client.Headers.Add('User-Agent', 'myTech.Today-AppInstaller')
-                    $imageData = $client.DownloadData($info.IconPath)
-                    $stream = New-Object System.IO.MemoryStream(,$imageData)
-                    $iconPictureBox.Image = [System.Drawing.Image]::FromStream($stream)
-                }
-                elseif (Test-Path $info.IconPath) {
-                    $iconPictureBox.Image = [System.Drawing.Image]::FromFile($info.IconPath)
-                }
-            }
-            catch {
-                Write-Log "Failed to load icon for profile '$profileName' from '$($info.IconPath)': $($_.Exception.Message)" -Level WARNING
-                $iconPictureBox.Image = $null
-            }
-        }
-
-        $appsListView.BeginUpdate()
-        $appsListView.Items.Clear()
-
-        $appsWithCategories = @()
-        foreach ($name in $info.Applications) {
-            $app = $script:Applications | Where-Object { $_.Name -eq $name } | Select-Object -First 1
-            if ($app) {
-                $appsWithCategories += [PSCustomObject]@{
-                    Name     = $app.Name
-                    Category = if ($app.PSObject.Properties.Match('Category').Count -gt 0 -and $app.Category) { $app.Category } else { 'Uncategorized' }
-                }
-            }
-            else {
-                $appsWithCategories += [PSCustomObject]@{
-                    Name     = $name
-                    Category = 'Uncategorized'
-                }
-            }
-        }
-
-        foreach ($appInfo in ($appsWithCategories | Sort-Object Category, Name)) {
-            $item = New-Object System.Windows.Forms.ListViewItem($appInfo.Category)
-            $item.SubItems.Add($appInfo.Name) | Out-Null
-            $appsListView.Items.Add($item) | Out-Null
-        }
-
-        $appsListView.EndUpdate()
-
-        # Enable navigation buttons (disable only if there is a single profile)
-        $prevButton.Enabled = ($profiles.Count -gt 1)
-        $nextButton.Enabled = ($profiles.Count -gt 1)
-
-        Write-Log "Profile browser displaying profile index $index ('$profileName')" -Level INFO
-    }.GetNewClosure()
-
-    $prevButton.Add_Click({
-        if ($profiles.Count -le 1) { return }
-        $currentIndex = $currentIndex + [int]::Negate(1)
-        if ($currentIndex -lt 0) {
-            $currentIndex = [int]($profiles.Count + [int]::Negate(1))
-        }
-        & $updateDisplay $currentIndex
-    }.GetNewClosure())
-
-    $nextButton.Add_Click({
-        if ($profiles.Count -le 1) { return }
-        $currentIndex++
-        if ($currentIndex -ge $profiles.Count) {
-            $currentIndex = 0
-        }
-        & $updateDisplay $currentIndex
-    }.GetNewClosure())
-
-    $profileForm.Tag = $null
-
-    $selectButton.Add_Click({
-        if ($profiles.Count -gt 0) {
-            $info = $profiles[$currentIndex]
-            $profileForm.Tag = $info.FilePath
-            $profileForm.DialogResult = [System.Windows.Forms.DialogResult]::OK
-        }
-    }.GetNewClosure())
-
-    $importButton.Add_Click({
-        $openDialog = New-Object System.Windows.Forms.OpenFileDialog
-        $openDialog.Filter = "JSON files (*.json)|*.json|All files (*.*)|*.*"
-        $openDialog.Title = "Import Installation Profile"
-        $openDialog.InitialDirectory = $script:ProfilesPath
-
-        if ($openDialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
-            $profileForm.Tag = $openDialog.FileName
-            Write-Log "Profile file chosen via Import a Profile button: $($profileForm.Tag)" -Level INFO
-            $profileForm.DialogResult = [System.Windows.Forms.DialogResult]::OK
-        }
-        else {
-            Write-Log "Import a Profile file selection dialog was cancelled" -Level INFO
-        }
-    }.GetNewClosure())
-
-    $cancelButton.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
-
-    & $updateDisplay $currentIndex
-
-    $result = $profileForm.ShowDialog()
-
-    if ($result -eq [System.Windows.Forms.DialogResult]::OK -and $profileForm.Tag) {
-        Write-Log "Profile selected from Import Installation Profile dialog: $($profileForm.Tag)" -Level INFO
-        return [string]$profileForm.Tag
-    }
-    else {
-        Write-Log "Import Installation Profile dialog cancelled" -Level INFO
-        return $null
-    }
-}
-
 
 #endregion Profile Export/Import Functions
 
@@ -6256,11 +5511,6 @@ function Install-SelectedApplications {
     $startTime = Get-Date  # Track installation start time
     $installationTimes = @()  # Track individual installation times for ETA
 
-    # Track which apps succeeded, failed, or were skipped (for detailed logging)
-    $successfulApps = @()
-    $failedApps = @()
-    $skippedApps = @()
-
     # Process queue
     while ($script:CurrentQueueIndex -lt $script:InstallationQueue.Count) {
         # Check if paused
@@ -6293,6 +5543,7 @@ function Install-SelectedApplications {
         else {
             Write-Output "[SKIP] Skipping $($app.Name)" -Color ([System.Drawing.Color]::Yellow)
             $success = $false
+            $skippedCount++
         }
 
         # Calculate installation time
@@ -6313,17 +5564,11 @@ function Install-SelectedApplications {
             }
         }
 
-        if ($script:SkipCurrent) {
-            $skippedCount++
-            $skippedApps += $app.Name
-        }
-        elseif ($success) {
+        if ($success) {
             $successCount++
-            $successfulApps += $app.Name
         }
         else {
             $failCount++
-            $failedApps += $app.Name
         }
 
         # Update progress after installation completes
@@ -6385,33 +5630,6 @@ function Install-SelectedApplications {
     Write-Output "`r`n=== Installation Complete ===" -Color ([System.Drawing.Color]::Cyan)
     Write-Output "Installation complete: $successCount succeeded, $failCount failed, $skippedCount skipped" -Color $completionColor
     Write-Output "Success: $successCount | Failed: $failCount | Skipped: $skippedCount | Time: $totalMinutes minutes" -Color $completionColor
-
-    # Also show which applications succeeded, failed, or were skipped in the HTML console
-    if ($successfulApps.Count -gt 0) {
-        Write-Output ('Successful installs ({0}): {1}' -f $successfulApps.Count, ($successfulApps -join ', ')) -Color ([System.Drawing.Color]::Green)
-    }
-    if ($failedApps.Count -gt 0) {
-        Write-Output ('Failed installs ({0}): {1}' -f $failedApps.Count, ($failedApps -join ', ')) -Color ([System.Drawing.Color]::Red)
-    }
-    if ($skippedApps.Count -gt 0) {
-        Write-Output ('Skipped installs ({0}): {1}' -f $skippedApps.Count, ($skippedApps -join ', ')) -Color ([System.Drawing.Color]::Orange)
-    }
-
-
-    # Log installation summary (including failures) to the persistent log file
-    $summaryLevel = if ($failCount -gt 0) { "ERROR" } elseif ($skippedCount -gt 0) { "WARNING" } else { "SUCCESS" }
-    Write-Log ("Installation summary: {0} succeeded, {1} failed, {2} skipped out of {3} application(s). Total time: {4} minutes." -f `
-        $successCount, $failCount, $skippedCount, $script:InstallationQueue.Count, $totalMinutes) -Level $summaryLevel
-
-    if ($failedApps.Count -gt 0) {
-        Write-Log ("Failed applications ({0}): {1}" -f $failedApps.Count, ($failedApps -join ', ')) -Level ERROR
-    }
-    if ($skippedApps.Count -gt 0) {
-        Write-Log ("Skipped applications ({0}): {1}" -f $skippedApps.Count, ($skippedApps -join ', ')) -Level WARNING
-    }
-    if ($successfulApps.Count -gt 0) {
-        Write-Log ("Successfully installed applications ({0}): {1}" -f $successfulApps.Count, ($successfulApps -join ', ')) -Level INFO
-    }
 
     # Update status label
     if ($script:StatusLabel) {
@@ -6545,11 +5763,6 @@ function Uninstall-SelectedApplications {
         }
     }
 
-    if ($notInstalledApps.Count -gt 0) {
-        Write-Log ('Selected applications not currently installed and will be skipped during uninstall ({0}): {1}' -f $notInstalledApps.Count, ($notInstalledApps.Name -join ', ')) -Level INFO
-    }
-
-
     $confirmMessage += "`r`nThis action cannot be undone. Proceed with uninstall?"
 
     # Confirm uninstall - REQUIRED
@@ -6596,11 +5809,6 @@ function Uninstall-SelectedApplications {
     $failCount = 0
     $startTime = Get-Date
 
-    # Track which apps succeeded/failed for detailed logging and HTML output
-    $successfulUninstalls = @()
-    $failedUninstalls = @()
-
-
     # Process each app
     for ($i = 0; $i -lt $installedApps.Count; $i++) {
         $app = $installedApps[$i]
@@ -6616,11 +5824,9 @@ function Uninstall-SelectedApplications {
 
         if ($result) {
             $successCount++
-            $successfulUninstalls += $app.Name
         }
         else {
             $failCount++
-            $failedUninstalls += $app.Name
         }
 
         # Update progress bar
@@ -6645,27 +5851,6 @@ function Uninstall-SelectedApplications {
     Write-Output "`r`n=== Uninstall Complete ===" -Color ([System.Drawing.Color]::Cyan)
     Write-Output "Uninstall complete: $successCount succeeded, $failCount failed" -Color $completionColor
     Write-Output "Success: $successCount | Failed: $failCount | Time: $totalMinutes minutes" -Color $completionColor
-
-    # Also show which applications were successfully uninstalled or failed in the HTML console
-    if ($successfulUninstalls.Count -gt 0) {
-        Write-Output ('Successfully uninstalled ({0}): {1}' -f $successfulUninstalls.Count, ($successfulUninstalls -join ', ')) -Color ([System.Drawing.Color]::Green)
-    }
-    if ($failedUninstalls.Count -gt 0) {
-        Write-Output ('Failed to uninstall ({0}): {1}' -f $failedUninstalls.Count, ($failedUninstalls -join ', ')) -Color ([System.Drawing.Color]::Red)
-    }
-
-    # Log uninstall summary (including failures) to the persistent log file
-    $uninstallSummaryLevel = if ($failCount -gt 0) { 'ERROR' } else { 'SUCCESS' }
-    Write-Log ('Uninstall summary: {0} succeeded, {1} failed out of {2} application(s). Total time: {3} minutes.' -f `
-        $successCount, $failCount, $installedApps.Count, $totalMinutes) -Level $uninstallSummaryLevel
-
-    if ($failedUninstalls.Count -gt 0) {
-        Write-Log ('Failed uninstalls ({0}): {1}' -f $failedUninstalls.Count, ($failedUninstalls -join ', ')) -Level ERROR
-    }
-    if ($successfulUninstalls.Count -gt 0) {
-        Write-Log ('Successfully uninstalled applications ({0}): {1}' -f $successfulUninstalls.Count, ($successfulUninstalls -join ', ')) -Level INFO
-    }
-
 
     # Update status label
     if ($script:StatusLabel) {

@@ -130,11 +130,28 @@ The **App Installer** is a comprehensive PowerShell application installer system
 
 - **Operating System:** Windows 10 (1809+), Windows 11, Windows Server 2016+
 - **PowerShell:** 5.1 or later (PowerShell 7.2+ recommended)
-- **Privileges:** Administrator rights required
+- **Privileges:** Administrator rights required (see **Administrator & Antivirus Notes** below)
 - **winget:** Windows Package Manager (recommended, installed by default on Windows 11)
 - **.NET Framework:** 4.7.2 or later (for GUI version)
   - **Note:** The GUI installer (`install-gui.ps1`) will automatically detect and offer to install .NET Framework 4.8 if not present or if an older version is detected
 
+## Administrator & Antivirus Notes
+
+- **Always run elevated:**
+  - When using the **PowerShell scripts** (`install-gui.ps1`, `install.ps1`): start PowerShell **as Administrator** and run the scripts from an elevated session.
+  - When using the **packaged EXE** (for example, `install-GUI.exe` built via IEXPRESS): allow the UAC elevation prompt and run the EXE **as Administrator**.
+- **Why elevation is required:**
+  - Installing software, managing services, and modifying system-wide settings (registry, Program Files, etc.) requires administrative rights.
+  - Some installers and winget operations will fail or behave unpredictably without elevation.
+- **Antivirus / SmartScreen behavior:**
+  - Because the EXE is a **custom IEXPRESS self-extracting package**, many antivirus products and/or Windows SmartScreen may **flag, warn about, or quarantine** the EXE on first run.
+  - If you trust the source (this repository and your own build), you may need to:
+    - Unblock the EXE in the file properties dialog.
+    - Mark it as **allowed** in your antivirus / endpoint protection.
+    - Choose **"More info" → "Run anyway"** if SmartScreen shows a warning.
+- **Recommendation:**
+  - Prefer running the **raw PowerShell script (`install-gui.ps1`) from an elevated PowerShell session** when testing or developing.
+  - Use the **EXE** for deployment/hand-off scenarios, with the expectation that security software may require manual approval.
 ## Installation
 
 1. **Clone or download** the repository:
@@ -266,7 +283,7 @@ Profiles are saved as JSON files with the following structure:
 
 ### Default Profile Location
 
-Profiles are saved to: `C:\mytech.today\app_installer\profiles\`
+Profiles are saved to: `%USERPROFILE%\mytech.today\app_installer\profiles\`
 
 Default filename format: `profile-{ComputerName}-{yyyy-MM-dd-HHmmss}.json`
 
@@ -380,7 +397,7 @@ Both the GUI and CLI versions support uninstalling applications that were previo
 
 All activities are logged to:
 ```
-C:\mytech.today\logs\install-yyyy-MM.md
+%USERPROFILE%\mytech.today\logs\install-yyyy-MM.md
 ```
 
 **Log Format:** Markdown table with icons

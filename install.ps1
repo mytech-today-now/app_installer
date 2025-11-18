@@ -72,7 +72,7 @@
     Version        : 1.5.4
 
 .LINK
-    https://github.com/mytech-today-now/PowerShellScripts
+    https://github.com/mytech-today-now/PowerShellScripts/app_installer
 #>
 
 [CmdletBinding(SupportsShouldProcess = $true)]
@@ -94,7 +94,7 @@ param(
 #region Load Generic Logging Module
 
 # Import generic logging module from GitHub for centralized logging
-$loggingUrl = 'https://raw.githubusercontent.com/mytech-today-now/scripts/refs/heads/main/logging.ps1'
+$loggingUrl = 'https://raw.githubusercontent.com/mytech-today-now/scripts/main/logging.ps1'
 $script:LoggingModuleLoaded = $false
 
 try {
@@ -128,7 +128,7 @@ $script:ScriptVersion = '1.5.4'
 $script:OriginalScriptPath = $PSScriptRoot
 $script:SystemInstallPath = "$env:SystemDrive\mytech.today\app_installer"
 $script:ScriptPath = $script:SystemInstallPath  # Will be updated after copy
-$script:CentralLogPath = "$env:USERPROFILE\myTech.Today\"
+$script:CentralLogPath = "C:\mytech.today\logs\"
 $script:LogPath = $null
 $script:AppsPath = Join-Path $script:ScriptPath "apps"
 $script:ProfilesPath = Join-Path $script:ScriptPath "profiles"
@@ -519,9 +519,9 @@ $script:Applications = @(
     [PSCustomObject]@{ Name = "AceMoney Lite"; ScriptName = "acemoneylite.ps1"; WingetId = $null; Category = "Finance"; Description = "Personal finance management tool" }
     [PSCustomObject]@{ Name = "Actual Budget"; ScriptName = "actualbudget.ps1"; WingetId = "ActualBudget.ActualBudget"; Category = "Finance"; Description = "Local-first personal finance tool" }
     # Shortcuts & Maintenance
-    [PSCustomObject]@{ Name = "Grok AI Shortcuts"; ScriptName = "grok-shortcuts.ps1"; WingetId = $null; Category = "Shortcuts"; Description = "Quick access to Grok AI assistant" }
-    [PSCustomObject]@{ Name = "ChatGPT Shortcuts"; ScriptName = "chatgpt-shortcuts.ps1"; WingetId = $null; Category = "Shortcuts"; Description = "Quick access to ChatGPT" }
-    [PSCustomObject]@{ Name = "dictation.io Shortcut"; ScriptName = "dictation-shortcut.ps1"; WingetId = $null; Category = "Shortcuts"; Description = "Web-based voice dictation tool" }
+    [PSCustomObject]@{ Name = "Grok AI Shortcuts"; ScriptName = "grok-shortcuts.ps1"; WingetId = $null; Category = "AI"; Description = "Quick access to Grok AI assistant" }
+    [PSCustomObject]@{ Name = "ChatGPT Shortcuts"; ScriptName = "chatgpt-shortcuts.ps1"; WingetId = $null; Category = "AI"; Description = "Quick access to ChatGPT" }
+    [PSCustomObject]@{ Name = "dictation.io Shortcut"; ScriptName = "dictation-shortcut.ps1"; WingetId = $null; Category = "AI"; Description = "Web-based voice dictation tool" }
     [PSCustomObject]@{ Name = "Uninstall McAfee"; ScriptName = "uninstall-mcafee.ps1"; WingetId = $null; Category = "Maintenance"; Description = "Remove McAfee software completely" }
     [PSCustomObject]@{ Name = "PowerToys"; ScriptName = "powertoys.ps1"; WingetId = "Microsoft.PowerToys"; Category = "Shortcuts"; Description = "Windows system utilities and productivity tools" }
     [PSCustomObject]@{ Name = "Manage Restore Points"; ScriptName = "managerestorepoints.ps1"; WingetId = $null; Category = "Maintenance"; Description = "Automated Windows System Restore Point management" }
@@ -559,31 +559,6 @@ $script:Applications = @(
     [PSCustomObject]@{ Name = "Kap"; ScriptName = "kap.ps1"; WingetId = $null; Category = "Screen Recording"; Description = "Open-source screen recorder" }
     [PSCustomObject]@{ Name = "Peek"; ScriptName = "peek.ps1"; WingetId = $null; Category = "Screen Recording"; Description = "Simple animated GIF screen recorder" }
     [PSCustomObject]@{ Name = "SimpleScreenRecorder"; ScriptName = "simplescreenrecorder.ps1"; WingetId = $null; Category = "Screen Recording"; Description = "Feature-rich screen recorder" }
-
-    # Photography
-    [PSCustomObject]@{ Name = "digiKam"; ScriptName = "digikam.ps1"; WingetId = "KDE.digiKam"; Category = "Photography"; Description = "Photo management and RAW processing" }
-    [PSCustomObject]@{ Name = "ImageGlass"; ScriptName = "imageglass.ps1"; WingetId = "DuongDieuPhap.ImageGlass"; Category = "Photography"; Description = "Fast, lightweight image viewer" }
-    [PSCustomObject]@{ Name = "XnView MP"; ScriptName = "xnviewmp.ps1"; WingetId = "XnSoft.XnViewMP"; Category = "Photography"; Description = "Image viewer and organizer" }
-
-    # Virtualization
-    [PSCustomObject]@{ Name = "Oracle VM VirtualBox"; ScriptName = "virtualbox.ps1"; WingetId = "Oracle.VirtualBox"; Category = "Virtualization"; Description = "General-purpose x86 virtualization platform" }
-    [PSCustomObject]@{ Name = "VMware Workstation Player"; ScriptName = "vmwareplayer.ps1"; WingetId = "VMware.WorkstationPlayer"; Category = "Virtualization"; Description = "Free virtual machine player for Windows" }
-    [PSCustomObject]@{ Name = "Multipass"; ScriptName = "multipass.ps1"; WingetId = "Canonical.Multipass"; Category = "Virtualization"; Description = "Lightweight VM manager for Ubuntu instances" }
-
-    # Database Tools
-    [PSCustomObject]@{ Name = "SQL Server Management Studio"; ScriptName = "ssms.ps1"; WingetId = "Microsoft.SQLServerManagementStudio"; Category = "Database Tools"; Description = "SQL Server administration and query tool" }
-    [PSCustomObject]@{ Name = "Azure Data Studio"; ScriptName = "azuredatastudio.ps1"; WingetId = "Microsoft.AzureDataStudio"; Category = "Database Tools"; Description = "Cross-platform database development tool" }
-    [PSCustomObject]@{ Name = "MongoDB Compass"; ScriptName = "mongodbcompass.ps1"; WingetId = "MongoDB.Compass"; Category = "Database Tools"; Description = "GUI for MongoDB databases" }
-
-    # System Monitoring
-    [PSCustomObject]@{ Name = "Open Hardware Monitor"; ScriptName = "openhardwaremonitor.ps1"; WingetId = "OpenHardwareMonitor.OpenHardwareMonitor"; Category = "System Monitoring"; Description = "Hardware temperature and load monitoring" }
-    [PSCustomObject]@{ Name = "Rainmeter"; ScriptName = "rainmeter.ps1"; WingetId = "Rainmeter.Rainmeter"; Category = "System Monitoring"; Description = "Customizable desktop system monitoring widgets" }
-    [PSCustomObject]@{ Name = "NetWorx"; ScriptName = "networx.ps1"; WingetId = "SoftPerfect.NetWorx"; Category = "System Monitoring"; Description = "Network bandwidth usage monitor" }
-
-    # Streaming Tools
-    [PSCustomObject]@{ Name = "Twitch Studio"; ScriptName = "twitchstudio.ps1"; WingetId = "Twitch.TwitchStudio"; Category = "Streaming Tools"; Description = "Streaming studio for Twitch creators" }
-    [PSCustomObject]@{ Name = "Voicemeeter Banana"; ScriptName = "voicemeeterbanana.ps1"; WingetId = "VB-Audio.VoicemeeterBanana"; Category = "Streaming Tools"; Description = "Virtual audio mixer for streaming setups" }
-    [PSCustomObject]@{ Name = "Streamlink"; ScriptName = "streamlink.ps1"; WingetId = "Streamlink.Streamlink"; Category = "Streaming Tools"; Description = "Command-line utility to pipe online streams to media players" }
 )
 
 #region Helper Functions
@@ -1027,22 +1002,7 @@ function Export-InstallationProfile {
         [array]$SelectedApps,
 
         [Parameter(Mandatory = $false)]
-        [string]$FilePath,
-
-        [Parameter(Mandatory = $false)]
-        [string]$Name,
-
-        [Parameter(Mandatory = $false)]
-        [string]$Description,
-
-        [Parameter(Mandatory = $false)]
-        [string]$LongDescription,
-
-        [Parameter(Mandatory = $false)]
-        [string]$IconPath,
-
-        [Parameter(Mandatory = $false)]
-        [string[]]$Categories
+        [string]$FilePath
     )
 
     try {
@@ -1063,65 +1023,14 @@ function Export-InstallationProfile {
         # Extract application names from app objects
         $appNames = $SelectedApps | ForEach-Object { $_.Name }
 
-        # Derive metadata for profile export (Name, Description, LongDescription, IconPath, Categories)
-        $profileName = if (-not [string]::IsNullOrWhiteSpace($Name)) {
-            $Name
-        }
-        else {
-            "Custom profile from $($env:COMPUTERNAME)"
-        }
-
-        $shortDescription = if (-not [string]::IsNullOrWhiteSpace($Description)) {
-            $Description
-        }
-        else {
-            "Profile containing $($appNames.Count) application(s) exported from $($env:COMPUTERNAME)."
-        }
-
-        $longDescription = if (-not [string]::IsNullOrWhiteSpace($LongDescription)) {
-            $LongDescription
-        }
-        else {
-            $shortDescription
-        }
-
-        $iconPathValue = if (-not [string]::IsNullOrWhiteSpace($IconPath)) {
-            $IconPath
-        }
-        else {
-            $null
-        }
-
-        if (-not $Categories -or $Categories.Count -eq 0) {
-            $derivedCategories = @()
-            foreach ($app in $SelectedApps) {
-                if ($app.PSObject.Properties.Match('Category').Count -gt 0 -and -not [string]::IsNullOrWhiteSpace($app.Category)) {
-                    if (-not ($derivedCategories -contains $app.Category)) {
-                        $derivedCategories += $app.Category
-                    }
-                }
-            }
-
-            if ($derivedCategories.Count -eq 0) {
-                $derivedCategories = @('Uncategorized')
-            }
-
-            $Categories = $derivedCategories
-        }
-
         # Create profile object
         $profile = [PSCustomObject]@{
-            Version         = "2.0"
-            Name            = $profileName
-            Description     = $shortDescription
-            LongDescription = $longDescription
-            IconPath        = $iconPathValue
-            Categories      = $Categories
-            Timestamp       = (Get-Date).ToString("yyyy-MM-ddTHH:mm:ss")
-            ComputerName    = $env:COMPUTERNAME
-            UserName        = $env:USERNAME
+            Version = "1.0"
+            Timestamp = (Get-Date).ToString("yyyy-MM-ddTHH:mm:ss")
+            ComputerName = $env:COMPUTERNAME
+            UserName = $env:USERNAME
             InstallerVersion = $script:ScriptVersion
-            Applications    = $appNames
+            Applications = $appNames
         }
 
         # Export to JSON
@@ -1179,190 +1088,25 @@ function Import-InstallationProfile {
 
         # Read and parse JSON
         $profileContent = Get-Content -Path $FilePath -Raw -Encoding UTF8
+        $profile = $profileContent | ConvertFrom-Json
 
-        if ([string]::IsNullOrWhiteSpace($profileContent)) {
-            Write-Log "Profile file is empty: $FilePath" -Level ERROR
+        # Validate JSON structure
+        if (-not $profile.Version -or -not $profile.Applications) {
+            Write-Log "Invalid profile format: Missing required fields" -Level ERROR
             return @{
-                Success      = $false
+                Success = $false
                 Applications = @()
-                MissingApps  = @()
-                Message      = "Profile file is empty: $FilePath"
+                MissingApps = @()
+                Message = "Invalid profile format: Missing required fields (Version, Applications)"
             }
         }
-
-        try {
-            $profile = $profileContent | ConvertFrom-Json
-        }
-        catch {
-            Write-Log "Failed to parse profile JSON from '$FilePath': $($_.Exception.Message)" -Level ERROR
-            return @{
-                Success      = $false
-                Applications = @()
-                MissingApps  = @()
-                Message      = "Invalid profile JSON format in file: $FilePath"
-            }
-        }
-
-        if (-not $profile) {
-            Write-Log "Profile JSON did not produce an object for file: $FilePath" -Level ERROR
-            return @{
-                Success      = $false
-                Applications = @()
-                MissingApps  = @()
-                Message      = "Profile JSON is invalid or empty in file: $FilePath"
-            }
-        }
-
-        # Normalize application list
-        if (-not $profile.PSObject.Properties.Match('Applications').Count -or -not $profile.Applications) {
-            Write-Log "Invalid profile format: Missing Applications array" -Level ERROR
-            return @{
-                Success      = $false
-                Applications = @()
-                MissingApps  = @()
-                Message      = "Invalid profile format: Missing required field 'Applications'"
-            }
-        }
-
-        if ($profile.Applications -is [System.Array]) {
-            $appList = @($profile.Applications)
-        }
-        else {
-            $appList = @($profile.Applications)
-        }
-
-        # Normalize metadata (Version, Name, Description, LongDescription, IconPath, Categories)
-        $profileVersion = if ($profile.PSObject.Properties.Match('Version').Count -gt 0 -and $profile.Version) {
-            [string]$profile.Version
-        }
-        else {
-            "1.0"
-        }
-
-        $profileName = if ($profile.PSObject.Properties.Match('Name').Count -gt 0 -and -not [string]::IsNullOrWhiteSpace($profile.Name)) {
-            [string]$profile.Name
-        }
-        else {
-            [System.IO.Path]::GetFileNameWithoutExtension($FilePath)
-        }
-
-        $shortDescription = if ($profile.PSObject.Properties.Match('Description').Count -gt 0 -and -not [string]::IsNullOrWhiteSpace($profile.Description)) {
-            [string]$profile.Description
-        }
-        else {
-            "Profile '$profileName' with $($appList.Count) application(s)."
-        }
-
-        $longDescription = if ($profile.PSObject.Properties.Match('LongDescription').Count -gt 0 -and -not [string]::IsNullOrWhiteSpace($profile.LongDescription)) {
-            [string]$profile.LongDescription
-        }
-        else {
-            $shortDescription
-        }
-
-        $iconPathValue = $null
-        if ($profile.PSObject.Properties.Match('IconPath').Count -gt 0 -and -not [string]::IsNullOrWhiteSpace($profile.IconPath)) {
-            $iconPathValue = [string]$profile.IconPath
-        }
-
-        # Normalize categories
-        $categories = @()
-        if ($profile.PSObject.Properties.Match('Categories').Count -gt 0 -and $profile.Categories) {
-            if ($profile.Categories -is [System.Array]) {
-                $categoriesInput = @($profile.Categories)
-            }
-            else {
-                $categoriesInput = @([string]$profile.Categories)
-            }
-
-            foreach ($cat in $categoriesInput) {
-                if (-not [string]::IsNullOrWhiteSpace($cat)) {
-                    if (-not ($categories -contains $cat)) {
-                        $categories += $cat
-                    }
-                }
-            }
-        }
-
-        if ($categories.Count -eq 0) {
-            $derivedCategories = @()
-            foreach ($appName in $appList) {
-                $app = $script:Applications | Where-Object { $_.Name -eq $appName } | Select-Object -First 1
-                if ($app -and $app.PSObject.Properties.Match('Category').Count -gt 0 -and -not [string]::IsNullOrWhiteSpace($app.Category)) {
-                    if (-not ($derivedCategories -contains $app.Category)) {
-                        $derivedCategories += $app.Category
-                    }
-                }
-            }
-
-            if ($derivedCategories.Count -eq 0) {
-                $derivedCategories = @('Uncategorized')
-            }
-
-            $categories = $derivedCategories
-        }
-
-        # Push normalized metadata back into profile object for downstream consumers
-        if (-not $profile.PSObject.Properties.Match('Version').Count) {
-            $profile | Add-Member -NotePropertyName 'Version' -NotePropertyValue $profileVersion
-        }
-        else {
-            $profile.Version = $profileVersion
-        }
-
-        if (-not $profile.PSObject.Properties.Match('Name').Count) {
-            $profile | Add-Member -NotePropertyName 'Name' -NotePropertyValue $profileName
-        }
-        else {
-            if ([string]::IsNullOrWhiteSpace($profile.Name)) {
-                $profile.Name = $profileName
-            }
-        }
-
-        if (-not $profile.PSObject.Properties.Match('Description').Count) {
-            $profile | Add-Member -NotePropertyName 'Description' -NotePropertyValue $shortDescription
-        }
-        else {
-            if ([string]::IsNullOrWhiteSpace($profile.Description)) {
-                $profile.Description = $shortDescription
-            }
-        }
-
-        if (-not $profile.PSObject.Properties.Match('LongDescription').Count) {
-            $profile | Add-Member -NotePropertyName 'LongDescription' -NotePropertyValue $longDescription
-        }
-        else {
-            if ([string]::IsNullOrWhiteSpace($profile.LongDescription)) {
-                $profile.LongDescription = $longDescription
-            }
-        }
-
-        if (-not $profile.PSObject.Properties.Match('IconPath').Count) {
-            $profile | Add-Member -NotePropertyName 'IconPath' -NotePropertyValue $iconPathValue
-        }
-        else {
-            if ([string]::IsNullOrWhiteSpace($profile.IconPath)) {
-                $profile.IconPath = $iconPathValue
-            }
-        }
-
-        if (-not $profile.PSObject.Properties.Match('Categories').Count) {
-            $profile | Add-Member -NotePropertyName 'Categories' -NotePropertyValue $categories
-        }
-        else {
-            $profile.Categories = $categories
-        }
-
-        $profile.Applications = $appList
 
         Write-Log "Importing profile from: $FilePath" -Level INFO
-        Write-Log "Profile name: $profileName" -Level INFO
-        Write-Log "Profile version: $profileVersion" -Level INFO
+        Write-Log "Profile version: $($profile.Version)" -Level INFO
         Write-Log "Profile created: $($profile.Timestamp)" -Level INFO
         Write-Log "Profile computer: $($profile.ComputerName)" -Level INFO
         Write-Log "Profile user: $($profile.UserName)" -Level INFO
         Write-Log "Profile installer version: $($profile.InstallerVersion)" -Level INFO
-        Write-Log "Profile categories: $([string]::Join(', ', $categories))" -Level INFO
 
         # Match application names to application objects
         $validApps = @()
@@ -1386,11 +1130,11 @@ function Import-InstallationProfile {
         }
 
         return @{
-            Success      = $true
+            Success = $true
             Applications = $validApps
-            MissingApps  = $missingApps
-            Message      = "Successfully imported profile with $($validApps.Count) application(s)"
-            ProfileInfo  = $profile
+            MissingApps = $missingApps
+            Message = "Successfully imported profile with $($validApps.Count) application(s)"
+            ProfileInfo = $profile
         }
     }
     catch {
@@ -1690,10 +1434,6 @@ function Install-SelectedApplications {
     Write-Host "  Success:   $successCount" -ForegroundColor Green
     Write-Host "  Failed:    $failCount" -ForegroundColor $(if ($failCount -gt 0) { "Red" } else { "Gray" })
     Write-Host ""
-
-    $summaryLevel = if ($failCount -gt 0) { "ERROR" } else { "SUCCESS" }
-    Write-Log ("Installation summary: {0} succeeded, {1} failed out of {2} application(s)." -f `
-        $successCount, $failCount, $appsToInstall.Count) -Level $summaryLevel
 }
 
 function Get-WingetErrorMessage {
@@ -3439,49 +3179,10 @@ try {
 
                         if ($profiles.Count -gt 0) {
                             Write-Host "Available profiles:" -ForegroundColor Yellow
-
-                            $profileSummaries = @()
                             for ($i = 0; $i -lt $profiles.Count; $i++) {
-                                $profileFile = $profiles[$i]
-                                $displayName = [System.IO.Path]::GetFileNameWithoutExtension($profileFile.Name)
-                                $displayDescription = ""
-
-                                try {
-                                    $importPreview = Import-InstallationProfile -FilePath $profileFile.FullName
-                                    if ($importPreview -and $importPreview.Success -and $importPreview.ProfileInfo) {
-                                        $meta = $importPreview.ProfileInfo
-                                        if ($meta.PSObject.Properties.Match('Name').Count -gt 0 -and -not [string]::IsNullOrWhiteSpace($meta.Name)) {
-                                            $displayName = [string]$meta.Name
-                                        }
-                                        if ($meta.PSObject.Properties.Match('Description').Count -gt 0 -and -not [string]::IsNullOrWhiteSpace($meta.Description)) {
-                                            $displayDescription = [string]$meta.Description
-                                        }
-                                    }
-                                }
-                                catch {
-                                    Write-Log ("Failed to read profile metadata from '{0}': {1}" -f $profileFile.FullName, $_.Exception.Message) -Level WARNING
-                                }
-
-                                $profileSummaries += [PSCustomObject]@{
-                                    Index       = $i
-                                    Name        = $displayName
-                                    Description = $displayDescription
-                                    LastWrite   = $profileFile.LastWriteTime
-                                }
+                                $profile = $profiles[$i]
+                                Write-Host "  $($i + 1). $($profile.Name) ($(Get-Date $profile.LastWriteTime -Format 'yyyy-MM-dd HH:mm'))" -ForegroundColor Cyan
                             }
-
-                            foreach ($summary in $profileSummaries) {
-                                $line = "  {0}. {1} ({2})" -f `
-                                    ($summary.Index + 1),
-                                    $summary.Name,
-                                    (Get-Date $summary.LastWrite -Format 'yyyy-MM-dd HH:mm')
-                                Write-Host $line -ForegroundColor Cyan
-
-                                if (-not [string]::IsNullOrWhiteSpace($summary.Description)) {
-                                    Write-Host ("       {0}" -f $summary.Description) -ForegroundColor DarkGray
-                                }
-                            }
-
                             Write-Host ""
                             Write-Host "Enter profile number, full path, or press Enter to cancel:" -ForegroundColor Yellow
                             Write-Host "Selection: " -NoNewline -ForegroundColor White
