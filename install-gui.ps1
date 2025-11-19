@@ -973,7 +973,7 @@ $script:Applications = @(
     [PSCustomObject]@{ Name = "HWMonitor"; ScriptName = "hwmonitor.ps1"; WingetId = "CPUID.HWMonitor"; Category = "Utilities"; Description = "Hardware monitoring program" }
     [PSCustomObject]@{ Name = "MSI Afterburner"; ScriptName = "msiafterburner.ps1"; WingetId = "Guru3D.Afterburner"; Category = "Utilities"; Description = "Graphics card overclocking utility" }
     [PSCustomObject]@{ Name = "Lightshot"; ScriptName = "lightshot.ps1"; WingetId = "Skillbrains.Lightshot"; Category = "Utilities"; Description = "Screenshot tool with instant sharing" }
-    [PSCustomObject]@{ Name = "Process Hacker"; ScriptName = "processhacker.ps1"; WingetId = "ProcessHacker.ProcessHacker"; Category = "Utilities"; Description = "Advanced task manager alternative" }
+    [PSCustomObject]@{ Name = "System Informer"; ScriptName = "systeminformer.ps1"; WingetId = "WinsiderSS.SystemInformer"; Category = "Utilities"; Description = "Advanced system monitor and task manager" }
     # Security
     [PSCustomObject]@{ Name = "Bitwarden"; ScriptName = "bitwarden.ps1"; WingetId = "Bitwarden.Bitwarden"; Category = "Security"; Description = "Open-source password manager" }
     [PSCustomObject]@{ Name = "KeePass"; ScriptName = "keepass.ps1"; WingetId = "DominikReichl.KeePass"; Category = "Security"; Description = "Secure password database manager" }
@@ -5468,6 +5468,19 @@ function Install-SelectedApplications {
     $script:InstallationQueue = $modifiedQueue
     Write-Log "Queue finalized with $($script:InstallationQueue.Count) application(s)" -Level INFO
 
+    # If the queue is empty after management, abort early
+    if ($script:InstallationQueue.Count -eq 0) {
+        Write-Log "Installation aborted: Queue is empty after queue management dialog" -Level WARNING
+        Write-Output "[WARN] Installation queue is empty - nothing to install." -Color ([System.Drawing.Color]::Yellow)
+        [System.Windows.Forms.MessageBox]::Show(
+            "The installation queue is empty. There is nothing to install.",
+            "Nothing to Install",
+            [System.Windows.Forms.MessageBoxButtons]::OK,
+            [System.Windows.Forms.MessageBoxIcon]::Information
+        )
+        return
+    }
+
     # Reset queue state
     $script:CurrentQueueIndex = 0
     $script:IsPaused = $false
@@ -5499,6 +5512,8 @@ function Install-SelectedApplications {
     # Setup progress bar
     $script:ProgressBar.Maximum = $script:InstallationQueue.Count
     $script:ProgressBar.Value = 0
+
+    Write-Log "Starting installation loop with queue count $($script:InstallationQueue.Count) and CurrentQueueIndex=$($script:CurrentQueueIndex)" -Level INFO
 
     Write-Output "`r`n=== Starting Installation ===" -Color ([System.Drawing.Color]::Cyan)
     Write-Output "Installing $($script:InstallationQueue.Count) application(s)..." -Color ([System.Drawing.Color]::Blue)
