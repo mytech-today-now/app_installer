@@ -12,7 +12,7 @@
     - Version detection for installed applications
     - Selective installation (individual apps, all apps, or only missing apps)
     - Real-time progress tracking with ETA during batch installations
-    - Centralized logging to C:\mytech.today\logs\
+    - Centralized logging to %USERPROFILE%\myTech.Today\logs\
     - Support for 271 applications via winget and custom installers
     - Error handling with fallback solutions
     - Automatic winget installation on Windows 10
@@ -45,7 +45,7 @@
     Installs only Google Chrome
 
 .EXAMPLE
-    .\install.ps1 -Profile "C:\mytech.today\app_installer\profiles\profile-home-office.json"
+    .\install.ps1 -Profile "$env:USERPROFILE\myTech.Today\AppInstaller\profiles\profile-home-office.json"
     Imports the given profile and installs all applications defined in that profile.
 
 .EXAMPLE
@@ -126,9 +126,9 @@ catch {
 # Script variables
 $script:ScriptVersion = '1.5.4'
 $script:OriginalScriptPath = $PSScriptRoot
-$script:SystemInstallPath = "$env:SystemDrive\mytech.today\app_installer"
+$script:SystemInstallPath = "$env:USERPROFILE\myTech.Today\AppInstaller"
 $script:ScriptPath = $script:SystemInstallPath  # Will be updated after copy
-$script:CentralLogPath = "C:\mytech.today\logs\"
+$script:CentralLogPath = "$env:USERPROFILE\myTech.Today\logs\"
 $script:LogPath = $null
 $script:AppsPath = Join-Path $script:ScriptPath "apps"
 $script:ProfilesPath = Join-Path $script:ScriptPath "profiles"
@@ -142,7 +142,7 @@ function Copy-ScriptToSystemLocation {
 
     .DESCRIPTION
         Ensures the installer is always available in a known system location:
-        %SystemDrive%\mytech.today\app_installer\
+        %USERPROFILE%\myTech.Today\AppInstaller\
 
         This allows scheduled tasks and other automation to reliably find the script
         regardless of where it was originally run from.
@@ -525,6 +525,7 @@ $script:Applications = @(
     [PSCustomObject]@{ Name = "Uninstall McAfee"; ScriptName = "uninstall-mcafee.ps1"; WingetId = $null; Category = "Maintenance"; Description = "Remove McAfee software completely" }
     [PSCustomObject]@{ Name = "PowerToys"; ScriptName = "powertoys.ps1"; WingetId = "Microsoft.PowerToys"; Category = "Shortcuts"; Description = "Windows system utilities and productivity tools" }
     [PSCustomObject]@{ Name = "Manage Restore Points"; ScriptName = "managerestorepoints.ps1"; WingetId = $null; Category = "Maintenance"; Description = "Automated Windows System Restore Point management" }
+    [PSCustomObject]@{ Name = "Hosts File Manager"; ScriptName = "hosts.ps1"; WingetId = $null; Category = "Maintenance"; Description = "Manage Windows hosts file with ad-blocking rules" }
     [PSCustomObject]@{ Name = "AutoHotkey"; ScriptName = "autohotkey.ps1"; WingetId = "AutoHotkey.AutoHotkey"; Category = "Shortcuts"; Description = "Automation scripting language for Windows" }
     [PSCustomObject]@{ Name = "Everything"; ScriptName = "everything.ps1"; WingetId = "voidtools.Everything"; Category = "Shortcuts"; Description = "Instant file search utility" }
     # Mockups & Wireframe
@@ -987,7 +988,7 @@ function Export-InstallationProfile {
 
     .PARAMETER FilePath
         Optional custom file path. If not specified, uses default naming convention
-        in C:\mytech.today\app_installer\profiles\
+        in %USERPROFILE%\myTech.Today\AppInstaller\profiles\
 
     .OUTPUTS
         String - Path to the created profile file, or $null if export failed.
@@ -1063,7 +1064,7 @@ function Import-InstallationProfile {
         Hashtable with keys: Success (bool), Applications (array), MissingApps (array), Message (string)
 
     .EXAMPLE
-        $result = Import-InstallationProfile -FilePath "C:\mytech.today\app_installer\profiles\profile-PC01-2025-11-09-160000.json"
+        $result = Import-InstallationProfile -FilePath "$env:USERPROFILE\myTech.Today\AppInstaller\profiles\profile-PC01-2025-11-09-160000.json"
         if ($result.Success) {
             Install-SelectedApplications -Apps $result.Applications
         }
@@ -3031,6 +3032,11 @@ if ($PSBoundParameters.ContainsKey('Profile') -and -not $PSBoundParameters.Conta
     $Action = 'InstallProfile'
 }
 
+
+# Suppress Write-Progress output to prevent spinner graphics from being logged
+# Write-Progress uses the progress stream which can be captured in transcripts
+$script:OriginalProgressPreference = $ProgressPreference
+$ProgressPreference = 'SilentlyContinue'
 
 # Initialize logging
 if ($script:LoggingModuleLoaded) {

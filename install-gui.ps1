@@ -10,7 +10,7 @@
     - Version detection for installed applications
     - Selective installation (individual apps, all apps, or only missing apps)
     - Progress tracking with detailed logging
-    - Centralized logging to C:\mytech.today\logs\
+    - Centralized logging to %USERPROFILE%\myTech.Today\logs\
     - Support for 271 applications via winget and custom installers
 
 .NOTES
@@ -825,9 +825,9 @@ catch {
 # Script variables
 $script:ScriptVersion = '1.4.5'
 $script:OriginalScriptPath = $PSScriptRoot
-$script:SystemInstallPath = "$env:SystemDrive\mytech.today\app_installer"
+$script:SystemInstallPath = "$env:USERPROFILE\myTech.Today\AppInstaller"
 $script:ScriptPath = $script:SystemInstallPath
-$script:CentralLogPath = "C:\mytech.today\logs\"
+$script:CentralLogPath = "$env:USERPROFILE\myTech.Today\logs\"
 $script:LogPath = $null
 $script:AppsPath = Join-Path $script:ScriptPath "apps"
 $script:ProfilesPath = Join-Path $script:ScriptPath "profiles"
@@ -840,7 +840,7 @@ $script:FilteredApplications = @()  # Filtered application list
 
 # Queue management variables
 $script:InstallationQueue = @()  # Array of apps in installation queue
-$script:QueueStatePath = "C:\mytech.today\app_installer\queue-state.json"  # Queue state file
+$script:QueueStatePath = "$env:USERPROFILE\myTech.Today\AppInstaller\queue-state.json"  # Queue state file
 $script:IsPaused = $false  # Flag to track if installation is paused
 $script:SkipCurrent = $false  # Flag to skip current installation
 $script:CurrentQueueIndex = 0  # Current position in queue
@@ -1107,6 +1107,7 @@ $script:Applications = @(
     [PSCustomObject]@{ Name = "Uninstall McAfee"; ScriptName = "uninstall-mcafee.ps1"; WingetId = $null; Category = "Maintenance"; Description = "Remove McAfee software completely" }
     [PSCustomObject]@{ Name = "PowerToys"; ScriptName = "powertoys.ps1"; WingetId = "Microsoft.PowerToys"; Category = "Shortcuts"; Description = "Windows system utilities and productivity tools" }
     [PSCustomObject]@{ Name = "Manage Restore Points"; ScriptName = "managerestorepoints.ps1"; WingetId = $null; Category = "Maintenance"; Description = "Automated Windows System Restore Point management" }
+    [PSCustomObject]@{ Name = "Hosts File Manager"; ScriptName = "hosts.ps1"; WingetId = $null; Category = "Maintenance"; Description = "Manage Windows hosts file with ad-blocking rules" }
     [PSCustomObject]@{ Name = "AutoHotkey"; ScriptName = "autohotkey.ps1"; WingetId = "AutoHotkey.AutoHotkey"; Category = "Shortcuts"; Description = "Automation scripting language for Windows" }
     [PSCustomObject]@{ Name = "Everything"; ScriptName = "everything.ps1"; WingetId = "voidtools.Everything"; Category = "Shortcuts"; Description = "Instant file search utility" }
     # Mockups & Wireframe
@@ -1152,7 +1153,7 @@ function Copy-ScriptToSystemLocation {
 
     .DESCRIPTION
         Ensures the installer is always available in a known system location:
-        %SystemDrive%\mytech.today\app_installer\
+        %USERPROFILE%\myTech.Today\AppInstaller\
 
         This allows scheduled tasks and other automation to reliably find the script
         regardless of where it was originally run from.
@@ -5110,7 +5111,7 @@ function Export-InstallationProfile {
 
     .PARAMETER FilePath
         Optional custom file path. If not specified, uses default naming convention
-        in C:\mytech.today\app_installer\profiles\
+        in %USERPROFILE%\myTech.Today\AppInstaller\profiles\
 
     .OUTPUTS
         String - Path to the created profile file, or $null if export failed.
@@ -5183,7 +5184,7 @@ function Import-InstallationProfile {
         Hashtable with keys: Success (bool), Applications (array), MissingApps (array), Message (string)
 
     .EXAMPLE
-        $result = Import-InstallationProfile -FilePath "C:\mytech.today\app_installer\profiles\profile-PC01-2025-11-09-160000.json"
+        $result = Import-InstallationProfile -FilePath "$env:USERPROFILE\myTech.Today\AppInstaller\profiles\profile-PC01-2025-11-09-160000.json"
         if ($result.Success) {
             # Select the applications
         }
@@ -6011,6 +6012,11 @@ function Show-MarketingInformation {
 #region Main Execution
 
 try {
+    # Suppress Write-Progress output to prevent spinner graphics from being logged
+    # Write-Progress uses the progress stream which can be captured in transcripts
+    $script:OriginalProgressPreference = $ProgressPreference
+    $ProgressPreference = 'SilentlyContinue'
+
     # Initialize logging
     Write-Host "`n[i] Initializing logging..." -ForegroundColor Cyan
 
