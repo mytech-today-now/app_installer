@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs XnView MP.
+    Installs XnView MP. 
 .DESCRIPTION
     Cross-platform installer for XnView MP image viewer.
     Supports Windows (winget) and macOS (Homebrew).

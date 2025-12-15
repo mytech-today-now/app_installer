@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Zotero.
+    Installs Zotero. 
 .DESCRIPTION
     Cross-platform installer for Zotero reference manager.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/snap).

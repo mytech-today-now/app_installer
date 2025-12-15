@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs XMind.
+    Installs XMind.  
 
 .DESCRIPTION
     This script installs XMind using winget package manager.

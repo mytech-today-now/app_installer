@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Zoom.
+    Installs Zoom. 
 .DESCRIPTION
     Cross-platform installer for Zoom.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/snap).

@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs yWriter.
+    Installs yWriter. 
 
 .DESCRIPTION
     This script installs yWriter using winget package manager.

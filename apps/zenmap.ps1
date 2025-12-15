@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Zenmap.
+    Installs Zenmap. 
 .DESCRIPTION
     Cross-platform installer for Zenmap (Nmap GUI).
     Supports Windows (winget), macOS (Homebrew), and Linux (apt).
