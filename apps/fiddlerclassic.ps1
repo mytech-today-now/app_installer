@@ -1,9 +1,16 @@
 ﻿# Fiddler Classic Installation Script
 # Part of myTech.Today Application Installer Suite
+# Windows-only: Fiddler Classic is not available on macOS or Linux.
 
 param(
     [string]$LogPath = "C:\myTech.Today\logs\AppInstaller.md"
 )
+
+# Platform check - this application is Windows-only
+if (-not ($IsWindows -or $env:OS -match 'Windows')) {
+    Write-Host "[INFO] Fiddler Classic is only available for Windows." -ForegroundColor Yellow
+    exit 0
+}
 
 $AppName = "Fiddler Classic"
 $WingetId = "Telerik.Fiddler.Classic"

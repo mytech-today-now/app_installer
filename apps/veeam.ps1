@@ -1,9 +1,10 @@
-﻿<#
+<#
 .SYNOPSIS
     Installs Veeam Agent FREE.
 
 .DESCRIPTION
     This script installs Veeam Agent FREE using winget package manager.
+    Windows-only: Veeam Agent is not available on macOS or Linux.
 
 .NOTES
     File Name      : veeam.ps1
@@ -14,6 +15,12 @@
 
 [CmdletBinding()]
 param()
+
+# Platform check - this application is Windows-only
+if (-not ($IsWindows -or $env:OS -match 'Windows')) {
+    Write-Host "[INFO] Veeam Agent is only available for Windows." -ForegroundColor Yellow
+    exit 0
+}
 
 $ErrorActionPreference = 'Stop'
 

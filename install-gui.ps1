@@ -27,6 +27,17 @@
 #Requires -Version 5.1
 #Requires -RunAsAdministrator
 
+# PowerShell 7+ Version Check - myTech.Today standard
+$script:PS7ContinueOnPS51 = $true  # Allow running on PS 5.1 with warning
+$script:PS7Silent = $false
+$script:_RepoRoot = $PSScriptRoot
+while ($script:_RepoRoot -and -not (Test-Path (Join-Path $script:_RepoRoot 'scripts\Require-PowerShell7.ps1'))) {
+    $script:_RepoRoot = Split-Path $script:_RepoRoot -Parent
+}
+if ($script:_RepoRoot -and (Test-Path (Join-Path $script:_RepoRoot 'scripts\Require-PowerShell7.ps1'))) {
+    . (Join-Path $script:_RepoRoot 'scripts\Require-PowerShell7.ps1')
+}
+
 #region Load Responsive GUI Helper
 
 # Import responsive GUI helper from GitHub for improved DPI scaling and multi-monitor support

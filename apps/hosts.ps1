@@ -4,6 +4,7 @@
 
 .DESCRIPTION
     This script downloads the Hosts File Manager from GitHub, saves it to a standard
+    Windows-only: Hosts File Manager is not available on macOS or Linux.
     location, and executes it to update the Windows hosts file with ad-blocking rules.
 
 .NOTES
@@ -15,6 +16,12 @@
 
 [CmdletBinding()]
 param()
+
+# Platform check - this application is Windows-only
+if (-not ($IsWindows -or $env:OS -match 'Windows')) {
+    Write-Host "[INFO] Hosts File Manager is only available for Windows." -ForegroundColor Yellow
+    exit 0
+}
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'

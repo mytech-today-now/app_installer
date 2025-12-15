@@ -4,6 +4,7 @@
 
 .DESCRIPTION
     This script installs AutoHotkey using winget package manager.
+    Windows-only: AutoHotkey is not available on macOS or Linux.
 
 .NOTES
     File Name      : autohotkey.ps1
@@ -14,6 +15,12 @@
 
 [CmdletBinding()]
 param()
+
+# Platform check - this application is Windows-only
+if (-not ($IsWindows -or $env:OS -match 'Windows')) {
+    Write-Host "[INFO] AutoHotkey is only available for Windows." -ForegroundColor Yellow
+    exit 0
+}
 
 $ErrorActionPreference = 'Stop'
 

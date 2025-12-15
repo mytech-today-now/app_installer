@@ -1,9 +1,10 @@
-﻿<#
+<#
 .SYNOPSIS
     Downloads and installs O&O ShutUp10++.
 
 .DESCRIPTION
     This script downloads the latest version of O&O ShutUp10++ privacy tool
+    Windows-only: ShutUp10++ is not available on macOS or Linux.
     and places it in a convenient location for use.
 
 .NOTES
@@ -15,6 +16,12 @@
 
 [CmdletBinding()]
 param()
+
+# Platform check - this application is Windows-only
+if (-not ($IsWindows -or $env:OS -match 'Windows')) {
+    Write-Host "[INFO] ShutUp10++ is only available for Windows." -ForegroundColor Yellow
+    exit 0
+}
 
 $ErrorActionPreference = 'Stop'
 
@@ -37,10 +44,10 @@ try {
     
     try {
         Invoke-WebRequest -Uri $shutupUrl -OutFile $exePath -UseBasicParsing
-        Write-Host "  ✅ Download complete" -ForegroundColor Green
+        Write-Host "  ? Download complete" -ForegroundColor Green
     }
     catch {
-        Write-Host "  ❌ Failed to download: $_" -ForegroundColor Red
+        Write-Host "  ? Failed to download: $_" -ForegroundColor Red
         exit 1
     }
     
@@ -54,9 +61,9 @@ try {
     $shortcut.Description = "O&O ShutUp10++ Privacy Tool"
     $shortcut.Save()
     
-    Write-Host "  ✅ Desktop shortcut created" -ForegroundColor Green
+    Write-Host "  ? Desktop shortcut created" -ForegroundColor Green
     
-    Write-Host "`n✅ O&O ShutUp10++ installed successfully!" -ForegroundColor Green
+    Write-Host "`n? O&O ShutUp10++ installed successfully!" -ForegroundColor Green
     Write-Host "  Location: $exePath" -ForegroundColor Cyan
     Write-Host "  Desktop shortcut created" -ForegroundColor Cyan
     

@@ -3,6 +3,7 @@
     Installs VMware Workstation Player.
 .DESCRIPTION
     Installs VMware Workstation Player using winget.
+    Windows-only: VMware Workstation Player is not available on macOS or Linux.
 .NOTES
     File Name      : vmwareplayer.ps1
     Author         : myTech.Today
@@ -11,6 +12,12 @@
 
 [CmdletBinding()]
 param()
+
+# Platform check - this application is Windows-only
+if (-not ($IsWindows -or $env:OS -match 'Windows')) {
+    Write-Host "[INFO] VMware Workstation Player is only available for Windows." -ForegroundColor Yellow
+    exit 0
+}
 
 $ErrorActionPreference = 'Stop'
 

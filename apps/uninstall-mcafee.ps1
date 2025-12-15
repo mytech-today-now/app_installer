@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Uninstalls all McAfee products from the system.
 
@@ -16,6 +16,12 @@
 [CmdletBinding()]
 param()
 
+# Platform check - this application is Windows-only
+if (-not ($IsWindows -or $env:OS -match 'Windows')) {
+    Write-Host "[INFO] McAfee Uninstaller is only available for Windows." -ForegroundColor Yellow
+    exit 0
+}
+
 $ErrorActionPreference = 'Stop'
 
 try {
@@ -27,7 +33,7 @@ try {
                        Where-Object { $_.DisplayName -like "*McAfee*" }
     
     if (-not $mcafeeInstalled) {
-        Write-Host "  ℹ️  No McAfee products found on this system." -ForegroundColor Cyan
+        Write-Host "  ??  No McAfee products found on this system." -ForegroundColor Cyan
         exit 0
     }
     
@@ -44,33 +50,33 @@ try {
     
     try {
         Invoke-WebRequest -Uri $mcprUrl -OutFile $mcprPath -UseBasicParsing
-        Write-Host "  ✅ Download complete" -ForegroundColor Green
+        Write-Host "  ? Download complete" -ForegroundColor Green
     }
     catch {
-        Write-Host "  ❌ Failed to download MCPR tool: $_" -ForegroundColor Red
+        Write-Host "  ? Failed to download MCPR tool: $_" -ForegroundColor Red
         Write-Host "  Please download manually from: $mcprUrl" -ForegroundColor Yellow
         exit 1
     }
     
     # Run MCPR tool
     Write-Host "`n  Running McAfee removal tool..." -ForegroundColor Yellow
-    Write-Host "  ⚠️  This may take several minutes. Please wait..." -ForegroundColor Yellow
+    Write-Host "  ??  This may take several minutes. Please wait..." -ForegroundColor Yellow
     
     try {
         # MCPR runs with a GUI but can be automated with -p parameter
         $process = Start-Process -FilePath $mcprPath -ArgumentList "-p" -Wait -PassThru
         
         if ($process.ExitCode -eq 0) {
-            Write-Host "  ✅ McAfee products removed successfully!" -ForegroundColor Green
-            Write-Host "  ℹ️  A system restart is recommended." -ForegroundColor Cyan
+            Write-Host "  ? McAfee products removed successfully!" -ForegroundColor Green
+            Write-Host "  ??  A system restart is recommended." -ForegroundColor Cyan
         }
         else {
-            Write-Host "  ⚠️  MCPR exited with code: $($process.ExitCode)" -ForegroundColor Yellow
+            Write-Host "  ??  MCPR exited with code: $($process.ExitCode)" -ForegroundColor Yellow
             Write-Host "  Please check if McAfee was removed successfully." -ForegroundColor Yellow
         }
     }
     catch {
-        Write-Host "  ❌ Error running MCPR: $_" -ForegroundColor Red
+        Write-Host "  ? Error running MCPR: $_" -ForegroundColor Red
         exit 1
     }
     finally {

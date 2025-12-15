@@ -4,6 +4,7 @@
 
 .DESCRIPTION
     This script installs Celtx using winget package manager.
+    Windows-only: Celtx is not available on macOS or Linux.
 
 .NOTES
     File Name      : celtx.ps1
@@ -14,6 +15,12 @@
 
 [CmdletBinding()]
 param()
+
+# Platform check - this application is Windows-only
+if (-not ($IsWindows -or $env:OS -match 'Windows')) {
+    Write-Host "[INFO] Celtx is only available for Windows." -ForegroundColor Yellow
+    exit 0
+}
 
 $ErrorActionPreference = 'Stop'
 

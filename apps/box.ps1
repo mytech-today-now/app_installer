@@ -1,32 +1,34 @@
-﻿# Box Installation Script
-# Part of myTech.Today Application Installer Suite
+﻿<#
+.SYNOPSIS
+    Installs Box Drive.
+.DESCRIPTION
+    Cross-platform installer for Box Drive cloud storage.
+    Supports Windows (winget) and macOS (Homebrew).
+.NOTES
+    File Name      : box.ps1
+    Author         : myTech.Today
+    Prerequisite   : PowerShell 5.1+ (Windows) or PowerShell 7+ (macOS/Linux)
+#>
 
-param(
-    [string]$LogPath = "C:\myTech.Today\logs\AppInstaller.md"
-)
+[CmdletBinding()]
+param()
 
-$AppName = "Box"
-$WingetId = "Box.Box"
+# Import platform detection module
+. "$PSScriptRoot/../platform-detect.ps1"
 
-Write-Host "Installing $AppName..." -ForegroundColor Cyan
+$ErrorActionPreference = 'Stop'
+$AppName = "Box Drive"
 
 try {
-    # Try winget installation first
-    Write-Host "  Attempting installation via winget..." -ForegroundColor Gray
-    $result = winget install --id $WingetId --silent --accept-package-agreements --accept-source-agreements 2>&1
-    
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host "  [OK] $AppName installed successfully via winget" -ForegroundColor Green
-        "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') | INFO | $AppName installed successfully via winget" | Out-File -FilePath $LogPath -Append
-        exit 0
-    }
-    else {
-        throw "Winget installation failed"
-    }
+    Write-Host "Installing $AppName..." -ForegroundColor Cyan
+
+    $result = Install-CrossPlatformApp -AppName $AppName `
+        -WingetId "Box.Box" `
+        -BrewCask "box-drive"
+
+    exit $result
 }
 catch {
-    Write-Host "  [!] Winget installation failed: $_" -ForegroundColor Yellow
-    Write-Host "  [i] Please install $AppName manually from https://www.box.com/" -ForegroundColor Cyan
-    "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') | WARNING | $AppName winget installation failed: $_" | Out-File -FilePath $LogPath -Append
+    Write-Host "[ERROR] Failed to install $AppName`: $_" -ForegroundColor Red
     exit 1
 }

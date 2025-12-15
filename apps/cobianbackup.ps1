@@ -4,6 +4,7 @@
 
 .DESCRIPTION
     This script installs Cobian Backup using winget package manager.
+    Windows-only: Cobian Backup is not available on macOS or Linux.
 
 .NOTES
     File Name      : cobianbackup.ps1
@@ -14,6 +15,12 @@
 
 [CmdletBinding()]
 param()
+
+# Platform check - this application is Windows-only
+if (-not ($IsWindows -or $env:OS -match 'Windows')) {
+    Write-Host "[INFO] Cobian Backup is only available for Windows." -ForegroundColor Yellow
+    exit 0
+}
 
 $ErrorActionPreference = 'Stop'
 

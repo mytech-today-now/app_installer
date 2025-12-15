@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Creates desktop and start menu shortcuts for Grok AI.
 
@@ -15,6 +15,12 @@
 
 [CmdletBinding()]
 param()
+
+# Platform check - this application is Windows-only
+if (-not ($IsWindows -or $env:OS -match 'Windows')) {
+    Write-Host "[INFO] Grok Shortcuts is only available for Windows." -ForegroundColor Yellow
+    exit 0
+}
 
 $ErrorActionPreference = 'Stop'
 
@@ -36,14 +42,14 @@ IconIndex=0
 "@
     
     Set-Content -Path $desktopShortcut -Value $urlContent -Force
-    Write-Host "  ✅ Desktop shortcut created: $desktopShortcut" -ForegroundColor Green
+    Write-Host "  ? Desktop shortcut created: $desktopShortcut" -ForegroundColor Green
     
     # Create start menu shortcut
     $startMenuPath = [Environment]::GetFolderPath("StartMenu")
     $startMenuShortcut = Join-Path $startMenuPath $shortcutName
     
     Set-Content -Path $startMenuShortcut -Value $urlContent -Force
-    Write-Host "  ✅ Start Menu shortcut created: $startMenuShortcut" -ForegroundColor Green
+    Write-Host "  ? Start Menu shortcut created: $startMenuShortcut" -ForegroundColor Green
     
     Write-Host "Grok AI shortcuts created successfully!" -ForegroundColor Green
     exit 0

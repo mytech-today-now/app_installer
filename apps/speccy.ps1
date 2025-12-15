@@ -1,9 +1,10 @@
-﻿<#
+<#
 .SYNOPSIS
     Installs Speccy.
 
 .DESCRIPTION
     This script installs Speccy using winget package manager.
+    Windows-only: Speccy is not available on macOS or Linux.
 
 .NOTES
     File Name      : speccy.ps1
@@ -14,6 +15,12 @@
 
 [CmdletBinding()]
 param()
+
+# Platform check - this application is Windows-only
+if (-not ($IsWindows -or $env:OS -match 'Windows')) {
+    Write-Host "[INFO] Speccy is only available for Windows." -ForegroundColor Yellow
+    exit 0
+}
 
 $ErrorActionPreference = 'Stop'
 

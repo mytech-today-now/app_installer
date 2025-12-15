@@ -1,9 +1,10 @@
-﻿<#
+<#
 .SYNOPSIS
     Installs Sysinternals Suite.
 
 .DESCRIPTION
     This script installs Sysinternals Suite using winget package manager.
+    Windows-only: Sysinternals Suite is not available on macOS or Linux.
 
 .NOTES
     File Name      : sysinternals.ps1
@@ -14,6 +15,12 @@
 
 [CmdletBinding()]
 param()
+
+# Platform check - this application is Windows-only
+if (-not ($IsWindows -or $env:OS -match 'Windows')) {
+    Write-Host "[INFO] Sysinternals Suite is only available for Windows." -ForegroundColor Yellow
+    exit 0
+}
 
 $ErrorActionPreference = 'Stop'
 

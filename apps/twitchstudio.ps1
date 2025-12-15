@@ -3,6 +3,7 @@
     Installs Twitch Studio.
 .DESCRIPTION
     Installs Twitch Studio using winget.
+    Windows-only: Twitch Studio is not available on macOS or Linux.
 .NOTES
     File Name      : twitchstudio.ps1
     Author         : myTech.Today
@@ -11,6 +12,12 @@
 
 [CmdletBinding()]
 param()
+
+# Platform check - this application is Windows-only
+if (-not ($IsWindows -or $env:OS -match 'Windows')) {
+    Write-Host "[INFO] Twitch Studio is only available for Windows." -ForegroundColor Yellow
+    exit 0
+}
 
 $ErrorActionPreference = 'Stop'
 

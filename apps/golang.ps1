@@ -1,49 +1,39 @@
 <#
 .SYNOPSIS
     Installs Go Programming Language.
-
 .DESCRIPTION
-    This script installs Go using winget package manager.
-
+    Cross-platform installer for Go.
+    Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman/snap).
 .NOTES
     File Name      : golang.ps1
     Author         : myTech.Today
-    Version        : 1.0.0
-    Copyright      : (c) 2025 myTech.Today. All rights reserved.
+    Prerequisite   : PowerShell 5.1+ (Windows) or PowerShell 7+ (macOS/Linux)
 #>
 
 [CmdletBinding()]
 param()
 
+# Import platform detection module
+. "$PSScriptRoot/../platform-detect.ps1"
+
 $ErrorActionPreference = 'Stop'
+$AppName = "Go"
 
 try {
-    Write-Host "Installing Go Programming Language..." -ForegroundColor Cyan
-    
-    # Check if winget is available
-    $wingetCmd = Get-Command winget -ErrorAction SilentlyContinue
-    if (-not $wingetCmd) {
-        Write-Host "  [X] winget not found. Please install App Installer from Microsoft Store." -ForegroundColor Red
-        exit 1
-    }
+    Write-Host "Installing $AppName..." -ForegroundColor Cyan
 
-    # Install using winget
-    Write-Host "  Installing via winget..." -ForegroundColor Yellow
+    $result = Install-CrossPlatformApp -AppName $AppName `
+        -WingetId "GoLang.Go" `
+        -BrewFormula "go" `
+        -AptPackage "golang-go" `
+        -DnfPackage "golang" `
+        -PacmanPackage "go" `
+        -SnapPackage "go"
 
-    $result = winget install --id GoLang.Go --silent --accept-source-agreements --accept-package-agreements 2>&1
-
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host "  [OK] Go Programming Language installed successfully!" -ForegroundColor Green
-        exit 0
-    }
-    else {
-        Write-Host "  [X] Installation failed with exit code: $LASTEXITCODE" -ForegroundColor Red
-        Write-Host "  $result" -ForegroundColor Gray
-        exit 1
-    }
+    exit $result
 }
 catch {
-    Write-Host "Error installing Go Programming Language: $_" -ForegroundColor Red
+    Write-Host "[ERROR] Failed to install $AppName`: $_" -ForegroundColor Red
     exit 1
 }
 

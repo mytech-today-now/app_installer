@@ -1,9 +1,10 @@
-﻿<#
+<#
 .SYNOPSIS
     Installs HeidiSQL.
 
 .DESCRIPTION
     This script installs HeidiSQL using winget package manager.
+    Windows-only: HeidiSQL is not available on macOS or Linux.
 
 .NOTES
     File Name      : heidisql.ps1
@@ -14,6 +15,12 @@
 
 [CmdletBinding()]
 param()
+
+# Platform check - this application is Windows-only
+if (-not ($IsWindows -or $env:OS -match 'Windows')) {
+    Write-Host "[INFO] HeidiSQL is only available for Windows." -ForegroundColor Yellow
+    exit 0
+}
 
 $ErrorActionPreference = 'Stop'
 

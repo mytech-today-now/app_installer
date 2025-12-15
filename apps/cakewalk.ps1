@@ -1,9 +1,16 @@
 ﻿# Cakewalk by BandLab Installation Script
 # Part of myTech.Today Application Installer Suite
+# Windows-only: Cakewalk is not available on macOS or Linux.
 
 param(
     [string]$LogPath = "C:\myTech.Today\logs\AppInstaller.md"
 )
+
+# Platform check - this application is Windows-only
+if (-not ($IsWindows -or $env:OS -match 'Windows')) {
+    Write-Host "[INFO] Cakewalk is only available for Windows." -ForegroundColor Yellow
+    exit 0
+}
 
 $AppName = "Cakewalk by BandLab"
 $WingetId = "BandLab.Cakewalk"

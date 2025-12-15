@@ -1,49 +1,34 @@
 ﻿<#
 .SYNOPSIS
-    Installs AngryIP Scanner network scanner.
-
+    Installs Angry IP Scanner.
 .DESCRIPTION
-    This script installs AngryIP Scanner using winget package manager.
-
+    Cross-platform installer for Angry IP Scanner network scanner.
+    Supports Windows (winget) and macOS (Homebrew).
 .NOTES
     File Name      : angryip.ps1
     Author         : myTech.Today
-    Version        : 1.0.0
-    Copyright      : (c) 2025 myTech.Today. All rights reserved.
+    Prerequisite   : PowerShell 5.1+ (Windows) or PowerShell 7+ (macOS/Linux)
 #>
 
 [CmdletBinding()]
 param()
 
+# Import platform detection module
+. "$PSScriptRoot/../platform-detect.ps1"
+
 $ErrorActionPreference = 'Stop'
+$AppName = "Angry IP Scanner"
 
 try {
-    Write-Host "Installing AngryIP Scanner..." -ForegroundColor Cyan
-    
-    # Check if winget is available
-    $wingetCmd = Get-Command winget -ErrorAction SilentlyContinue
-    if (-not $wingetCmd) {
-        Write-Host "  ❌ winget not found. Please install App Installer from Microsoft Store." -ForegroundColor Red
-        exit 1
-    }
-    
-    # Install using winget
-    Write-Host "  Installing via winget..." -ForegroundColor Yellow
-    
-    $result = winget install --id angryziber.AngryIPScanner --silent --accept-source-agreements --accept-package-agreements 2>&1
-    
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host "  ✅ AngryIP Scanner installed successfully!" -ForegroundColor Green
-        exit 0
-    }
-    else {
-        Write-Host "  ❌ Installation failed with exit code: $LASTEXITCODE" -ForegroundColor Red
-        Write-Host "  $result" -ForegroundColor Gray
-        exit 1
-    }
+    Write-Host "Installing $AppName..." -ForegroundColor Cyan
+
+    $result = Install-CrossPlatformApp -AppName $AppName `
+        -WingetId "angryziber.AngryIPScanner" `
+        -BrewCask "angry-ip-scanner"
+
+    exit $result
 }
 catch {
-    Write-Host "Error installing AngryIP Scanner: $_" -ForegroundColor Red
+    Write-Host "[ERROR] Failed to install $AppName`: $_" -ForegroundColor Red
     exit 1
 }
-

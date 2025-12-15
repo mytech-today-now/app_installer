@@ -1,29 +1,34 @@
-﻿# Cinelerra Installation Script
-# Part of myTech.Today Application Installer Suite
+﻿<#
+.SYNOPSIS
+    Installs Cinelerra.
+.DESCRIPTION
+    Cross-platform installer for Cinelerra professional video editing software.
+    Supports Linux (apt/snap).
+.NOTES
+    File Name      : cinelerra.ps1
+    Author         : myTech.Today
+    Prerequisite   : PowerShell 5.1+ (Windows) or PowerShell 7+ (macOS/Linux)
+#>
 
-param(
-    [string]$LogPath = "C:\myTech.Today\logs\AppInstaller.md"
-)
+[CmdletBinding()]
+param()
 
+# Import platform detection module
+. "$PSScriptRoot/../platform-detect.ps1"
+
+$ErrorActionPreference = 'Stop'
 $AppName = "Cinelerra"
-$WingetId = ""
-
-Write-Host "Installing $AppName..." -ForegroundColor Cyan
 
 try {
-    # This application is not available via winget
-    Write-Host "  [i] $AppName is not available via winget" -ForegroundColor Yellow
-    Write-Host "  [i] Please download and install manually from: https://cinelerra-gg.org/" -ForegroundColor Cyan
-    Write-Host "  [i] Opening download page in browser..." -ForegroundColor Gray
-    
-    Start-Process "https://cinelerra-gg.org/"
-    
-    "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') | INFO | $AppName manual installation initiated" | Out-File -FilePath $LogPath -Append
-    Write-Host "  [OK] Download page opened. Please complete installation manually." -ForegroundColor Green
-    exit 0
+    Write-Host "Installing $AppName..." -ForegroundColor Cyan
+
+    $result = Install-CrossPlatformApp -AppName $AppName `
+        -AptPackage "cinelerra" `
+        -SnapPackage "cinelerra-gg"
+
+    exit $result
 }
 catch {
-    Write-Host "  [!] Error: $_" -ForegroundColor Red
-    "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') | ERROR | $AppName installation error: $_" | Out-File -FilePath $LogPath -Append
+    Write-Host "[ERROR] Failed to install $AppName`: $_" -ForegroundColor Red
     exit 1
 }

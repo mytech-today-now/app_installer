@@ -1,9 +1,10 @@
-﻿<#
+<#
 .SYNOPSIS
     Installs Recuva.
 
 .DESCRIPTION
     This script installs Recuva using winget package manager.
+    Windows-only: Recuva is not available on macOS or Linux.
 
 .NOTES
     File Name      : recuva.ps1
@@ -14,6 +15,12 @@
 
 [CmdletBinding()]
 param()
+
+# Platform check - this application is Windows-only
+if (-not ($IsWindows -or $env:OS -match 'Windows')) {
+    Write-Host "[INFO] Recuva is only available for Windows." -ForegroundColor Yellow
+    exit 0
+}
 
 $ErrorActionPreference = 'Stop'
 

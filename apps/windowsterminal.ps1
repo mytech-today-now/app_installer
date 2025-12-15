@@ -1,9 +1,10 @@
-﻿<#
+<#
 .SYNOPSIS
     Installs Windows Terminal.
 
 .DESCRIPTION
     This script installs Windows Terminal using winget package manager.
+    Windows-only: Windows Terminal is not available on macOS or Linux.
 
 .NOTES
     File Name      : windowsterminal.ps1
@@ -14,6 +15,12 @@
 
 [CmdletBinding()]
 param()
+
+# Platform check - this application is Windows-only
+if (-not ($IsWindows -or $env:OS -match 'Windows')) {
+    Write-Host "[INFO] Windows Terminal is only available for Windows." -ForegroundColor Yellow
+    exit 0
+}
 
 $ErrorActionPreference = 'Stop'
 

@@ -1,9 +1,10 @@
-﻿<#
+<#
 .SYNOPSIS
     Installs Paint.NET.
 
 .DESCRIPTION
     This script installs Paint.NET using winget package manager.
+    Windows-only: Paint.NET is not available on macOS or Linux.
 
 .NOTES
     File Name      : paintdotnet.ps1
@@ -14,6 +15,12 @@
 
 [CmdletBinding()]
 param()
+
+# Platform check - this application is Windows-only
+if (-not ($IsWindows -or $env:OS -match 'Windows')) {
+    Write-Host "[INFO] Paint.NET is only available for Windows." -ForegroundColor Yellow
+    exit 0
+}
 
 $ErrorActionPreference = 'Stop'
 

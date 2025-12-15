@@ -1,49 +1,35 @@
 <#
 .SYNOPSIS
     Installs DaVinci Resolve video editor.
-
 .DESCRIPTION
-    This script installs DaVinci Resolve using winget package manager.
-
+    Cross-platform installer for DaVinci Resolve.
+    Supports Windows (winget) and macOS (Homebrew).
+    Note: Linux requires manual download from Blackmagic website.
 .NOTES
     File Name      : davinciresolve.ps1
     Author         : myTech.Today
-    Version        : 1.0.0
-    Copyright      : (c) 2025 myTech.Today. All rights reserved.
+    Prerequisite   : PowerShell 5.1+ (Windows) or PowerShell 7+ (macOS/Linux)
 #>
 
 [CmdletBinding()]
 param()
 
+# Import platform detection module
+. "$PSScriptRoot/../platform-detect.ps1"
+
 $ErrorActionPreference = 'Stop'
+$AppName = "DaVinci Resolve"
 
 try {
-    Write-Host "Installing DaVinci Resolve..." -ForegroundColor Cyan
-    
-    # Check if winget is available
-    $wingetCmd = Get-Command winget -ErrorAction SilentlyContinue
-    if (-not $wingetCmd) {
-        Write-Host "  [X] winget not found. Please install App Installer from Microsoft Store." -ForegroundColor Red
-        exit 1
-    }
+    Write-Host "Installing $AppName..." -ForegroundColor Cyan
 
-    # Install using winget
-    Write-Host "  Installing via winget..." -ForegroundColor Yellow
+    $result = Install-CrossPlatformApp -AppName $AppName `
+        -WingetId "Blackmagic.DaVinciResolve" `
+        -BrewCask "davinci-resolve"
 
-    $result = winget install --id Blackmagic.DaVinciResolve --silent --accept-source-agreements --accept-package-agreements 2>&1
-
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host "  [OK] DaVinci Resolve installed successfully!" -ForegroundColor Green
-        exit 0
-    }
-    else {
-        Write-Host "  [X] Installation failed with exit code: $LASTEXITCODE" -ForegroundColor Red
-        Write-Host "  $result" -ForegroundColor Gray
-        exit 1
-    }
+    exit $result
 }
 catch {
-    Write-Host "Error installing DaVinci Resolve: $_" -ForegroundColor Red
+    Write-Host "[ERROR] Failed to install $AppName`: $_" -ForegroundColor Red
     exit 1
 }
-

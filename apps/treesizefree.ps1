@@ -1,9 +1,10 @@
-﻿<#
+<#
 .SYNOPSIS
     Installs TreeSize Free.
 
 .DESCRIPTION
     This script installs TreeSize Free using winget package manager.
+    Windows-only: TreeSize Free is not available on macOS or Linux.
 
 .NOTES
     File Name      : treesizefree.ps1
@@ -14,6 +15,12 @@
 
 [CmdletBinding()]
 param()
+
+# Platform check - this application is Windows-only
+if (-not ($IsWindows -or $env:OS -match 'Windows')) {
+    Write-Host "[INFO] TreeSize Free is only available for Windows." -ForegroundColor Yellow
+    exit 0
+}
 
 $ErrorActionPreference = 'Stop'
 

@@ -1,9 +1,10 @@
-﻿<#
+<#
 .SYNOPSIS
     Installs MPC-HC.
 
 .DESCRIPTION
     This script installs MPC-HC using winget package manager.
+    Windows-only: MPC-HC is not available on macOS or Linux.
 
 .NOTES
     File Name      : mpchc.ps1
@@ -14,6 +15,12 @@
 
 [CmdletBinding()]
 param()
+
+# Platform check - this application is Windows-only
+if (-not ($IsWindows -or $env:OS -match 'Windows')) {
+    Write-Host "[INFO] MPC-HC is only available for Windows." -ForegroundColor Yellow
+    exit 0
+}
 
 $ErrorActionPreference = 'Stop'
 

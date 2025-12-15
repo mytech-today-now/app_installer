@@ -3,6 +3,7 @@
     Installs SQL Server Management Studio (SSMS).
 .DESCRIPTION
     Installs SQL Server Management Studio using winget.
+    Windows-only: SQL Server Management Studio is not available on macOS or Linux.
 .NOTES
     File Name      : ssms.ps1
     Author         : myTech.Today
@@ -11,6 +12,12 @@
 
 [CmdletBinding()]
 param()
+
+# Platform check - this application is Windows-only
+if (-not ($IsWindows -or $env:OS -match 'Windows')) {
+    Write-Host "[INFO] SQL Server Management Studio is only available for Windows." -ForegroundColor Yellow
+    exit 0
+}
 
 $ErrorActionPreference = 'Stop'
 

@@ -3,6 +3,7 @@
     Installs ImageGlass.
 .DESCRIPTION
     Installs ImageGlass using winget.
+    Windows-only: ImageGlass is not available on macOS or Linux.
 .NOTES
     File Name      : imageglass.ps1
     Author         : myTech.Today
@@ -11,6 +12,12 @@
 
 [CmdletBinding()]
 param()
+
+# Platform check - this application is Windows-only
+if (-not ($IsWindows -or $env:OS -match 'Windows')) {
+    Write-Host "[INFO] ImageGlass is only available for Windows." -ForegroundColor Yellow
+    exit 0
+}
 
 $ErrorActionPreference = 'Stop'
 

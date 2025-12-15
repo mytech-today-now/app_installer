@@ -1,9 +1,10 @@
-﻿<#
+<#
 .SYNOPSIS
     Installs Bulk Rename Utility.
 
 .DESCRIPTION
     This script installs Bulk Rename Utility using winget package manager.
+    Windows-only: Bulk Rename Utility is not available on macOS or Linux.
 
 .NOTES
     File Name      : bulkrename.ps1
@@ -14,6 +15,12 @@
 
 [CmdletBinding()]
 param()
+
+# Platform check - this application is Windows-only
+if (-not ($IsWindows -or $env:OS -match 'Windows')) {
+    Write-Host "[INFO] Bulk Rename Utility is only available for Windows." -ForegroundColor Yellow
+    exit 0
+}
 
 $ErrorActionPreference = 'Stop'
 

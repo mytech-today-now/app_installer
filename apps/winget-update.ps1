@@ -4,6 +4,7 @@
 
 .DESCRIPTION
     This script updates all applications installed via winget on a monthly basis.
+    Windows-only: Winget-AutoUpdate is not available on macOS or Linux.
     Installed and managed by myTech.Today to keep your system up-to-date and secure.
 
 .NOTES
@@ -23,6 +24,12 @@
 
 [CmdletBinding()]
 param()
+
+# Platform check - this application is Windows-only
+if (-not ($IsWindows -or $env:OS -match 'Windows')) {
+    Write-Host "[INFO] Winget-AutoUpdate is only available for Windows." -ForegroundColor Yellow
+    exit 0
+}
 
 # Script configuration
 $script:ScriptName = 'winget-update.ps1'

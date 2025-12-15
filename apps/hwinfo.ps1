@@ -1,9 +1,10 @@
-﻿<#
+<#
 .SYNOPSIS
     Installs HWiNFO.
 
 .DESCRIPTION
     This script installs HWiNFO using winget package manager.
+    Windows-only: HWiNFO is not available on macOS or Linux.
 
 .NOTES
     File Name      : hwinfo.ps1
@@ -14,6 +15,12 @@
 
 [CmdletBinding()]
 param()
+
+# Platform check - this application is Windows-only
+if (-not ($IsWindows -or $env:OS -match 'Windows')) {
+    Write-Host "[INFO] HWiNFO is only available for Windows." -ForegroundColor Yellow
+    exit 0
+}
 
 $ErrorActionPreference = 'Stop'
 

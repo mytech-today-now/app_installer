@@ -1,49 +1,38 @@
 ﻿<#
 .SYNOPSIS
     Installs Python programming language.
-
 .DESCRIPTION
-    This script installs Python 3.12 using winget package manager.
-
+    Cross-platform installer for Python.
+    Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman).
 .NOTES
     File Name      : python.ps1
     Author         : myTech.Today
-    Version        : 1.0.0
-    Copyright      : (c) 2025 myTech.Today. All rights reserved.
+    Prerequisite   : PowerShell 5.1+ (Windows) or PowerShell 7+ (macOS/Linux)
 #>
 
 [CmdletBinding()]
 param()
 
+# Import platform detection module
+. "$PSScriptRoot/../platform-detect.ps1"
+
 $ErrorActionPreference = 'Stop'
+$AppName = "Python"
 
 try {
-    Write-Host "Installing Python..." -ForegroundColor Cyan
-    
-    # Check if winget is available
-    $wingetCmd = Get-Command winget -ErrorAction SilentlyContinue
-    if (-not $wingetCmd) {
-        Write-Host "  ❌ winget not found. Please install App Installer from Microsoft Store." -ForegroundColor Red
-        exit 1
-    }
-    
-    # Install using winget
-    Write-Host "  Installing via winget..." -ForegroundColor Yellow
-    
-    $result = winget install --id Python.Python.3.12 --silent --accept-source-agreements --accept-package-agreements 2>&1
-    
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host "  ✅ Python installed successfully!" -ForegroundColor Green
-        exit 0
-    }
-    else {
-        Write-Host "  ❌ Installation failed with exit code: $LASTEXITCODE" -ForegroundColor Red
-        Write-Host "  $result" -ForegroundColor Gray
-        exit 1
-    }
+    Write-Host "Installing $AppName..." -ForegroundColor Cyan
+
+    $result = Install-CrossPlatformApp -AppName $AppName `
+        -WingetId "Python.Python.3.12" `
+        -BrewFormula "python" `
+        -AptPackage "python3" `
+        -DnfPackage "python3" `
+        -PacmanPackage "python"
+
+    exit $result
 }
 catch {
-    Write-Host "Error installing Python: $_" -ForegroundColor Red
+    Write-Host "[ERROR] Failed to install $AppName`: $_" -ForegroundColor Red
     exit 1
 }
 

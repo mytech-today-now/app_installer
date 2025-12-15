@@ -4,6 +4,7 @@
 
 .DESCRIPTION
     This script downloads and installs the Manage-RestorePoints.ps1 script from GitHub,
+    Windows-only: Manage Restore Points is not available on macOS or Linux.
     which provides comprehensive management of Windows System Restore Points including
     automated creation, monitoring, and notification.
 
@@ -16,6 +17,12 @@
 
 [CmdletBinding()]
 param()
+
+# Platform check - this application is Windows-only
+if (-not ($IsWindows -or $env:OS -match 'Windows')) {
+    Write-Host "[INFO] Manage Restore Points is only available for Windows." -ForegroundColor Yellow
+    exit 0
+}
 
 $ErrorActionPreference = 'Stop'
 

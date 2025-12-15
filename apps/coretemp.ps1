@@ -1,9 +1,10 @@
-﻿<#
+<#
 .SYNOPSIS
     Installs Core Temp.
 
 .DESCRIPTION
     This script installs Core Temp using winget package manager.
+    Windows-only: Core Temp is not available on macOS or Linux.
 
 .NOTES
     File Name      : coretemp.ps1
@@ -14,6 +15,12 @@
 
 [CmdletBinding()]
 param()
+
+# Platform check - this application is Windows-only
+if (-not ($IsWindows -or $env:OS -match 'Windows')) {
+    Write-Host "[INFO] Core Temp is only available for Windows." -ForegroundColor Yellow
+    exit 0
+}
 
 $ErrorActionPreference = 'Stop'
 

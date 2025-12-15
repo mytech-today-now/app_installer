@@ -1,50 +1,34 @@
 ﻿<#
 .SYNOPSIS
     Installs Chrome Remote Desktop.
-
 .DESCRIPTION
-    This script installs Chrome Remote Desktop using winget package manager.
-
+    Cross-platform installer for Chrome Remote Desktop.
+    Supports Windows (winget) and macOS (Homebrew).
 .NOTES
     File Name      : chromeremote.ps1
     Author         : myTech.Today
-    Version        : 1.0.0
-    Copyright      : (c) 2025 myTech.Today. All rights reserved.
+    Prerequisite   : PowerShell 5.1+ (Windows) or PowerShell 7+ (macOS/Linux)
 #>
 
 [CmdletBinding()]
 param()
 
+# Import platform detection module
+. "$PSScriptRoot/../platform-detect.ps1"
+
 $ErrorActionPreference = 'Stop'
+$AppName = "Chrome Remote Desktop"
 
 try {
-    Write-Host "Installing Chrome Remote Desktop..." -ForegroundColor Cyan
-    
-    # Check if winget is available
-    $wingetCmd = Get-Command winget -ErrorAction SilentlyContinue
-    if (-not $wingetCmd) {
-        Write-Host "  [X] winget not found. Please install App Installer from Microsoft Store." -ForegroundColor Red
-        exit 1
-    }
+    Write-Host "Installing $AppName..." -ForegroundColor Cyan
 
-    # Install using winget
-    Write-Host "  Installing via winget..." -ForegroundColor Yellow
+    $result = Install-CrossPlatformApp -AppName $AppName `
+        -WingetId "Google.ChromeRemoteDesktopHost" `
+        -BrewCask "chrome-remote-desktop-host"
 
-    $result = winget install --id Google.ChromeRemoteDesktopHost --silent --accept-source-agreements --accept-package-agreements 2>&1
-    $exitCode = $LASTEXITCODE
-
-    if ($exitCode -eq 0) {
-        Write-Host "  [OK] Chrome Remote Desktop installed successfully!" -ForegroundColor Green
-        exit 0
-    }
-    else {
-        Write-Host "  [X] Installation failed with exit code: $exitCode" -ForegroundColor Red
-        Write-Host "  $result" -ForegroundColor Gray
-        exit $exitCode
-    }
+    exit $result
 }
 catch {
-    Write-Host "Error installing Chrome Remote Desktop: $_" -ForegroundColor Red
+    Write-Host "[ERROR] Failed to install $AppName`: $_" -ForegroundColor Red
     exit 1
 }
-

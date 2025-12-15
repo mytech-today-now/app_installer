@@ -1,29 +1,34 @@
-﻿# Peek Installation Script
-# Part of myTech.Today Application Installer Suite
+﻿<#
+.SYNOPSIS
+    Installs Peek.
+.DESCRIPTION
+    Cross-platform installer for Peek GIF screen recorder.
+    Supports Linux (apt/snap).
+.NOTES
+    File Name      : peek.ps1
+    Author         : myTech.Today
+    Prerequisite   : PowerShell 5.1+ (Windows) or PowerShell 7+ (macOS/Linux)
+#>
 
-param(
-    [string]$LogPath = "C:\myTech.Today\logs\AppInstaller.md"
-)
+[CmdletBinding()]
+param()
 
+# Import platform detection module
+. "$PSScriptRoot/../platform-detect.ps1"
+
+$ErrorActionPreference = 'Stop'
 $AppName = "Peek"
-$WingetId = ""
-
-Write-Host "Installing $AppName..." -ForegroundColor Cyan
 
 try {
-    # This application is not available via winget
-    Write-Host "  [i] $AppName is not available via winget" -ForegroundColor Yellow
-    Write-Host "  [i] Please download and install manually from: https://github.com/phw/peek" -ForegroundColor Cyan
-    Write-Host "  [i] Opening download page in browser..." -ForegroundColor Gray
-    
-    Start-Process "https://github.com/phw/peek"
-    
-    "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') | INFO | $AppName manual installation initiated" | Out-File -FilePath $LogPath -Append
-    Write-Host "  [OK] Download page opened. Please complete installation manually." -ForegroundColor Green
-    exit 0
+    Write-Host "Installing $AppName..." -ForegroundColor Cyan
+
+    $result = Install-CrossPlatformApp -AppName $AppName `
+        -AptPackage "peek" `
+        -SnapPackage "peek"
+
+    exit $result
 }
 catch {
-    Write-Host "  [!] Error: $_" -ForegroundColor Red
-    "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') | ERROR | $AppName installation error: $_" | Out-File -FilePath $LogPath -Append
+    Write-Host "[ERROR] Failed to install $AppName`: $_" -ForegroundColor Red
     exit 1
 }

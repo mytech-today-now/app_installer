@@ -1,9 +1,10 @@
-﻿<#
+<#
 .SYNOPSIS
     Downloads and installs Belarc Advisor.
 
 .DESCRIPTION
     This script downloads and installs Belarc Advisor system information tool.
+    Windows-only: Belarc Advisor is not available on macOS or Linux.
 
 .NOTES
     File Name      : belarc.ps1
@@ -14,6 +15,12 @@
 
 [CmdletBinding()]
 param()
+
+# Platform check - this application is Windows-only
+if (-not ($IsWindows -or $env:OS -match 'Windows')) {
+    Write-Host "[INFO] Belarc Advisor is only available for Windows." -ForegroundColor Yellow
+    exit 0
+}
 
 $ErrorActionPreference = 'Stop'
 
@@ -29,10 +36,10 @@ try {
     
     try {
         Invoke-WebRequest -Uri $belarcUrl -OutFile $installerPath -UseBasicParsing
-        Write-Host "  ✅ Download complete" -ForegroundColor Green
+        Write-Host "  ? Download complete" -ForegroundColor Green
     }
     catch {
-        Write-Host "  ❌ Failed to download: $_" -ForegroundColor Red
+        Write-Host "  ? Failed to download: $_" -ForegroundColor Red
         exit 1
     }
     
@@ -43,14 +50,14 @@ try {
         $process = Start-Process -FilePath $installerPath -ArgumentList "/S" -Wait -PassThru
         
         if ($process.ExitCode -eq 0) {
-            Write-Host "  ✅ Belarc Advisor installed successfully!" -ForegroundColor Green
+            Write-Host "  ? Belarc Advisor installed successfully!" -ForegroundColor Green
         }
         else {
-            Write-Host "  ⚠️  Installer exited with code: $($process.ExitCode)" -ForegroundColor Yellow
+            Write-Host "  ??  Installer exited with code: $($process.ExitCode)" -ForegroundColor Yellow
         }
     }
     catch {
-        Write-Host "  ❌ Installation failed: $_" -ForegroundColor Red
+        Write-Host "  ? Installation failed: $_" -ForegroundColor Red
         exit 1
     }
     finally {

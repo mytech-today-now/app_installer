@@ -1,9 +1,10 @@
-﻿<#
+<#
 .SYNOPSIS
     Installs TightVNC.
 
 .DESCRIPTION
     This script installs TightVNC using winget package manager.
+    Windows-only: TightVNC is not available on macOS or Linux.
 
 .NOTES
     File Name      : tightvnc.ps1
@@ -14,6 +15,12 @@
 
 [CmdletBinding()]
 param()
+
+# Platform check - this application is Windows-only
+if (-not ($IsWindows -or $env:OS -match 'Windows')) {
+    Write-Host "[INFO] TightVNC is only available for Windows." -ForegroundColor Yellow
+    exit 0
+}
 
 $ErrorActionPreference = 'Stop'
 

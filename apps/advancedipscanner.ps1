@@ -1,9 +1,10 @@
-﻿<#
+<#
 .SYNOPSIS
     Installs Advanced IP Scanner.
 
 .DESCRIPTION
     This script installs Advanced IP Scanner using winget package manager.
+    Windows-only: Advanced IP Scanner is not available on macOS or Linux.
 
 .NOTES
     File Name      : advancedipscanner.ps1
@@ -14,6 +15,12 @@
 
 [CmdletBinding()]
 param()
+
+# Platform check - this application is Windows-only
+if (-not ($IsWindows -or $env:OS -match 'Windows')) {
+    Write-Host "[INFO] Advanced IP Scanner is only available for Windows." -ForegroundColor Yellow
+    exit 0
+}
 
 $ErrorActionPreference = 'Stop'
 

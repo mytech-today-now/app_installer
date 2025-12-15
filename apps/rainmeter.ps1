@@ -3,6 +3,7 @@
     Installs Rainmeter.
 .DESCRIPTION
     Installs Rainmeter using winget.
+    Windows-only: Rainmeter is not available on macOS or Linux.
 .NOTES
     File Name      : rainmeter.ps1
     Author         : myTech.Today
@@ -11,6 +12,12 @@
 
 [CmdletBinding()]
 param()
+
+# Platform check - this application is Windows-only
+if (-not ($IsWindows -or $env:OS -match 'Windows')) {
+    Write-Host "[INFO] Rainmeter is only available for Windows." -ForegroundColor Yellow
+    exit 0
+}
 
 $ErrorActionPreference = 'Stop'
 

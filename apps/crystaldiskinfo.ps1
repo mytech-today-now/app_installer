@@ -1,9 +1,10 @@
-﻿<#
+<#
 .SYNOPSIS
     Installs CrystalDiskInfo.
 
 .DESCRIPTION
     This script installs CrystalDiskInfo using winget package manager.
+    Windows-only: CrystalDiskInfo is not available on macOS or Linux.
 
 .NOTES
     File Name      : crystaldiskinfo.ps1
@@ -14,6 +15,12 @@
 
 [CmdletBinding()]
 param()
+
+# Platform check - this application is Windows-only
+if (-not ($IsWindows -or $env:OS -match 'Windows')) {
+    Write-Host "[INFO] CrystalDiskInfo is only available for Windows." -ForegroundColor Yellow
+    exit 0
+}
 
 $ErrorActionPreference = 'Stop'
 

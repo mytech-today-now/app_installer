@@ -1,123 +1,39 @@
 ﻿<#
 .SYNOPSIS
-    Installs Brave Browser with version detection.
-
+    Installs Brave Browser.
 .DESCRIPTION
-    This script detects if Brave Browser is already installed and shows version information.
-    If not installed, it installs Brave Browser using winget package manager.
-
+    Cross-platform installer for Brave Browser.
+    Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman/snap).
 .NOTES
     File Name      : brave.ps1
     Author         : myTech.Today
-    Version        : 1.1.0
-    Copyright      : (c) 2025 myTech.Today. All rights reserved.
+    Prerequisite   : PowerShell 5.1+ (Windows) or PowerShell 7+ (macOS/Linux)
 #>
 
 [CmdletBinding()]
 param()
 
+# Import platform detection module
+. "$PSScriptRoot/../platform-detect.ps1"
+
 $ErrorActionPreference = 'Stop'
-
-function Get-BraveVersion {
-    <#
-    .SYNOPSIS
-        Detects if Brave Browser is installed and returns version information.
-    #>
-    try {
-        # Check using winget list (most reliable for winget-installed apps)
-        $wingetList = winget list --id Brave.Brave --accept-source-agreements 2>$null | Out-String
-
-        if ($wingetList -match 'Brave\.Brave') {
-            # Extract version from winget output
-            $lines = $wingetList -split "`n"
-            $matchingLine = $lines | Where-Object { $_ -match 'Brave\.Brave' } | Select-Object -First 1
-
-            if ($matchingLine -match '\s+([\d\.]+)\s+') {
-                return $matches[1]
-            }
-            else {
-                return "Installed"
-            }
-        }
-
-        # Fallback: Check common installation paths
-        $bravePaths = @(
-            "$env:ProgramFiles\BraveSoftware\Brave-Browser\Application\brave.exe",
-            "$env:ProgramFiles(x86)\BraveSoftware\Brave-Browser\Application\brave.exe",
-            "$env:LocalAppData\BraveSoftware\Brave-Browser\Application\brave.exe"
-        )
-
-        foreach ($path in $bravePaths) {
-            if (Test-Path $path) {
-                $version = (Get-Item $path).VersionInfo.FileVersion
-                if ($version) {
-                    return $version
-                }
-                return "Installed"
-            }
-        }
-
-        return $null
-    }
-    catch {
-        return $null
-    }
-}
+$AppName = "Brave Browser"
 
 try {
-    Write-Host "Brave Browser Installation Script" -ForegroundColor Cyan
-    Write-Host "=================================" -ForegroundColor Cyan
-    Write-Host ""
+    Write-Host "Installing $AppName..." -ForegroundColor Cyan
 
-    # Check if winget is available
-    $wingetCmd = Get-Command winget -ErrorAction SilentlyContinue
-    if (-not $wingetCmd) {
-        Write-Host "  ❌ winget not found. Please install App Installer from Microsoft Store." -ForegroundColor Red
-        exit 1
-    }
+    $result = Install-CrossPlatformApp -AppName $AppName `
+        -WingetId "Brave.Brave" `
+        -BrewCask "brave-browser" `
+        -AptPackage "brave-browser" `
+        -DnfPackage "brave-browser" `
+        -PacmanPackage "brave-bin" `
+        -SnapPackage "brave"
 
-    # Check if Brave is already installed
-    Write-Host "  Checking for existing installation..." -ForegroundColor Yellow
-    $currentVersion = Get-BraveVersion
-
-    if ($currentVersion) {
-        Write-Host "  ✅ Brave Browser is already installed!" -ForegroundColor Green
-        Write-Host "     Version: $currentVersion" -ForegroundColor Gray
-        Write-Host ""
-        Write-Host "  To upgrade, run: winget upgrade --id Brave.Brave" -ForegroundColor Cyan
-        exit 0
-    }
-
-    Write-Host "  Brave Browser not detected. Installing..." -ForegroundColor Yellow
-    Write-Host ""
-
-    # Install using winget
-    Write-Host "  Installing via winget..." -ForegroundColor Yellow
-
-    $result = winget install --id Brave.Brave --silent --accept-source-agreements --accept-package-agreements 2>&1
-
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host ""
-        Write-Host "  ✅ Brave Browser installed successfully!" -ForegroundColor Green
-
-        # Verify installation
-        $newVersion = Get-BraveVersion
-        if ($newVersion) {
-            Write-Host "     Installed Version: $newVersion" -ForegroundColor Gray
-        }
-
-        exit 0
-    }
-    else {
-        Write-Host ""
-        Write-Host "  ❌ Installation failed with exit code: $LASTEXITCODE" -ForegroundColor Red
-        Write-Host "  $result" -ForegroundColor Gray
-        exit 1
-    }
+    exit $result
 }
 catch {
-    Write-Host ""
-    Write-Host "Error: $_" -ForegroundColor Red
+    Write-Host "[ERROR] Failed to install $AppName`: $_" -ForegroundColor Red
     exit 1
 }
 

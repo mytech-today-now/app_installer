@@ -4,6 +4,7 @@
 
 .DESCRIPTION
     This script installs Firefly III Desktop using winget package manager.
+    Windows-only: Firefly III is not available on macOS or Linux.
 
 .NOTES
     File Name      : fireflyiii.ps1
@@ -14,6 +15,12 @@
 
 [CmdletBinding()]
 param()
+
+# Platform check - this application is Windows-only
+if (-not ($IsWindows -or $env:OS -match 'Windows')) {
+    Write-Host "[INFO] Firefly III is only available for Windows." -ForegroundColor Yellow
+    exit 0
+}
 
 $ErrorActionPreference = 'Stop'
 

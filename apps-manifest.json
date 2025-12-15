@@ -1,0 +1,3993 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "version": "1.0.0",
+  "generated": "2025-12-15T00:00:00Z",
+  "description": "Cross-platform app installer manifest for myTech.Today PowerShellScripts",
+  "apps": [
+    {
+      "name": "7zip",
+      "displayName": "7-Zip",
+      "description": "File archiver with high compression ratio",
+      "category": "Utilities",
+      "platform": "All",
+      "packages": {
+        "winget": "7zip.7zip",
+        "brewCask": "the-unarchiver",
+        "brewFormula": "p7zip",
+        "apt": "p7zip-full",
+        "dnf": "p7zip",
+        "pacman": "p7zip",
+        "snap": "p7zip-desktop"
+      }
+    },
+    {
+      "name": "acemoneylite",
+      "displayName": "AceMoney Lite",
+      "description": "Personal finance manager",
+      "category": "Finance",
+      "platform": "Windows",
+      "packages": {
+        "winget": "MechCAD.AceMoneyLite"
+      }
+    },
+    {
+      "name": "actualbudget",
+      "displayName": "Actual Budget",
+      "description": "Privacy-focused budgeting app",
+      "category": "Finance",
+      "platform": "All",
+      "packages": {
+        "winget": "ActualBudget.Actual",
+        "brewCask": "actual"
+      }
+    },
+    {
+      "name": "adobereader",
+      "displayName": "Adobe Acrobat Reader",
+      "description": "PDF viewer and reader",
+      "category": "Productivity",
+      "platform": "All",
+      "packages": {
+        "winget": "Adobe.Acrobat.Reader.64-bit",
+        "brewCask": "adobe-acrobat-reader"
+      },
+      "notes": "Linux users should use alternative PDF readers"
+    },
+    {
+      "name": "advancedipscanner",
+      "displayName": "Advanced IP Scanner",
+      "description": "Network scanner for Windows",
+      "category": "Networking",
+      "platform": "Windows",
+      "packages": {
+        "winget": "Famatech.AdvancedIPScanner"
+      }
+    },
+    {
+      "name": "akira",
+      "displayName": "Akira",
+      "description": "Native Linux design application",
+      "category": "Creative-Graphics",
+      "platform": "Linux",
+      "packages": {
+        "snap": "akira"
+      }
+    },
+    {
+      "name": "angryip",
+      "displayName": "Angry IP Scanner",
+      "description": "Fast and friendly network scanner",
+      "category": "Networking",
+      "platform": "All",
+      "packages": {
+        "winget": "angryziber.AngryIPScanner",
+        "brewCask": "angry-ip-scanner"
+      }
+    },
+    {
+      "name": "anki",
+      "displayName": "Anki",
+      "description": "Powerful flashcard learning app",
+      "category": "Productivity",
+      "platform": "All",
+      "packages": {
+        "winget": "Anki.Anki",
+        "brewCask": "anki",
+        "apt": "anki",
+        "dnf": "anki",
+        "pacman": "anki"
+      }
+    },
+    {
+      "name": "anydesk",
+      "displayName": "AnyDesk",
+      "description": "Remote desktop software",
+      "category": "Utilities",
+      "platform": "All",
+      "packages": {
+        "winget": "AnyDeskSoftwareGmbH.AnyDesk",
+        "brewCask": "anydesk"
+      },
+      "notes": "Linux requires adding AnyDesk repository"
+    },
+    {
+      "name": "ardour",
+      "displayName": "Ardour",
+      "description": "Digital audio workstation",
+      "category": "Creative-Audio",
+      "platform": "All",
+      "packages": {
+        "winget": "Ardour.Ardour",
+        "brewCask": "ardour",
+        "apt": "ardour",
+        "dnf": "ardour",
+        "pacman": "ardour"
+      }
+    },
+    {
+      "name": "atom",
+      "displayName": "Atom",
+      "description": "Hackable text editor (discontinued)",
+      "category": "Development",
+      "platform": "All",
+      "packages": {
+        "winget": "GitHub.Atom",
+        "brewCask": "atom",
+        "apt": "atom",
+        "snap": "atom"
+      },
+      "notes": "Atom is discontinued - consider VS Code instead"
+    },
+    {
+      "name": "audacity",
+      "displayName": "Audacity",
+      "description": "Free audio editor and recorder",
+      "category": "Creative-Audio",
+      "platform": "All",
+      "packages": {
+        "winget": "Audacity.Audacity",
+        "brewCask": "audacity",
+        "apt": "audacity",
+        "dnf": "audacity",
+        "pacman": "audacity",
+        "snap": "audacity"
+      }
+    },
+    {
+      "name": "autohotkey",
+      "displayName": "AutoHotkey",
+      "description": "Windows automation scripting language",
+      "category": "System-Windows",
+      "platform": "Windows",
+      "packages": {
+        "winget": "AutoHotkey.AutoHotkey"
+      }
+    },
+    {
+      "name": "avast",
+      "displayName": "Avast Free Antivirus",
+      "description": "Free antivirus software",
+      "category": "Security",
+      "platform": "Windows",
+      "packages": {
+        "winget": "Avast.Avast.Free"
+      }
+    },
+    {
+      "name": "avg",
+      "displayName": "AVG AntiVirus Free",
+      "description": "Free antivirus protection",
+      "category": "Security",
+      "platform": "Windows",
+      "packages": {
+        "winget": "AVG.AVG"
+      }
+    },
+    {
+      "name": "avidemux",
+      "displayName": "Avidemux",
+      "description": "Simple video editor",
+      "category": "Creative-Video",
+      "platform": "All",
+      "packages": {
+        "winget": "Avidemux.Avidemux",
+        "brewCask": "avidemux",
+        "apt": "avidemux",
+        "pacman": "avidemux-qt"
+      }
+    },
+    {
+      "name": "avira",
+      "displayName": "Avira Security",
+      "description": "Antivirus and security suite",
+      "category": "Security",
+      "platform": "Windows",
+      "packages": {
+        "winget": "XPFD23M0L795KD"
+      }
+    },
+    {
+      "name": "azuredatastudio",
+      "displayName": "Azure Data Studio",
+      "description": "Database management tool for SQL Server",
+      "category": "Development",
+      "platform": "All",
+      "packages": {
+        "winget": "Microsoft.AzureDataStudio",
+        "brewCask": "azure-data-studio"
+      }
+    },
+    {
+      "name": "balenaetcher",
+      "displayName": "balenaEtcher",
+      "description": "Flash OS images to USB drives",
+      "category": "Utilities",
+      "platform": "All",
+      "packages": {
+        "winget": "Balena.Etcher",
+        "brewCask": "balenaetcher",
+        "snap": "etcher"
+      }
+    },
+    {
+      "name": "battlenet",
+      "displayName": "Battle.net",
+      "description": "Blizzard game launcher",
+      "category": "Gaming",
+      "platform": "Windows+macOS",
+      "packages": {
+        "winget": "Blizzard.BattleNet",
+        "brewCask": "battle-net"
+      }
+    },
+    {
+      "name": "belarc",
+      "displayName": "Belarc Advisor",
+      "description": "System inventory and security analysis",
+      "category": "System-Windows",
+      "platform": "Windows",
+      "packages": {}
+    },
+    {
+      "name": "bibisco",
+      "displayName": "bibisco",
+      "description": "Novel writing software",
+      "category": "Productivity",
+      "platform": "All",
+      "packages": {
+        "winget": "bibisco.bibisco",
+        "brewCask": "bibisco"
+      }
+    },
+    {
+      "name": "bitvise",
+      "displayName": "Bitvise SSH Client",
+      "description": "SSH and SFTP client for Windows",
+      "category": "Networking",
+      "platform": "Windows",
+      "packages": {
+        "winget": "Bitvise.SSH.Client"
+      }
+    },
+    {
+      "name": "bitwarden",
+      "displayName": "Bitwarden",
+      "description": "Open source password manager",
+      "category": "Security",
+      "platform": "All",
+      "packages": {
+        "winget": "Bitwarden.Bitwarden",
+        "brewCask": "bitwarden",
+        "snap": "bitwarden"
+      }
+    },
+    {
+      "name": "bleachbit",
+      "displayName": "BleachBit",
+      "description": "System cleaner and privacy tool",
+      "category": "Utilities",
+      "platform": "All",
+      "packages": {
+        "winget": "BleachBit.BleachBit",
+        "brewCask": "bleachbit",
+        "apt": "bleachbit",
+        "dnf": "bleachbit",
+        "pacman": "bleachbit"
+      }
+    },
+    {
+      "name": "blender",
+      "displayName": "Blender",
+      "description": "3D creation suite",
+      "category": "Creative-Graphics",
+      "platform": "All",
+      "packages": {
+        "winget": "BlenderFoundation.Blender",
+        "brewCask": "blender",
+        "apt": "blender",
+        "dnf": "blender",
+        "pacman": "blender",
+        "snap": "blender"
+      }
+    },
+    {
+      "name": "box",
+      "displayName": "Box Drive",
+      "description": "Cloud storage and file sharing",
+      "category": "Backup",
+      "platform": "Windows+macOS",
+      "packages": {
+        "winget": "Box.Box",
+        "brewCask": "box-drive"
+      }
+    },
+    {
+      "name": "brackets",
+      "displayName": "Brackets",
+      "description": "Modern text editor for web development",
+      "category": "Development",
+      "platform": "All",
+      "packages": {
+        "winget": "Adobe.Brackets",
+        "brewCask": "brackets",
+        "snap": "brackets"
+      },
+      "notes": "Brackets is discontinued"
+    },
+    {
+      "name": "brave",
+      "displayName": "Brave Browser",
+      "description": "Privacy-focused web browser",
+      "category": "Browsers",
+      "platform": "All",
+      "packages": {
+        "winget": "Brave.Brave",
+        "brewCask": "brave-browser",
+        "apt": "brave-browser",
+        "dnf": "brave-browser",
+        "pacman": "brave-bin",
+        "snap": "brave"
+      }
+    },
+    {
+      "name": "buddi",
+      "displayName": "Buddi",
+      "description": "Personal budget software",
+      "category": "Finance",
+      "platform": "All",
+      "packages": {
+        "brewCask": "buddi"
+      },
+      "notes": "Cross-platform Java app, no winget package"
+    },
+    {
+      "name": "bulkrename",
+      "displayName": "Bulk Rename Utility",
+      "description": "Batch file renaming tool",
+      "category": "Utilities",
+      "platform": "Windows",
+      "packages": {
+        "winget": "TGRMNSoftware.BulkRenameUtility"
+      }
+    },
+    {
+      "name": "cakewalk",
+      "displayName": "Cakewalk",
+      "description": "Digital audio workstation",
+      "category": "Creative-Audio",
+      "platform": "Windows",
+      "packages": {
+        "winget": "BandLab.Cakewalk"
+      }
+    },
+    {
+      "name": "calibre",
+      "displayName": "Calibre",
+      "description": "E-book management",
+      "category": "Productivity",
+      "platform": "All",
+      "packages": {
+        "winget": "calibre.calibre",
+        "brewCask": "calibre",
+        "apt": "calibre",
+        "dnf": "calibre",
+        "pacman": "calibre"
+      }
+    },
+    {
+      "name": "ccleaner",
+      "displayName": "CCleaner",
+      "description": "System optimization and cleaning tool",
+      "category": "Utilities",
+      "platform": "Windows+macOS",
+      "packages": {
+        "winget": "Piriform.CCleaner",
+        "brewCask": "ccleaner"
+      }
+    },
+    {
+      "name": "celestia",
+      "displayName": "Celestia",
+      "description": "Real-time 3D space simulation",
+      "category": "Productivity",
+      "platform": "All",
+      "packages": {
+        "winget": "CelestiaProject.Celestia",
+        "brewCask": "celestia",
+        "apt": "celestia",
+        "pacman": "celestia"
+      }
+    },
+    {
+      "name": "celtx",
+      "displayName": "Celtx",
+      "description": "Screenwriting software",
+      "category": "Productivity",
+      "platform": "Windows",
+      "packages": {
+        "winget": "Celtx.Celtx"
+      }
+    },
+
+    {
+      "name": "chatgpt-shortcuts",
+      "displayName": "ChatGPT Shortcuts",
+      "description": "Desktop shortcuts for ChatGPT",
+      "category": "Utilities",
+      "platform": "Windows",
+      "packages": {}
+    },
+    {
+      "name": "chrome",
+      "displayName": "Google Chrome",
+      "description": "Fast, secure web browser by Google",
+      "category": "Browsers",
+      "platform": "All",
+      "packages": {
+        "winget": "Google.Chrome",
+        "brewCask": "google-chrome",
+        "apt": "google-chrome-stable",
+        "dnf": "google-chrome-stable"
+      },
+      "notes": "Linux requires adding Google repository"
+    },
+    {
+      "name": "chromeremote",
+      "displayName": "Chrome Remote Desktop",
+      "description": "Remote desktop access via Chrome",
+      "category": "Utilities",
+      "platform": "All",
+      "packages": {
+        "winget": "Google.ChromeRemoteDesktopHost",
+        "brewCask": "chrome-remote-desktop-host"
+      }
+    },
+    {
+      "name": "chromium",
+      "displayName": "Chromium",
+      "description": "Open-source web browser",
+      "category": "Browsers",
+      "platform": "All",
+      "packages": {
+        "winget": "Hibbiki.Chromium",
+        "brewCask": "chromium",
+        "apt": "chromium-browser",
+        "dnf": "chromium",
+        "pacman": "chromium",
+        "snap": "chromium"
+      }
+    },
+    {
+      "name": "cinelerra",
+      "displayName": "Cinelerra",
+      "description": "Professional video editing software",
+      "category": "Creative-Video",
+      "platform": "Linux",
+      "packages": {
+        "apt": "cinelerra",
+        "snap": "cinelerra-gg"
+      }
+    },
+    {
+      "name": "clickup",
+      "displayName": "ClickUp",
+      "description": "Project management and productivity",
+      "category": "Productivity",
+      "platform": "All",
+      "packages": {
+        "winget": "ClickUp.ClickUp",
+        "brewCask": "clickup"
+      }
+    },
+    {
+      "name": "clipgrab",
+      "displayName": "ClipGrab",
+      "description": "Video downloader",
+      "category": "Utilities",
+      "platform": "All",
+      "packages": {
+        "winget": "Philipp.Schmieder.ClipGrab",
+        "brewCask": "clipgrab",
+        "apt": "clipgrab"
+      }
+    },
+    {
+      "name": "clockify",
+      "displayName": "Clockify",
+      "description": "Time tracking app",
+      "category": "Productivity",
+      "platform": "All",
+      "packages": {
+        "winget": "Clockify.Clockify",
+        "brewCask": "clockify"
+      }
+    },
+    {
+      "name": "cmake",
+      "displayName": "CMake",
+      "description": "Cross-platform build system",
+      "category": "Development",
+      "platform": "All",
+      "packages": {
+        "winget": "Kitware.CMake",
+        "brewFormula": "cmake",
+        "apt": "cmake",
+        "dnf": "cmake",
+        "pacman": "cmake",
+        "snap": "cmake"
+      }
+    },
+    {
+      "name": "cobianbackup",
+      "displayName": "Cobian Backup",
+      "description": "Backup utility for Windows",
+      "category": "Backup",
+      "platform": "Windows",
+      "packages": {
+        "winget": "CobianSoft.CobianBackup"
+      }
+    },
+    {
+      "name": "coretemp",
+      "displayName": "Core Temp",
+      "description": "CPU temperature monitor",
+      "category": "System-Windows",
+      "platform": "Windows",
+      "packages": {
+        "winget": "ALCPU.CoreTemp"
+      }
+    },
+    {
+      "name": "cpuz",
+      "displayName": "CPU-Z",
+      "description": "CPU information utility",
+      "category": "System-Windows",
+      "platform": "Windows",
+      "packages": {
+        "winget": "CPUID.CPU-Z"
+      }
+    },
+    {
+      "name": "crystaldiskinfo",
+      "displayName": "CrystalDiskInfo",
+      "description": "Disk health monitoring",
+      "category": "System-Windows",
+      "platform": "Windows",
+      "packages": {
+        "winget": "CrystalDewWorld.CrystalDiskInfo"
+      }
+    },
+    {
+      "name": "crystaldiskmark",
+      "displayName": "CrystalDiskMark",
+      "description": "Disk benchmark utility",
+      "category": "System-Windows",
+      "platform": "Windows",
+      "packages": {
+        "winget": "CrystalDewWorld.CrystalDiskMark"
+      }
+    },
+    {
+      "name": "darktable",
+      "displayName": "darktable",
+      "description": "Photography workflow application",
+      "category": "Creative-Graphics",
+      "platform": "All",
+      "packages": {
+        "winget": "darktable.darktable",
+        "brewCask": "darktable",
+        "apt": "darktable",
+        "dnf": "darktable",
+        "pacman": "darktable",
+        "snap": "darktable"
+      }
+    },
+    {
+      "name": "davinciresolve",
+      "displayName": "DaVinci Resolve",
+      "description": "Professional video editor",
+      "category": "Creative-Video",
+      "platform": "All",
+      "packages": {
+        "winget": "Blackmagic.DaVinciResolve",
+        "brewCask": "davinci-resolve"
+      },
+      "notes": "Linux requires manual download from Blackmagic website"
+    },
+    {
+      "name": "dbeaver",
+      "displayName": "DBeaver",
+      "description": "Universal database tool",
+      "category": "Development",
+      "platform": "All",
+      "packages": {
+        "winget": "dbeaver.dbeaver",
+        "brewCask": "dbeaver-community",
+        "apt": "dbeaver-ce",
+        "snap": "dbeaver-ce"
+      }
+    },
+    {
+      "name": "dictation-shortcut",
+      "displayName": "Dictation Shortcut",
+      "description": "Desktop shortcut for dictation.io",
+      "category": "Utilities",
+      "platform": "Windows",
+      "packages": {}
+    },
+    {
+      "name": "digikam",
+      "displayName": "digiKam",
+      "description": "Photo management application",
+      "category": "Creative-Graphics",
+      "platform": "All",
+      "packages": {
+        "winget": "KDE.digikam",
+        "brewCask": "digikam",
+        "apt": "digikam",
+        "dnf": "digikam",
+        "pacman": "digikam"
+      }
+    },
+    {
+      "name": "discord",
+      "displayName": "Discord",
+      "description": "Voice, video and text communication",
+      "category": "Communication",
+      "platform": "All",
+      "packages": {
+        "winget": "Discord.Discord",
+        "brewCask": "discord",
+        "apt": "discord",
+        "snap": "discord"
+      }
+    },
+    {
+      "name": "docker",
+      "displayName": "Docker Desktop",
+      "description": "Container development platform",
+      "category": "Virtualization",
+      "platform": "All",
+      "packages": {
+        "winget": "Docker.DockerDesktop",
+        "brewCask": "docker",
+        "apt": "docker-ce",
+        "dnf": "docker-ce",
+        "pacman": "docker"
+      }
+    },
+    {
+      "name": "dotnet6",
+      "displayName": ".NET 6 Runtime",
+      "description": ".NET Desktop Runtime 6",
+      "category": "Development",
+      "platform": "All",
+      "packages": {
+        "winget": "Microsoft.DotNet.DesktopRuntime.6",
+        "brewCask": "dotnet",
+        "apt": "dotnet-runtime-6.0"
+      }
+    },
+    {
+      "name": "dotnet8",
+      "displayName": ".NET 8 Runtime",
+      "description": ".NET Desktop Runtime 8",
+      "category": "Development",
+      "platform": "All",
+      "packages": {
+        "winget": "Microsoft.DotNet.DesktopRuntime.8",
+        "brewCask": "dotnet",
+        "apt": "dotnet-runtime-8.0"
+      }
+    },
+    {
+      "name": "drawio",
+      "displayName": "draw.io",
+      "description": "Diagramming application",
+      "category": "Productivity",
+      "platform": "All",
+      "packages": {
+        "winget": "JGraph.Draw",
+        "brewCask": "drawio",
+        "snap": "drawio"
+      }
+    },
+    {
+      "name": "dropbox",
+      "displayName": "Dropbox",
+      "description": "Cloud storage and file sync",
+      "category": "Backup",
+      "platform": "All",
+      "packages": {
+        "winget": "Dropbox.Dropbox",
+        "brewCask": "dropbox",
+        "apt": "dropbox",
+        "pacman": "dropbox"
+      }
+    },
+    {
+      "name": "duplicati",
+      "displayName": "Duplicati",
+      "description": "Free backup software",
+      "category": "Backup",
+      "platform": "All",
+      "packages": {
+        "winget": "Duplicati.Duplicati",
+        "brewCask": "duplicati"
+      }
+    },
+    {
+      "name": "dust3d",
+      "displayName": "Dust3D",
+      "description": "Cross-platform 3D modeling",
+      "category": "Creative-Graphics",
+      "platform": "All",
+      "packages": {
+        "winget": "Dust3D.Dust3D",
+        "brewCask": "dust3d",
+        "snap": "dust3d"
+      }
+    },
+    {
+      "name": "eaapp",
+      "displayName": "EA App",
+      "description": "Electronic Arts game launcher",
+      "category": "Gaming",
+      "platform": "Windows",
+      "packages": {
+        "winget": "ElectronicArts.EADesktop"
+      }
+    },
+    {
+      "name": "easeus",
+      "displayName": "EaseUS Todo Backup",
+      "description": "Backup and recovery software",
+      "category": "Backup",
+      "platform": "Windows",
+      "packages": {
+        "winget": "EASEUSAG.EaseUSTodoBackupFree"
+      }
+    },
+    {
+      "name": "eclipse",
+      "displayName": "Eclipse IDE",
+      "description": "Integrated development environment",
+      "category": "Development",
+      "platform": "All",
+      "packages": {
+        "winget": "EclipseAdoptium.Temurin.17.JRE",
+        "brewCask": "eclipse-ide",
+        "apt": "eclipse",
+        "snap": "eclipse"
+      }
+    },
+    {
+      "name": "edge",
+      "displayName": "Microsoft Edge",
+      "description": "Microsoft web browser",
+      "category": "Browsers",
+      "platform": "All",
+      "packages": {
+        "winget": "Microsoft.Edge",
+        "brewCask": "microsoft-edge"
+      }
+    },
+    {
+      "name": "element",
+      "displayName": "Element",
+      "description": "Secure messaging app (Matrix)",
+      "category": "Communication",
+      "platform": "All",
+      "packages": {
+        "winget": "Element.Element",
+        "brewCask": "element",
+        "apt": "element-desktop",
+        "snap": "element-desktop"
+      }
+    },
+    {
+      "name": "epicgames",
+      "displayName": "Epic Games Launcher",
+      "description": "Epic Games store and launcher",
+      "category": "Gaming",
+      "platform": "Windows+macOS",
+      "packages": {
+        "winget": "EpicGames.EpicGamesLauncher",
+        "brewCask": "epic-games"
+      }
+    },
+    {
+      "name": "evernote",
+      "displayName": "Evernote",
+      "description": "Note-taking application",
+      "category": "Productivity",
+      "platform": "All",
+      "packages": {
+        "winget": "Evernote.Evernote",
+        "brewCask": "evernote"
+      }
+    },
+    {
+      "name": "everything",
+      "displayName": "Everything",
+      "description": "Instant file search utility",
+      "category": "System-Windows",
+      "platform": "Windows",
+      "packages": {
+        "winget": "voidtools.Everything"
+      }
+    },
+    {
+      "name": "ffmpeg",
+      "displayName": "FFmpeg",
+      "description": "Multimedia framework",
+      "category": "Creative-Video",
+      "platform": "All",
+      "packages": {
+        "winget": "Gyan.FFmpeg",
+        "brewFormula": "ffmpeg",
+        "apt": "ffmpeg",
+        "dnf": "ffmpeg",
+        "pacman": "ffmpeg",
+        "snap": "ffmpeg"
+      }
+    },
+    {
+      "name": "fiddlerclassic",
+      "displayName": "Fiddler Classic",
+      "description": "Web debugging proxy",
+      "category": "Development",
+      "platform": "Windows",
+      "packages": {
+        "winget": "Telerik.Fiddler.Classic"
+      }
+    },
+    {
+      "name": "figma",
+      "displayName": "Figma",
+      "description": "Collaborative design tool",
+      "category": "Creative-Graphics",
+      "platform": "All",
+      "packages": {
+        "winget": "Figma.Figma",
+        "brewCask": "figma"
+      }
+    },
+    {
+      "name": "filemail",
+      "displayName": "Filemail",
+      "description": "Large file transfer service",
+      "category": "Utilities",
+      "platform": "All",
+      "packages": {
+        "brewCask": "filemail"
+      }
+    },
+    {
+      "name": "filezilla",
+      "displayName": "FileZilla",
+      "description": "FTP client",
+      "category": "Networking",
+      "platform": "All",
+      "packages": {
+        "winget": "TimKosse.FileZilla.Client",
+        "brewCask": "filezilla",
+        "apt": "filezilla",
+        "dnf": "filezilla",
+        "pacman": "filezilla",
+        "snap": "filezilla"
+      }
+    },
+    {
+      "name": "fing",
+      "displayName": "Fing",
+      "description": "Network discovery tool",
+      "category": "Networking",
+      "platform": "Windows",
+      "packages": {
+        "winget": "Fing.Fing"
+      }
+    },
+    {
+      "name": "fireflyiii",
+      "displayName": "Firefly III",
+      "description": "Personal finance manager",
+      "category": "Finance",
+      "platform": "Windows",
+      "packages": {
+        "winget": "mtoensing.FireflyIIIDesktop"
+      }
+    },
+    {
+      "name": "firefox",
+      "displayName": "Mozilla Firefox",
+      "description": "Open-source web browser",
+      "category": "Browsers",
+      "platform": "All",
+      "packages": {
+        "winget": "Mozilla.Firefox",
+        "brewCask": "firefox",
+        "apt": "firefox",
+        "dnf": "firefox",
+        "pacman": "firefox",
+        "snap": "firefox"
+      }
+    },
+    {
+      "name": "flameshot",
+      "displayName": "Flameshot",
+      "description": "Screenshot tool",
+      "category": "Utilities",
+      "platform": "All",
+      "packages": {
+        "winget": "Flameshot.Flameshot",
+        "brewCask": "flameshot",
+        "apt": "flameshot",
+        "dnf": "flameshot",
+        "pacman": "flameshot",
+        "snap": "flameshot"
+      }
+    },
+    {
+      "name": "flashbackexpress",
+      "displayName": "Flashback Express",
+      "description": "Screen recorder",
+      "category": "Creative-Video",
+      "platform": "Windows",
+      "packages": {
+        "winget": "BlueberryGmbH.FlashBackExpress"
+      }
+    },
+    {
+      "name": "flowblade",
+      "displayName": "Flowblade",
+      "description": "Video editor for Linux",
+      "category": "Creative-Video",
+      "platform": "Linux",
+      "packages": {
+        "apt": "flowblade",
+        "dnf": "flowblade",
+        "snap": "flowblade"
+      }
+    },
+    {
+      "name": "focuswriter",
+      "displayName": "FocusWriter",
+      "description": "Distraction-free writing",
+      "category": "Productivity",
+      "platform": "All",
+      "packages": {
+        "winget": "GottCode.FocusWriter",
+        "brewCask": "focuswriter",
+        "apt": "focuswriter",
+        "dnf": "focuswriter",
+        "pacman": "focuswriter"
+      }
+    },
+    {
+      "name": "foobar2000",
+      "displayName": "foobar2000",
+      "description": "Advanced audio player",
+      "category": "Creative-Audio",
+      "platform": "Windows+macOS",
+      "packages": {
+        "winget": "PeterPawlowski.foobar2000",
+        "brewCask": "foobar2000"
+      }
+    },
+    {
+      "name": "foxitreader",
+      "displayName": "Foxit PDF Reader",
+      "description": "PDF viewer",
+      "category": "Productivity",
+      "platform": "All",
+      "packages": {
+        "winget": "Foxit.FoxitReader",
+        "brewCask": "foxit-reader"
+      }
+    },
+    {
+      "name": "freecad",
+      "displayName": "FreeCAD",
+      "description": "3D parametric modeler",
+      "category": "Creative-Graphics",
+      "platform": "All",
+      "packages": {
+        "winget": "FreeCAD.FreeCAD",
+        "brewCask": "freecad",
+        "apt": "freecad",
+        "dnf": "freecad",
+        "pacman": "freecad",
+        "snap": "freecad"
+      }
+    },
+    {
+      "name": "freefilesync",
+      "displayName": "FreeFileSync",
+      "description": "File synchronization",
+      "category": "Backup",
+      "platform": "All",
+      "packages": {
+        "winget": "FreeFileSync.FreeFileSync",
+        "brewCask": "freefilesync"
+      }
+    },
+    {
+      "name": "freemind",
+      "displayName": "FreeMind",
+      "description": "Mind mapping software",
+      "category": "Productivity",
+      "platform": "All",
+      "packages": {
+        "winget": "FreeMind.FreeMind",
+        "brewCask": "freemind",
+        "apt": "freemind",
+        "snap": "freemind"
+      }
+    },
+    {
+      "name": "geany",
+      "displayName": "Geany",
+      "description": "Lightweight IDE",
+      "category": "Development",
+      "platform": "All",
+      "packages": {
+        "winget": "Geany.Geany",
+        "brewCask": "geany",
+        "apt": "geany",
+        "dnf": "geany",
+        "pacman": "geany"
+      }
+    },
+    {
+      "name": "geogebra",
+      "displayName": "GeoGebra",
+      "description": "Math software",
+      "category": "Productivity",
+      "platform": "All",
+      "packages": {
+        "winget": "GeoGebra.Classic",
+        "brewCask": "geogebra",
+        "apt": "geogebra",
+        "snap": "geogebra"
+      }
+    },
+    {
+      "name": "gimp",
+      "displayName": "GIMP",
+      "description": "Image editor",
+      "category": "Creative-Graphics",
+      "platform": "All",
+      "packages": {
+        "winget": "GIMP.GIMP",
+        "brewCask": "gimp",
+        "apt": "gimp",
+        "dnf": "gimp",
+        "pacman": "gimp",
+        "snap": "gimp"
+      }
+    },
+    {
+      "name": "git",
+      "displayName": "Git",
+      "description": "Version control system",
+      "category": "Development",
+      "platform": "All",
+      "packages": {
+        "winget": "Git.Git",
+        "brewFormula": "git",
+        "apt": "git",
+        "dnf": "git",
+        "pacman": "git"
+      }
+    },
+    {
+      "name": "githubdesktop",
+      "displayName": "GitHub Desktop",
+      "description": "Git GUI client",
+      "category": "Development",
+      "platform": "Windows+macOS",
+      "packages": {
+        "winget": "GitHub.GitHubDesktop",
+        "brewCask": "github"
+      }
+    },
+    {
+      "name": "glasswire",
+      "displayName": "GlassWire",
+      "description": "Network security monitor",
+      "category": "Security",
+      "platform": "Windows",
+      "packages": {
+        "winget": "GlassWire.GlassWire"
+      }
+    },
+    {
+      "name": "gnucash",
+      "displayName": "GnuCash",
+      "description": "Personal and small-business finance",
+      "category": "Finance",
+      "platform": "All",
+      "packages": {
+        "winget": "GnuCash.GnuCash",
+        "brewCask": "gnucash",
+        "apt": "gnucash",
+        "dnf": "gnucash",
+        "pacman": "gnucash"
+      }
+    },
+    {
+      "name": "goggalaxy",
+      "displayName": "GOG Galaxy",
+      "description": "GOG game launcher",
+      "category": "Gaming",
+      "platform": "Windows+macOS",
+      "packages": {
+        "winget": "GOG.Galaxy",
+        "brewCask": "gog-galaxy"
+      }
+    },
+    {
+      "name": "golang",
+      "displayName": "Go",
+      "description": "Go programming language",
+      "category": "Development",
+      "platform": "All",
+      "packages": {
+        "winget": "GoLang.Go",
+        "brewFormula": "go",
+        "apt": "golang-go",
+        "dnf": "golang",
+        "pacman": "go",
+        "snap": "go"
+      }
+    },
+    {
+      "name": "googledrive",
+      "displayName": "Google Drive",
+      "description": "Cloud storage",
+      "category": "Backup",
+      "platform": "Windows+macOS",
+      "packages": {
+        "winget": "Google.GoogleDrive",
+        "brewCask": "google-drive"
+      }
+    },
+    {
+      "name": "gpuz",
+      "displayName": "GPU-Z",
+      "description": "GPU information utility",
+      "category": "System-Windows",
+      "platform": "Windows",
+      "packages": {
+        "winget": "TechPowerUp.GPU-Z"
+      }
+    },
+    {
+      "name": "grammarly",
+      "displayName": "Grammarly",
+      "description": "Writing assistant",
+      "category": "Productivity",
+      "platform": "Windows+macOS",
+      "packages": {
+        "winget": "Grammarly.Grammarly",
+        "brewCask": "grammarly-desktop"
+      }
+    },
+    {
+      "name": "greenshot",
+      "displayName": "Greenshot",
+      "description": "Screenshot tool",
+      "category": "Utilities",
+      "platform": "Windows",
+      "packages": {
+        "winget": "Greenshot.Greenshot"
+      }
+    },
+    {
+      "name": "grok-shortcuts",
+      "displayName": "Grok Shortcuts",
+      "description": "Desktop shortcuts for Grok AI",
+      "category": "Utilities",
+      "platform": "Windows",
+      "packages": {}
+    },
+    {
+      "name": "handbrake",
+      "displayName": "HandBrake",
+      "description": "Video transcoder",
+      "category": "Creative-Video",
+      "platform": "All",
+      "packages": {
+        "winget": "HandBrake.HandBrake",
+        "brewCask": "handbrake",
+        "apt": "handbrake",
+        "dnf": "handbrake",
+        "pacman": "handbrake",
+        "snap": "handbrake-jz"
+      }
+    },
+    {
+      "name": "heidisql",
+      "displayName": "HeidiSQL",
+      "description": "MySQL/MariaDB database client",
+      "category": "Development",
+      "platform": "Windows",
+      "packages": {
+        "winget": "HeidiSQL.HeidiSQL"
+      }
+    },
+
+    {
+      "name": "homebank",
+      "displayName": "HomeBank",
+      "description": "Personal finance software",
+      "category": "Finance",
+      "platform": "All",
+      "packages": {
+        "winget": "HomeBank.HomeBank",
+        "brewCask": "homebank",
+        "apt": "homebank",
+        "dnf": "homebank",
+        "pacman": "homebank"
+      }
+    },
+    {
+      "name": "hosts",
+      "displayName": "Hosts File Manager",
+      "description": "Manage Windows hosts file",
+      "category": "System-Windows",
+      "platform": "Windows",
+      "packages": {}
+    },
+    {
+      "name": "hwinfo",
+      "displayName": "HWiNFO",
+      "description": "Hardware information utility",
+      "category": "System-Windows",
+      "platform": "Windows",
+      "packages": {
+        "winget": "REALiX.HWiNFO"
+      }
+    },
+    {
+      "name": "hwmonitor",
+      "displayName": "HWMonitor",
+      "description": "Hardware monitoring tool",
+      "category": "System-Windows",
+      "platform": "Windows",
+      "packages": {
+        "winget": "CPUID.HWMonitor"
+      }
+    },
+    {
+      "name": "hydrogen",
+      "displayName": "Hydrogen",
+      "description": "Drum machine/sequencer",
+      "category": "Creative-Audio",
+      "platform": "All",
+      "packages": {
+        "winget": "Hydrogen.Hydrogen",
+        "brewCask": "hydrogen",
+        "apt": "hydrogen",
+        "dnf": "hydrogen",
+        "pacman": "hydrogen"
+      }
+    },
+    {
+      "name": "imageglass",
+      "displayName": "ImageGlass",
+      "description": "Lightweight image viewer",
+      "category": "Utilities",
+      "platform": "Windows",
+      "packages": {
+        "winget": "DuongDieuPhap.ImageGlass"
+      }
+    },
+    {
+      "name": "inkscape",
+      "displayName": "Inkscape",
+      "description": "Vector graphics editor",
+      "category": "Creative-Graphics",
+      "platform": "All",
+      "packages": {
+        "winget": "Inkscape.Inkscape",
+        "brewCask": "inkscape",
+        "apt": "inkscape",
+        "dnf": "inkscape",
+        "pacman": "inkscape",
+        "snap": "inkscape"
+      }
+    },
+    {
+      "name": "insomnia",
+      "displayName": "Insomnia",
+      "description": "API testing client",
+      "category": "Development",
+      "platform": "All",
+      "packages": {
+        "winget": "Insomnia.Insomnia",
+        "brewCask": "insomnia",
+        "snap": "insomnia"
+      }
+    },
+    {
+      "name": "intellij",
+      "displayName": "IntelliJ IDEA Community",
+      "description": "Java IDE",
+      "category": "Development",
+      "platform": "All",
+      "packages": {
+        "winget": "JetBrains.IntelliJIDEA.Community",
+        "brewCask": "intellij-idea-ce",
+        "snap": "intellij-idea-community"
+      }
+    },
+    {
+      "name": "itchio",
+      "displayName": "itch.io",
+      "description": "Indie game marketplace",
+      "category": "Gaming",
+      "platform": "All",
+      "packages": {
+        "winget": "ItchIo.Itch",
+        "brewCask": "itch"
+      }
+    },
+    {
+      "name": "itunes",
+      "displayName": "iTunes",
+      "description": "Media player and library",
+      "category": "Creative-Audio",
+      "platform": "Windows",
+      "packages": {
+        "winget": "Apple.iTunes"
+      },
+      "notes": "macOS has Music app built-in"
+    },
+    {
+      "name": "java",
+      "displayName": "Java Runtime Environment",
+      "description": "Java runtime",
+      "category": "Development",
+      "platform": "All",
+      "packages": {
+        "winget": "Oracle.JavaRuntimeEnvironment",
+        "brewCask": "java",
+        "apt": "default-jre",
+        "dnf": "java-latest-openjdk",
+        "pacman": "jre-openjdk"
+      }
+    },
+    {
+      "name": "jitsimeet",
+      "displayName": "Jitsi Meet",
+      "description": "Video conferencing",
+      "category": "Communication",
+      "platform": "All",
+      "packages": {
+        "winget": "JitsiMeet.JitsiMeet",
+        "brewCask": "jitsi-meet",
+        "snap": "jitsi"
+      }
+    },
+    {
+      "name": "joplin",
+      "displayName": "Joplin",
+      "description": "Note-taking and to-do app",
+      "category": "Productivity",
+      "platform": "All",
+      "packages": {
+        "winget": "Joplin.Joplin",
+        "brewCask": "joplin",
+        "apt": "joplin",
+        "snap": "joplin-desktop"
+      }
+    },
+    {
+      "name": "kap",
+      "displayName": "Kap",
+      "description": "Screen recorder for macOS",
+      "category": "Creative-Video",
+      "platform": "macOS",
+      "packages": {
+        "brewCask": "kap"
+      }
+    },
+    {
+      "name": "kaspersky",
+      "displayName": "Kaspersky Security Cloud",
+      "description": "Antivirus software",
+      "category": "Security",
+      "platform": "Windows+macOS",
+      "packages": {
+        "winget": "Kaspersky.KasperskySecurityCloud",
+        "brewCask": "kaspersky-security-cloud"
+      }
+    },
+    {
+      "name": "kdenlive",
+      "displayName": "Kdenlive",
+      "description": "Video editor",
+      "category": "Creative-Video",
+      "platform": "All",
+      "packages": {
+        "winget": "KDE.Kdenlive",
+        "brewCask": "kdenlive",
+        "apt": "kdenlive",
+        "dnf": "kdenlive",
+        "pacman": "kdenlive",
+        "snap": "kdenlive"
+      }
+    },
+    {
+      "name": "keepass",
+      "displayName": "KeePass",
+      "description": "Password manager",
+      "category": "Security",
+      "platform": "Windows",
+      "packages": {
+        "winget": "DominikReichl.KeePass"
+      },
+      "notes": "Use KeePassXC for cross-platform"
+    },
+    {
+      "name": "keepassxc",
+      "displayName": "KeePassXC",
+      "description": "Cross-platform password manager",
+      "category": "Security",
+      "platform": "All",
+      "packages": {
+        "winget": "KeePassXCTeam.KeePassXC",
+        "brewCask": "keepassxc",
+        "apt": "keepassxc",
+        "dnf": "keepassxc",
+        "pacman": "keepassxc",
+        "snap": "keepassxc"
+      }
+    },
+    {
+      "name": "kicad",
+      "displayName": "KiCad",
+      "description": "Electronics design automation",
+      "category": "Development",
+      "platform": "All",
+      "packages": {
+        "winget": "KiCad.KiCad",
+        "brewCask": "kicad",
+        "apt": "kicad",
+        "dnf": "kicad",
+        "pacman": "kicad"
+      }
+    },
+    {
+      "name": "kmymoney",
+      "displayName": "KMyMoney",
+      "description": "Personal finance manager",
+      "category": "Finance",
+      "platform": "All",
+      "packages": {
+        "winget": "KDE.KMyMoney",
+        "brewCask": "kmymoney",
+        "apt": "kmymoney",
+        "dnf": "kmymoney",
+        "pacman": "kmymoney"
+      }
+    },
+    {
+      "name": "krita",
+      "displayName": "Krita",
+      "description": "Digital painting",
+      "category": "Creative-Graphics",
+      "platform": "All",
+      "packages": {
+        "winget": "KDE.Krita",
+        "brewCask": "krita",
+        "apt": "krita",
+        "dnf": "krita",
+        "pacman": "krita",
+        "snap": "krita"
+      }
+    },
+    {
+      "name": "lazygit",
+      "displayName": "Lazygit",
+      "description": "Terminal UI for git",
+      "category": "Development",
+      "platform": "All",
+      "packages": {
+        "winget": "JesseDuffield.lazygit",
+        "brewFormula": "lazygit",
+        "pacman": "lazygit",
+        "snap": "lazygit"
+      }
+    },
+    {
+      "name": "librecad",
+      "displayName": "LibreCAD",
+      "description": "2D CAD application",
+      "category": "Creative-Graphics",
+      "platform": "All",
+      "packages": {
+        "winget": "LibreCAD.LibreCAD",
+        "brewCask": "librecad",
+        "apt": "librecad",
+        "dnf": "librecad",
+        "pacman": "librecad"
+      }
+    },
+    {
+      "name": "libreoffice",
+      "displayName": "LibreOffice",
+      "description": "Office suite",
+      "category": "Productivity",
+      "platform": "All",
+      "packages": {
+        "winget": "TheDocumentFoundation.LibreOffice",
+        "brewCask": "libreoffice",
+        "apt": "libreoffice",
+        "dnf": "libreoffice",
+        "pacman": "libreoffice-fresh",
+        "snap": "libreoffice"
+      }
+    },
+    {
+      "name": "librewolf",
+      "displayName": "LibreWolf",
+      "description": "Privacy-focused Firefox fork",
+      "category": "Browsers",
+      "platform": "All",
+      "packages": {
+        "winget": "LibreWolf.LibreWolf",
+        "brewCask": "librewolf"
+      }
+    },
+    {
+      "name": "lightshot",
+      "displayName": "Lightshot",
+      "description": "Screenshot tool",
+      "category": "Utilities",
+      "platform": "Windows+macOS",
+      "packages": {
+        "winget": "Skillbrains.Lightshot",
+        "brewCask": "lightshot"
+      }
+    },
+    {
+      "name": "lightworks",
+      "displayName": "Lightworks",
+      "description": "Professional video editor",
+      "category": "Creative-Video",
+      "platform": "All",
+      "packages": {
+        "winget": "LWKS.Lightworks",
+        "brewCask": "lightworks"
+      }
+    },
+    {
+      "name": "lmms",
+      "displayName": "LMMS",
+      "description": "Digital audio workstation",
+      "category": "Creative-Audio",
+      "platform": "All",
+      "packages": {
+        "winget": "LMMS.LMMS",
+        "brewCask": "lmms",
+        "apt": "lmms",
+        "dnf": "lmms",
+        "pacman": "lmms",
+        "snap": "lmms"
+      }
+    },
+    {
+      "name": "losslesscut",
+      "displayName": "LosslessCut",
+      "description": "Video/audio cutter",
+      "category": "Creative-Video",
+      "platform": "All",
+      "packages": {
+        "winget": "MoritzBunkus.LosslessCut",
+        "brewCask": "losslesscut",
+        "snap": "losslesscut"
+      }
+    },
+    {
+      "name": "lunacy",
+      "displayName": "Lunacy",
+      "description": "Graphic design software",
+      "category": "Creative-Graphics",
+      "platform": "All",
+      "packages": {
+        "winget": "Icons8.Lunacy",
+        "brewCask": "lunacy",
+        "snap": "lunacy"
+      }
+    },
+    {
+      "name": "macrium",
+      "displayName": "Macrium Reflect",
+      "description": "Disk imaging and backup",
+      "category": "Backup",
+      "platform": "Windows",
+      "packages": {
+        "winget": "Macrium.ReflectFree"
+      }
+    },
+    {
+      "name": "malwarebytes",
+      "displayName": "Malwarebytes",
+      "description": "Anti-malware software",
+      "category": "Security",
+      "platform": "Windows+macOS",
+      "packages": {
+        "winget": "Malwarebytes.Malwarebytes",
+        "brewCask": "malwarebytes"
+      }
+    },
+    {
+      "name": "managerestorepoints",
+      "displayName": "Manage Restore Points",
+      "description": "Windows restore point manager",
+      "category": "System-Windows",
+      "platform": "Windows",
+      "packages": {}
+    },
+    {
+      "name": "manuskript",
+      "displayName": "Manuskript",
+      "description": "Novel writing software",
+      "category": "Productivity",
+      "platform": "All",
+      "packages": {
+        "winget": "TheologicalElucidations.Manuskript",
+        "brewCask": "manuskript",
+        "apt": "manuskript",
+        "snap": "manuskript"
+      }
+    },
+    {
+      "name": "mattermost",
+      "displayName": "Mattermost",
+      "description": "Team messaging",
+      "category": "Communication",
+      "platform": "All",
+      "packages": {
+        "winget": "Mattermost.Mattermost",
+        "brewCask": "mattermost",
+        "snap": "mattermost-desktop"
+      }
+    },
+    {
+      "name": "mediainfo",
+      "displayName": "MediaInfo",
+      "description": "Media file information",
+      "category": "Utilities",
+      "platform": "All",
+      "packages": {
+        "winget": "MediaArea.MediaInfo",
+        "brewCask": "mediainfo",
+        "apt": "mediainfo",
+        "dnf": "mediainfo",
+        "pacman": "mediainfo"
+      }
+    },
+    {
+      "name": "mega",
+      "displayName": "MEGA",
+      "description": "Cloud storage",
+      "category": "Backup",
+      "platform": "All",
+      "packages": {
+        "winget": "Mega.MEGASync",
+        "brewCask": "megasync"
+      }
+    },
+    {
+      "name": "meshlab",
+      "displayName": "MeshLab",
+      "description": "3D mesh processing",
+      "category": "Creative-Graphics",
+      "platform": "All",
+      "packages": {
+        "winget": "ISTI.MeshLab",
+        "brewCask": "meshlab",
+        "apt": "meshlab",
+        "snap": "meshlab"
+      }
+    },
+    {
+      "name": "midori",
+      "displayName": "Midori",
+      "description": "Lightweight browser",
+      "category": "Browsers",
+      "platform": "All",
+      "packages": {
+        "winget": "AstianInc.Midori",
+        "brewCask": "midori",
+        "apt": "midori",
+        "snap": "midori"
+      }
+    },
+    {
+      "name": "min",
+      "displayName": "Min Browser",
+      "description": "Minimalist browser",
+      "category": "Browsers",
+      "platform": "All",
+      "packages": {
+        "winget": "Min.Min",
+        "brewCask": "min",
+        "snap": "min"
+      }
+    },
+    {
+      "name": "mixxx",
+      "displayName": "Mixxx",
+      "description": "DJ software",
+      "category": "Creative-Audio",
+      "platform": "All",
+      "packages": {
+        "winget": "Mixxx.Mixxx",
+        "brewCask": "mixxx",
+        "apt": "mixxx",
+        "dnf": "mixxx",
+        "pacman": "mixxx"
+      }
+    },
+    {
+      "name": "mkvtoolnix",
+      "displayName": "MKVToolNix",
+      "description": "MKV manipulation tools",
+      "category": "Creative-Video",
+      "platform": "All",
+      "packages": {
+        "winget": "MoritzBunkus.MKVToolNix",
+        "brewCask": "mkvtoolnix",
+        "apt": "mkvtoolnix",
+        "dnf": "mkvtoolnix",
+        "pacman": "mkvtoolnix-gui"
+      }
+    },
+    {
+      "name": "moneymanagerex",
+      "displayName": "Money Manager Ex",
+      "description": "Personal finance manager",
+      "category": "Finance",
+      "platform": "All",
+      "packages": {
+        "winget": "MoneyManagerEx.MoneyManagerEx",
+        "brewCask": "money-manager-ex",
+        "apt": "moneymanagerex",
+        "snap": "mmex"
+      }
+    },
+    {
+      "name": "mongodbcompass",
+      "displayName": "MongoDB Compass",
+      "description": "MongoDB GUI",
+      "category": "Development",
+      "platform": "All",
+      "packages": {
+        "winget": "MongoDB.Compass.Full",
+        "brewCask": "mongodb-compass"
+      }
+    },
+    {
+      "name": "moodle",
+      "displayName": "Moodle Desktop",
+      "description": "Learning management client",
+      "category": "Productivity",
+      "platform": "All",
+      "packages": {
+        "winget": "Moodle.MoodleDesktop",
+        "brewCask": "moodle"
+      }
+    },
+    {
+      "name": "mpchc",
+      "displayName": "MPC-HC",
+      "description": "Media player",
+      "category": "Utilities",
+      "platform": "Windows",
+      "packages": {
+        "winget": "clsid2.mpc-hc"
+      }
+    },
+    {
+      "name": "msiafterburner",
+      "displayName": "MSI Afterburner",
+      "description": "Graphics card utility",
+      "category": "System-Windows",
+      "platform": "Windows",
+      "packages": {
+        "winget": "MSI.Afterburner"
+      }
+    },
+    {
+      "name": "multipass",
+      "displayName": "Multipass",
+      "description": "Ubuntu VM manager",
+      "category": "Virtualization",
+      "platform": "All",
+      "packages": {
+        "winget": "Canonical.Multipass",
+        "brewCask": "multipass",
+        "snap": "multipass"
+      }
+    },
+    {
+      "name": "musescore",
+      "displayName": "MuseScore",
+      "description": "Music notation software",
+      "category": "Creative-Audio",
+      "platform": "All",
+      "packages": {
+        "winget": "Musescore.Musescore",
+        "brewCask": "musescore",
+        "apt": "musescore",
+        "dnf": "musescore",
+        "pacman": "musescore",
+        "snap": "musescore"
+      }
+    },
+    {
+      "name": "netbeans",
+      "displayName": "NetBeans",
+      "description": "Java IDE",
+      "category": "Development",
+      "platform": "All",
+      "packages": {
+        "winget": "Apache.NetBeans",
+        "brewCask": "netbeans",
+        "apt": "netbeans",
+        "snap": "netbeans"
+      }
+    },
+
+    {
+      "name": "netsetman",
+      "displayName": "NetSetMan",
+      "description": "Network settings manager",
+      "category": "Networking",
+      "platform": "Windows",
+      "packages": {
+        "winget": "NetSetMan.NetSetMan"
+      }
+    },
+
+    {
+      "name": "nmap",
+      "displayName": "Nmap",
+      "description": "Network scanner",
+      "category": "Networking",
+      "platform": "All",
+      "packages": {
+        "winget": "Insecure.Nmap",
+        "brewFormula": "nmap",
+        "apt": "nmap",
+        "dnf": "nmap",
+        "pacman": "nmap",
+        "snap": "nmap"
+      }
+    },
+    {
+      "name": "nodejs",
+      "displayName": "Node.js",
+      "description": "JavaScript runtime",
+      "category": "Development",
+      "platform": "All",
+      "packages": {
+        "winget": "OpenJS.NodeJS.LTS",
+        "brewFormula": "node",
+        "apt": "nodejs",
+        "dnf": "nodejs",
+        "pacman": "nodejs",
+        "snap": "node"
+      }
+    },
+    {
+      "name": "nordpass",
+      "displayName": "NordPass",
+      "description": "Password manager",
+      "category": "Security",
+      "platform": "All",
+      "packages": {
+        "winget": "NordSecurity.NordPass",
+        "brewCask": "nordpass"
+      }
+    },
+    {
+      "name": "notepadplusplus",
+      "displayName": "Notepad++",
+      "description": "Text and code editor",
+      "category": "Development",
+      "platform": "Windows",
+      "packages": {
+        "winget": "Notepad++.Notepad++"
+      }
+    },
+    {
+      "name": "notion",
+      "displayName": "Notion",
+      "description": "All-in-one workspace",
+      "category": "Productivity",
+      "platform": "All",
+      "packages": {
+        "winget": "Notion.Notion",
+        "brewCask": "notion",
+        "snap": "notion-snap"
+      }
+    },
+    {
+      "name": "npp-compare",
+      "displayName": "Notepad++ Compare Plugin",
+      "description": "File comparison plugin for Notepad++",
+      "category": "Development",
+      "platform": "Windows",
+      "packages": {}
+    },
+    {
+      "name": "npp-json",
+      "displayName": "Notepad++ JSON Plugin",
+      "description": "JSON viewer plugin for Notepad++",
+      "category": "Development",
+      "platform": "Windows",
+      "packages": {}
+    },
+    {
+      "name": "npp-markdown",
+      "displayName": "Notepad++ Markdown Plugin",
+      "description": "Markdown plugin for Notepad++",
+      "category": "Development",
+      "platform": "Windows",
+      "packages": {}
+    },
+    {
+      "name": "npp-xml",
+      "displayName": "Notepad++ XML Plugin",
+      "description": "XML tools plugin for Notepad++",
+      "category": "Development",
+      "platform": "Windows",
+      "packages": {}
+    },
+    {
+      "name": "nvidia-broadcast",
+      "displayName": "NVIDIA Broadcast",
+      "description": "AI-powered streaming tools",
+      "category": "Creative-Video",
+      "platform": "Windows",
+      "packages": {
+        "winget": "Nvidia.Broadcast"
+      }
+    },
+    {
+      "name": "nvidia-geforce",
+      "displayName": "NVIDIA GeForce Experience",
+      "description": "GPU driver and game optimization",
+      "category": "Gaming",
+      "platform": "Windows",
+      "packages": {
+        "winget": "Nvidia.GeForceExperience"
+      }
+    },
+    {
+      "name": "obs",
+      "displayName": "OBS Studio",
+      "description": "Streaming and recording",
+      "category": "Creative-Video",
+      "platform": "All",
+      "packages": {
+        "winget": "OBSProject.OBSStudio",
+        "brewCask": "obs",
+        "apt": "obs-studio",
+        "dnf": "obs-studio",
+        "pacman": "obs-studio",
+        "snap": "obs-studio"
+      }
+    },
+    {
+      "name": "obsidian",
+      "displayName": "Obsidian",
+      "description": "Knowledge base and note-taking",
+      "category": "Productivity",
+      "platform": "All",
+      "packages": {
+        "winget": "Obsidian.Obsidian",
+        "brewCask": "obsidian",
+        "snap": "obsidian"
+      }
+    },
+    {
+      "name": "octave",
+      "displayName": "GNU Octave",
+      "description": "Scientific programming language",
+      "category": "Development",
+      "platform": "All",
+      "packages": {
+        "winget": "GNU.Octave",
+        "brewCask": "octave",
+        "apt": "octave",
+        "dnf": "octave",
+        "pacman": "octave",
+        "snap": "octave"
+      }
+    },
+
+    {
+      "name": "okular",
+      "displayName": "Okular",
+      "description": "Document viewer",
+      "category": "Productivity",
+      "platform": "All",
+      "packages": {
+        "winget": "KDE.Okular",
+        "brewCask": "okular",
+        "apt": "okular",
+        "dnf": "okular",
+        "pacman": "okular",
+        "snap": "okular"
+      }
+    },
+    {
+      "name": "olive",
+      "displayName": "Olive Video Editor",
+      "description": "Non-linear video editor",
+      "category": "Creative-Video",
+      "platform": "All",
+      "packages": {
+        "winget": "OliveTeam.Olive",
+        "brewCask": "olive",
+        "snap": "olive-editor"
+      }
+    },
+    {
+      "name": "onedrive",
+      "displayName": "OneDrive",
+      "description": "Microsoft cloud storage",
+      "category": "Backup",
+      "platform": "Windows+macOS",
+      "packages": {
+        "winget": "Microsoft.OneDrive",
+        "brewCask": "onedrive"
+      }
+    },
+    {
+      "name": "onlyoffice",
+      "displayName": "ONLYOFFICE",
+      "description": "Office suite",
+      "category": "Productivity",
+      "platform": "All",
+      "packages": {
+        "winget": "ONLYOFFICE.DesktopEditors",
+        "brewCask": "onlyoffice",
+        "apt": "onlyoffice-desktopeditors",
+        "snap": "onlyoffice-desktopeditors"
+      }
+    },
+    {
+      "name": "openoffice",
+      "displayName": "Apache OpenOffice",
+      "description": "Office suite",
+      "category": "Productivity",
+      "platform": "All",
+      "packages": {
+        "winget": "Apache.OpenOffice",
+        "brewCask": "openoffice",
+        "apt": "openoffice"
+      }
+    },
+    {
+      "name": "openscad",
+      "displayName": "OpenSCAD",
+      "description": "Programmable CAD modeler",
+      "category": "Creative-Graphics",
+      "platform": "All",
+      "packages": {
+        "winget": "OpenSCAD.OpenSCAD",
+        "brewCask": "openscad",
+        "apt": "openscad",
+        "dnf": "openscad",
+        "pacman": "openscad",
+        "snap": "openscad"
+      }
+    },
+    {
+      "name": "openshot",
+      "displayName": "OpenShot",
+      "description": "Video editor",
+      "category": "Creative-Video",
+      "platform": "All",
+      "packages": {
+        "winget": "OpenShot.OpenShot",
+        "brewCask": "openshot-video-editor",
+        "apt": "openshot-qt",
+        "dnf": "openshot",
+        "pacman": "openshot",
+        "snap": "openshot-community"
+      }
+    },
+    {
+      "name": "opera",
+      "displayName": "Opera",
+      "description": "Web browser",
+      "category": "Browsers",
+      "platform": "All",
+      "packages": {
+        "winget": "Opera.Opera",
+        "brewCask": "opera",
+        "apt": "opera-stable",
+        "snap": "opera"
+      }
+    },
+    {
+      "name": "operagx",
+      "displayName": "Opera GX",
+      "description": "Gaming browser",
+      "category": "Browsers",
+      "platform": "Windows+macOS",
+      "packages": {
+        "winget": "Opera.OperaGX",
+        "brewCask": "opera-gx"
+      }
+    },
+    {
+      "name": "orca",
+      "displayName": "Orca",
+      "description": "MSI editor",
+      "category": "System-Windows",
+      "platform": "Windows",
+      "packages": {}
+    },
+    {
+      "name": "origin",
+      "displayName": "Origin",
+      "description": "EA game launcher (legacy)",
+      "category": "Gaming",
+      "platform": "Windows+macOS",
+      "packages": {
+        "winget": "ElectronicArts.Origin",
+        "brewCask": "origin"
+      }
+    },
+    {
+      "name": "paint.net",
+      "displayName": "Paint.NET",
+      "description": "Image editor",
+      "category": "Creative-Graphics",
+      "platform": "Windows",
+      "packages": {
+        "winget": "dotPDN.PaintDotNet"
+      }
+    },
+    {
+      "name": "parsec",
+      "displayName": "Parsec",
+      "description": "Remote desktop for gaming",
+      "category": "Gaming",
+      "platform": "All",
+      "packages": {
+        "winget": "Parsec.Parsec",
+        "brewCask": "parsec"
+      }
+    },
+    {
+      "name": "pcloud",
+      "displayName": "pCloud",
+      "description": "Cloud storage",
+      "category": "Backup",
+      "platform": "All",
+      "packages": {
+        "winget": "pCloud.pCloud",
+        "brewCask": "pcloud-drive"
+      }
+    },
+    {
+      "name": "pencil2d",
+      "displayName": "Pencil2D",
+      "description": "2D animation software",
+      "category": "Creative-Graphics",
+      "platform": "All",
+      "packages": {
+        "winget": "Pencil2D.Pencil2D",
+        "brewCask": "pencil2d",
+        "apt": "pencil2d",
+        "snap": "pencil2d"
+      }
+    },
+    {
+      "name": "perplexity-shortcuts",
+      "displayName": "Perplexity Shortcuts",
+      "description": "Desktop shortcuts for Perplexity AI",
+      "category": "Utilities",
+      "platform": "Windows",
+      "packages": {}
+    },
+    {
+      "name": "photopea-shortcut",
+      "displayName": "Photopea Shortcut",
+      "description": "Desktop shortcut for Photopea",
+      "category": "Utilities",
+      "platform": "Windows",
+      "packages": {}
+    },
+    {
+      "name": "pidgin",
+      "displayName": "Pidgin",
+      "description": "Multi-protocol IM client",
+      "category": "Communication",
+      "platform": "All",
+      "packages": {
+        "winget": "Pidgin.Pidgin",
+        "brewCask": "pidgin",
+        "apt": "pidgin",
+        "dnf": "pidgin",
+        "pacman": "pidgin"
+      }
+    },
+    {
+      "name": "pitivi",
+      "displayName": "Pitivi",
+      "description": "Video editor for Linux",
+      "category": "Creative-Video",
+      "platform": "Linux",
+      "packages": {
+        "apt": "pitivi",
+        "dnf": "pitivi",
+        "pacman": "pitivi",
+        "snap": "pitivi"
+      }
+    },
+    {
+      "name": "plex",
+      "displayName": "Plex",
+      "description": "Media server client",
+      "category": "Utilities",
+      "platform": "All",
+      "packages": {
+        "winget": "Plex.Plex",
+        "brewCask": "plex",
+        "snap": "plex-desktop"
+      }
+    },
+    {
+      "name": "plexmediaserver",
+      "displayName": "Plex Media Server",
+      "description": "Media server",
+      "category": "Utilities",
+      "platform": "All",
+      "packages": {
+        "winget": "Plex.PlexMediaServer",
+        "brewCask": "plex-media-server",
+        "snap": "plexmediaserver"
+      }
+    },
+    {
+      "name": "postman",
+      "displayName": "Postman",
+      "description": "API development platform",
+      "category": "Development",
+      "platform": "All",
+      "packages": {
+        "winget": "Postman.Postman",
+        "brewCask": "postman",
+        "snap": "postman"
+      }
+    },
+    {
+      "name": "powershell",
+      "displayName": "PowerShell 7",
+      "description": "Cross-platform shell",
+      "category": "Development",
+      "platform": "All",
+      "packages": {
+        "winget": "Microsoft.PowerShell",
+        "brewCask": "powershell",
+        "apt": "powershell",
+        "snap": "powershell"
+      }
+    },
+    {
+      "name": "powertoys",
+      "displayName": "PowerToys",
+      "description": "Windows power user utilities",
+      "category": "System-Windows",
+      "platform": "Windows",
+      "packages": {
+        "winget": "Microsoft.PowerToys"
+      }
+    },
+
+    {
+      "name": "processhacker",
+      "displayName": "Process Hacker",
+      "description": "Process viewer and manager",
+      "category": "System-Windows",
+      "platform": "Windows",
+      "packages": {
+        "winget": "ProcessHacker.ProcessHacker"
+      }
+    },
+    {
+      "name": "protonvpn",
+      "displayName": "ProtonVPN",
+      "description": "Secure VPN service",
+      "category": "Security",
+      "platform": "All",
+      "packages": {
+        "winget": "ProtonTechnologies.ProtonVPN",
+        "brewCask": "protonvpn"
+      }
+    },
+    {
+      "name": "prusaslicer",
+      "displayName": "PrusaSlicer",
+      "description": "3D printing slicer",
+      "category": "Creative-Graphics",
+      "platform": "All",
+      "packages": {
+        "winget": "Prusa3D.PrusaSlicer",
+        "brewCask": "prusaslicer",
+        "snap": "prusa-slicer"
+      }
+    },
+    {
+      "name": "putty",
+      "displayName": "PuTTY",
+      "description": "SSH and telnet client",
+      "category": "Networking",
+      "platform": "Windows",
+      "packages": {
+        "winget": "PuTTY.PuTTY"
+      }
+    },
+    {
+      "name": "pycharm",
+      "displayName": "PyCharm Community",
+      "description": "Python IDE",
+      "category": "Development",
+      "platform": "All",
+      "packages": {
+        "winget": "JetBrains.PyCharm.Community",
+        "brewCask": "pycharm-ce",
+        "snap": "pycharm-community"
+      }
+    },
+    {
+      "name": "python",
+      "displayName": "Python",
+      "description": "Python programming language",
+      "category": "Development",
+      "platform": "All",
+      "packages": {
+        "winget": "Python.Python.3.12",
+        "brewFormula": "python",
+        "apt": "python3",
+        "dnf": "python3",
+        "pacman": "python"
+      }
+    },
+    {
+      "name": "qbittorrent",
+      "displayName": "qBittorrent",
+      "description": "BitTorrent client",
+      "category": "Networking",
+      "platform": "All",
+      "packages": {
+        "winget": "qBittorrent.qBittorrent",
+        "brewCask": "qbittorrent",
+        "apt": "qbittorrent",
+        "dnf": "qbittorrent",
+        "pacman": "qbittorrent",
+        "snap": "qbittorrent-arnatious"
+      }
+    },
+
+    {
+      "name": "quicklook",
+      "displayName": "QuickLook",
+      "description": "Quick file preview",
+      "category": "Utilities",
+      "platform": "Windows",
+      "packages": {
+        "winget": "QL-Win.QuickLook"
+      }
+    },
+    {
+      "name": "r",
+      "displayName": "R",
+      "description": "Statistical computing",
+      "category": "Development",
+      "platform": "All",
+      "packages": {
+        "winget": "RProject.R",
+        "brewFormula": "r",
+        "apt": "r-base",
+        "dnf": "R",
+        "pacman": "r"
+      }
+    },
+    {
+      "name": "rainmeter",
+      "displayName": "Rainmeter",
+      "description": "Desktop customization",
+      "category": "System-Windows",
+      "platform": "Windows",
+      "packages": {
+        "winget": "Rainmeter.Rainmeter"
+      }
+    },
+    {
+      "name": "rapidee",
+      "displayName": "Rapid Environment Editor",
+      "description": "Environment variables editor",
+      "category": "System-Windows",
+      "platform": "Windows",
+      "packages": {
+        "winget": "RapidEE.RapidEE"
+      }
+    },
+    {
+      "name": "rawtherapee",
+      "displayName": "RawTherapee",
+      "description": "RAW image processor",
+      "category": "Creative-Graphics",
+      "platform": "All",
+      "packages": {
+        "winget": "RawTherapee.RawTherapee",
+        "brewCask": "rawtherapee",
+        "apt": "rawtherapee",
+        "dnf": "rawtherapee",
+        "pacman": "rawtherapee",
+        "snap": "rawtherapee"
+      }
+    },
+    {
+      "name": "reaper",
+      "displayName": "REAPER",
+      "description": "Digital audio workstation",
+      "category": "Creative-Audio",
+      "platform": "All",
+      "packages": {
+        "winget": "Cockos.REAPER",
+        "brewCask": "reaper"
+      }
+    },
+    {
+      "name": "recuva",
+      "displayName": "Recuva",
+      "description": "File recovery",
+      "category": "Utilities",
+      "platform": "Windows",
+      "packages": {
+        "winget": "Piriform.Recuva"
+      }
+    },
+    {
+      "name": "revo",
+      "displayName": "Revo Uninstaller",
+      "description": "Advanced uninstaller",
+      "category": "Utilities",
+      "platform": "Windows",
+      "packages": {
+        "winget": "RevoUninstaller.RevoUninstaller"
+      }
+    },
+
+    {
+      "name": "rocket",
+      "displayName": "Rocket.Chat",
+      "description": "Team communication",
+      "category": "Communication",
+      "platform": "All",
+      "packages": {
+        "winget": "RocketChat.RocketChat",
+        "brewCask": "rocket-chat",
+        "snap": "rocketchat-desktop"
+      }
+    },
+    {
+      "name": "rstudio",
+      "displayName": "RStudio",
+      "description": "R IDE",
+      "category": "Development",
+      "platform": "All",
+      "packages": {
+        "winget": "Posit.RStudio",
+        "brewCask": "rstudio"
+      }
+    },
+    {
+      "name": "rufus",
+      "displayName": "Rufus",
+      "description": "Bootable USB creator",
+      "category": "Utilities",
+      "platform": "Windows",
+      "packages": {
+        "winget": "Rufus.Rufus"
+      }
+    },
+    {
+      "name": "rust",
+      "displayName": "Rust",
+      "description": "Rust programming language",
+      "category": "Development",
+      "platform": "All",
+      "packages": {
+        "winget": "Rustlang.Rust.MSVC",
+        "brewFormula": "rust",
+        "apt": "rustc",
+        "dnf": "rust",
+        "pacman": "rust"
+      }
+    },
+    {
+      "name": "sandboxie",
+      "displayName": "Sandboxie Plus",
+      "description": "Application sandbox",
+      "category": "Security",
+      "platform": "Windows",
+      "packages": {
+        "winget": "Sandboxie.Plus"
+      }
+    },
+    {
+      "name": "scribus",
+      "displayName": "Scribus",
+      "description": "Desktop publishing",
+      "category": "Creative-Graphics",
+      "platform": "All",
+      "packages": {
+        "winget": "Scribus.Scribus",
+        "brewCask": "scribus",
+        "apt": "scribus",
+        "dnf": "scribus",
+        "pacman": "scribus",
+        "snap": "scribus"
+      }
+    },
+
+    {
+      "name": "sharex",
+      "displayName": "ShareX",
+      "description": "Screen capture and sharing",
+      "category": "Utilities",
+      "platform": "Windows",
+      "packages": {
+        "winget": "ShareX.ShareX"
+      }
+    },
+    {
+      "name": "shotcut",
+      "displayName": "Shotcut",
+      "description": "Video editor",
+      "category": "Creative-Video",
+      "platform": "All",
+      "packages": {
+        "winget": "Meltytech.Shotcut",
+        "brewCask": "shotcut",
+        "apt": "shotcut",
+        "dnf": "shotcut",
+        "pacman": "shotcut",
+        "snap": "shotcut"
+      }
+    },
+    {
+      "name": "signal",
+      "displayName": "Signal",
+      "description": "Secure messaging",
+      "category": "Communication",
+      "platform": "All",
+      "packages": {
+        "winget": "OpenWhisperSystems.Signal",
+        "brewCask": "signal",
+        "apt": "signal-desktop",
+        "snap": "signal-desktop"
+      }
+    },
+
+    {
+      "name": "skype",
+      "displayName": "Skype",
+      "description": "Video calling",
+      "category": "Communication",
+      "platform": "All",
+      "packages": {
+        "winget": "Microsoft.Skype",
+        "brewCask": "skype",
+        "apt": "skypeforlinux",
+        "snap": "skype"
+      }
+    },
+    {
+      "name": "slack",
+      "displayName": "Slack",
+      "description": "Team communication",
+      "category": "Communication",
+      "platform": "All",
+      "packages": {
+        "winget": "SlackTechnologies.Slack",
+        "brewCask": "slack",
+        "apt": "slack-desktop",
+        "snap": "slack"
+      }
+    },
+
+    {
+      "name": "sourcetree",
+      "displayName": "Sourcetree",
+      "description": "Git GUI client",
+      "category": "Development",
+      "platform": "Windows+macOS",
+      "packages": {
+        "winget": "Atlassian.Sourcetree",
+        "brewCask": "sourcetree"
+      }
+    },
+    {
+      "name": "speccy",
+      "displayName": "Speccy",
+      "description": "System information",
+      "category": "System-Windows",
+      "platform": "Windows",
+      "packages": {
+        "winget": "Piriform.Speccy"
+      }
+    },
+    {
+      "name": "speedcrunch",
+      "displayName": "SpeedCrunch",
+      "description": "Scientific calculator",
+      "category": "Utilities",
+      "platform": "All",
+      "packages": {
+        "winget": "SpeedCrunch.SpeedCrunch",
+        "brewCask": "speedcrunch",
+        "apt": "speedcrunch",
+        "dnf": "speedcrunch",
+        "pacman": "speedcrunch"
+      }
+    },
+    {
+      "name": "spotify",
+      "displayName": "Spotify",
+      "description": "Music streaming",
+      "category": "Creative-Audio",
+      "platform": "All",
+      "packages": {
+        "winget": "Spotify.Spotify",
+        "brewCask": "spotify",
+        "snap": "spotify"
+      }
+    },
+    {
+      "name": "sqlitebrowser",
+      "displayName": "DB Browser for SQLite",
+      "description": "SQLite database browser",
+      "category": "Development",
+      "platform": "All",
+      "packages": {
+        "winget": "DBBrowserForSQLite.DBBrowserForSQLite",
+        "brewCask": "db-browser-for-sqlite",
+        "apt": "sqlitebrowser",
+        "dnf": "sqlitebrowser",
+        "pacman": "sqlitebrowser",
+        "snap": "sqlitebrowser"
+      }
+    },
+    {
+      "name": "ssms",
+      "displayName": "SQL Server Management Studio",
+      "description": "SQL Server management",
+      "category": "Development",
+      "platform": "Windows",
+      "packages": {
+        "winget": "Microsoft.SQLServerManagementStudio"
+      }
+    },
+    {
+      "name": "steam",
+      "displayName": "Steam",
+      "description": "Gaming platform",
+      "category": "Gaming",
+      "platform": "All",
+      "packages": {
+        "winget": "Valve.Steam",
+        "brewCask": "steam",
+        "apt": "steam",
+        "pacman": "steam"
+      }
+    },
+    {
+      "name": "stellarium",
+      "displayName": "Stellarium",
+      "description": "Planetarium software",
+      "category": "Productivity",
+      "platform": "All",
+      "packages": {
+        "winget": "Stellarium.Stellarium",
+        "brewCask": "stellarium",
+        "apt": "stellarium",
+        "dnf": "stellarium",
+        "pacman": "stellarium",
+        "snap": "stellarium-daily"
+      }
+    },
+    {
+      "name": "stremio",
+      "displayName": "Stremio",
+      "description": "Media center",
+      "category": "Utilities",
+      "platform": "All",
+      "packages": {
+        "winget": "Stremio.Stremio",
+        "brewCask": "stremio",
+        "snap": "stremio"
+      }
+    },
+
+    {
+      "name": "sumatrapdf",
+      "displayName": "Sumatra PDF",
+      "description": "PDF reader",
+      "category": "Productivity",
+      "platform": "Windows",
+      "packages": {
+        "winget": "SumatraPDF.SumatraPDF"
+      }
+    },
+    {
+      "name": "superproductivity",
+      "displayName": "Super Productivity",
+      "description": "To-do list and time tracker",
+      "category": "Productivity",
+      "platform": "All",
+      "packages": {
+        "winget": "JohannesMillan.SuperProductivity",
+        "brewCask": "superproductivity",
+        "snap": "superproductivity"
+      }
+    },
+
+    {
+      "name": "sweet-home-3d",
+      "displayName": "Sweet Home 3D",
+      "description": "Interior design software",
+      "category": "Creative-Graphics",
+      "platform": "All",
+      "packages": {
+        "winget": "eTeks.SweetHome3D",
+        "brewCask": "sweet-home3d",
+        "apt": "sweethome3d",
+        "snap": "sweethome3d-homedesign"
+      }
+    },
+    {
+      "name": "syncthing",
+      "displayName": "Syncthing",
+      "description": "File synchronization",
+      "category": "Backup",
+      "platform": "All",
+      "packages": {
+        "winget": "Syncthing.Syncthing",
+        "brewCask": "syncthing",
+        "apt": "syncthing",
+        "dnf": "syncthing",
+        "pacman": "syncthing",
+        "snap": "syncthing"
+      }
+    },
+
+    {
+      "name": "sysinternals",
+      "displayName": "Sysinternals Suite",
+      "description": "Windows system utilities",
+      "category": "System-Windows",
+      "platform": "Windows",
+      "packages": {
+        "winget": "Microsoft.Sysinternals.Suite"
+      }
+    },
+
+    {
+      "name": "tailscale",
+      "displayName": "Tailscale",
+      "description": "VPN mesh network",
+      "category": "Networking",
+      "platform": "All",
+      "packages": {
+        "winget": "Tailscale.Tailscale",
+        "brewCask": "tailscale",
+        "apt": "tailscale",
+        "dnf": "tailscale",
+        "pacman": "tailscale"
+      }
+    },
+    {
+      "name": "teamviewer",
+      "displayName": "TeamViewer",
+      "description": "Remote desktop",
+      "category": "Utilities",
+      "platform": "All",
+      "packages": {
+        "winget": "TeamViewer.TeamViewer",
+        "brewCask": "teamviewer",
+        "apt": "teamviewer"
+      }
+    },
+    {
+      "name": "telegram",
+      "displayName": "Telegram",
+      "description": "Messaging app",
+      "category": "Communication",
+      "platform": "All",
+      "packages": {
+        "winget": "Telegram.TelegramDesktop",
+        "brewCask": "telegram",
+        "apt": "telegram-desktop",
+        "snap": "telegram-desktop"
+      }
+    },
+    {
+      "name": "terminal",
+      "displayName": "Windows Terminal",
+      "description": "Modern terminal",
+      "category": "Development",
+      "platform": "Windows",
+      "packages": {
+        "winget": "Microsoft.WindowsTerminal"
+      }
+    },
+    {
+      "name": "thunderbird",
+      "displayName": "Thunderbird",
+      "description": "Email client",
+      "category": "Communication",
+      "platform": "All",
+      "packages": {
+        "winget": "Mozilla.Thunderbird",
+        "brewCask": "thunderbird",
+        "apt": "thunderbird",
+        "dnf": "thunderbird",
+        "pacman": "thunderbird",
+        "snap": "thunderbird"
+      }
+    },
+    {
+      "name": "tidal",
+      "displayName": "TIDAL",
+      "description": "Music streaming",
+      "category": "Creative-Audio",
+      "platform": "All",
+      "packages": {
+        "winget": "TIDALMusicAS.TIDAL",
+        "brewCask": "tidal"
+      }
+    },
+    {
+      "name": "todoist",
+      "displayName": "Todoist",
+      "description": "Task management",
+      "category": "Productivity",
+      "platform": "All",
+      "packages": {
+        "winget": "Doist.Todoist",
+        "brewCask": "todoist",
+        "snap": "todoist"
+      }
+    },
+    {
+      "name": "toggl",
+      "displayName": "Toggl Track",
+      "description": "Time tracking",
+      "category": "Productivity",
+      "platform": "All",
+      "packages": {
+        "winget": "Toggl.TogglTrack",
+        "brewCask": "toggl-track"
+      }
+    },
+    {
+      "name": "tor",
+      "displayName": "Tor Browser",
+      "description": "Anonymous browsing",
+      "category": "Browsers",
+      "platform": "All",
+      "packages": {
+        "winget": "TorProject.TorBrowser",
+        "brewCask": "tor-browser"
+      }
+    },
+    {
+      "name": "tortoisegit",
+      "displayName": "TortoiseGit",
+      "description": "Git shell integration",
+      "category": "Development",
+      "platform": "Windows",
+      "packages": {
+        "winget": "TortoiseGit.TortoiseGit"
+      }
+    },
+    {
+      "name": "tortoisesvn",
+      "displayName": "TortoiseSVN",
+      "description": "SVN shell integration",
+      "category": "Development",
+      "platform": "Windows",
+      "packages": {
+        "winget": "TortoiseSVN.TortoiseSVN"
+      }
+    },
+    {
+      "name": "transmission",
+      "displayName": "Transmission",
+      "description": "BitTorrent client",
+      "category": "Networking",
+      "platform": "All",
+      "packages": {
+        "winget": "Transmission.Transmission",
+        "brewCask": "transmission",
+        "apt": "transmission",
+        "dnf": "transmission",
+        "pacman": "transmission-gtk"
+      }
+    },
+    {
+      "name": "treesize",
+      "displayName": "TreeSize Free",
+      "description": "Disk space analyzer",
+      "category": "Utilities",
+      "platform": "Windows",
+      "packages": {
+        "winget": "JAMSoftware.TreeSize.Free"
+      }
+    },
+    {
+      "name": "trello",
+      "displayName": "Trello",
+      "description": "Project management",
+      "category": "Productivity",
+      "platform": "All",
+      "packages": {
+        "winget": "Atlassian.Trello",
+        "brewCask": "trello"
+      }
+    },
+    {
+      "name": "tuxguitar",
+      "displayName": "TuxGuitar",
+      "description": "Guitar tablature editor",
+      "category": "Creative-Audio",
+      "platform": "All",
+      "packages": {
+        "winget": "Herac.TuxGuitar",
+        "brewCask": "tuxguitar",
+        "apt": "tuxguitar",
+        "dnf": "tuxguitar",
+        "pacman": "tuxguitar"
+      }
+    },
+    {
+      "name": "twitch",
+      "displayName": "Twitch",
+      "description": "Streaming platform",
+      "category": "Gaming",
+      "platform": "Windows+macOS",
+      "packages": {
+        "winget": "Twitch.Twitch",
+        "brewCask": "twitch"
+      }
+    },
+
+    {
+      "name": "ubisoft",
+      "displayName": "Ubisoft Connect",
+      "description": "Ubisoft game launcher",
+      "category": "Gaming",
+      "platform": "Windows",
+      "packages": {
+        "winget": "Ubisoft.Connect"
+      }
+    },
+
+    {
+      "name": "unity",
+      "displayName": "Unity Hub",
+      "description": "Game engine",
+      "category": "Development",
+      "platform": "All",
+      "packages": {
+        "winget": "Unity.UnityHub",
+        "brewCask": "unity-hub"
+      }
+    },
+    {
+      "name": "unreal",
+      "displayName": "Unreal Engine",
+      "description": "Game engine",
+      "category": "Development",
+      "platform": "Windows+macOS",
+      "packages": {
+        "winget": "EpicGames.EpicGamesLauncher"
+      },
+      "notes": "Installed via Epic Games Launcher"
+    },
+    {
+      "name": "vagrant",
+      "displayName": "Vagrant",
+      "description": "Development environments",
+      "category": "Virtualization",
+      "platform": "All",
+      "packages": {
+        "winget": "Hashicorp.Vagrant",
+        "brewCask": "vagrant",
+        "apt": "vagrant",
+        "dnf": "vagrant",
+        "pacman": "vagrant"
+      }
+    },
+    {
+      "name": "veracrypt",
+      "displayName": "VeraCrypt",
+      "description": "Disk encryption",
+      "category": "Security",
+      "platform": "All",
+      "packages": {
+        "winget": "IDRIX.VeraCrypt",
+        "brewCask": "veracrypt",
+        "apt": "veracrypt"
+      }
+    },
+    {
+      "name": "virtualbox",
+      "displayName": "VirtualBox",
+      "description": "Virtualization",
+      "category": "Virtualization",
+      "platform": "All",
+      "packages": {
+        "winget": "Oracle.VirtualBox",
+        "brewCask": "virtualbox",
+        "apt": "virtualbox",
+        "dnf": "VirtualBox",
+        "pacman": "virtualbox"
+      }
+    },
+    {
+      "name": "vivaldi",
+      "displayName": "Vivaldi",
+      "description": "Web browser",
+      "category": "Browsers",
+      "platform": "All",
+      "packages": {
+        "winget": "Vivaldi.Vivaldi",
+        "brewCask": "vivaldi",
+        "apt": "vivaldi-stable",
+        "snap": "vivaldi"
+      }
+    },
+    {
+      "name": "vlc",
+      "displayName": "VLC",
+      "description": "Media player",
+      "category": "Utilities",
+      "platform": "All",
+      "packages": {
+        "winget": "VideoLAN.VLC",
+        "brewCask": "vlc",
+        "apt": "vlc",
+        "dnf": "vlc",
+        "pacman": "vlc",
+        "snap": "vlc"
+      }
+    },
+    {
+      "name": "vmware",
+      "displayName": "VMware Workstation Player",
+      "description": "Virtualization",
+      "category": "Virtualization",
+      "platform": "Windows",
+      "packages": {
+        "winget": "VMware.WorkstationPlayer"
+      }
+    },
+    {
+      "name": "vscode",
+      "displayName": "Visual Studio Code",
+      "description": "Code editor",
+      "category": "Development",
+      "platform": "All",
+      "packages": {
+        "winget": "Microsoft.VisualStudioCode",
+        "brewCask": "visual-studio-code",
+        "apt": "code",
+        "snap": "code"
+      }
+    },
+    {
+      "name": "vscodium",
+      "displayName": "VSCodium",
+      "description": "Open-source VS Code",
+      "category": "Development",
+      "platform": "All",
+      "packages": {
+        "winget": "VSCodium.VSCodium",
+        "brewCask": "vscodium",
+        "snap": "codium"
+      }
+    },
+    {
+      "name": "waterfox",
+      "displayName": "Waterfox",
+      "description": "Privacy-focused browser",
+      "category": "Browsers",
+      "platform": "All",
+      "packages": {
+        "winget": "Waterfox.Waterfox",
+        "brewCask": "waterfox"
+      }
+    },
+    {
+      "name": "webex",
+      "displayName": "Webex",
+      "description": "Video conferencing",
+      "category": "Communication",
+      "platform": "All",
+      "packages": {
+        "winget": "Cisco.Webex",
+        "brewCask": "webex"
+      }
+    },
+
+    {
+      "name": "whatsapp",
+      "displayName": "WhatsApp",
+      "description": "Messaging app",
+      "category": "Communication",
+      "platform": "Windows+macOS",
+      "packages": {
+        "winget": "WhatsApp.WhatsApp",
+        "brewCask": "whatsapp"
+      }
+    },
+    {
+      "name": "windirstat",
+      "displayName": "WinDirStat",
+      "description": "Disk usage statistics",
+      "category": "Utilities",
+      "platform": "Windows",
+      "packages": {
+        "winget": "WinDirStat.WinDirStat"
+      }
+    },
+    {
+      "name": "winmerge",
+      "displayName": "WinMerge",
+      "description": "File comparison",
+      "category": "Utilities",
+      "platform": "Windows",
+      "packages": {
+        "winget": "WinMerge.WinMerge"
+      }
+    },
+    {
+      "name": "winrar",
+      "displayName": "WinRAR",
+      "description": "Archive manager",
+      "category": "Utilities",
+      "platform": "Windows",
+      "packages": {
+        "winget": "RARLab.WinRAR"
+      }
+    },
+    {
+      "name": "winscp",
+      "displayName": "WinSCP",
+      "description": "SFTP/FTP client",
+      "category": "Networking",
+      "platform": "Windows",
+      "packages": {
+        "winget": "WinSCP.WinSCP"
+      }
+    },
+    {
+      "name": "wireshark",
+      "displayName": "Wireshark",
+      "description": "Network protocol analyzer",
+      "category": "Networking",
+      "platform": "All",
+      "packages": {
+        "winget": "WiresharkFoundation.Wireshark",
+        "brewCask": "wireshark",
+        "apt": "wireshark",
+        "dnf": "wireshark",
+        "pacman": "wireshark-qt"
+      }
+    },
+    {
+      "name": "wps",
+      "displayName": "WPS Office",
+      "description": "Office suite",
+      "category": "Productivity",
+      "platform": "All",
+      "packages": {
+        "winget": "Kingsoft.WPSOffice",
+        "brewCask": "wpsoffice",
+        "snap": "wps-office"
+      }
+    },
+
+    {
+      "name": "xnview",
+      "displayName": "XnView MP",
+      "description": "Image viewer",
+      "category": "Utilities",
+      "platform": "All",
+      "packages": {
+        "winget": "XnSoft.XnViewMP",
+        "brewCask": "xnviewmp"
+      }
+    },
+
+    {
+      "name": "youtube-dl",
+      "displayName": "youtube-dl",
+      "description": "Video downloader",
+      "category": "Utilities",
+      "platform": "All",
+      "packages": {
+        "winget": "yt-dlp.yt-dlp",
+        "brewFormula": "yt-dlp",
+        "apt": "yt-dlp",
+        "pacman": "yt-dlp",
+        "snap": "yt-dlp"
+      },
+      "notes": "yt-dlp is the maintained fork"
+    },
+    {
+      "name": "zeal",
+      "displayName": "Zeal",
+      "description": "Offline documentation browser",
+      "category": "Development",
+      "platform": "All",
+      "packages": {
+        "winget": "OlegShparber.Zeal",
+        "brewCask": "zeal",
+        "apt": "zeal",
+        "dnf": "zeal",
+        "pacman": "zeal"
+      }
+    },
+    {
+      "name": "zerotier",
+      "displayName": "ZeroTier",
+      "description": "Virtual network",
+      "category": "Networking",
+      "platform": "All",
+      "packages": {
+        "winget": "ZeroTier.ZeroTierOne",
+        "brewCask": "zerotier-one",
+        "apt": "zerotier-one",
+        "dnf": "zerotier-one",
+        "pacman": "zerotier-one"
+      }
+    },
+    {
+      "name": "zettlr",
+      "displayName": "Zettlr",
+      "description": "Markdown editor",
+      "category": "Productivity",
+      "platform": "All",
+      "packages": {
+        "winget": "Zettlr.Zettlr",
+        "brewCask": "zettlr",
+        "snap": "zettlr"
+      }
+    },
+    {
+      "name": "zoom",
+      "displayName": "Zoom",
+      "description": "Video conferencing",
+      "category": "Communication",
+      "platform": "All",
+      "packages": {
+        "winget": "Zoom.Zoom",
+        "brewCask": "zoom",
+        "apt": "zoom",
+        "snap": "zoom-client"
+      }
+    },
+    {
+      "name": "zotero",
+      "displayName": "Zotero",
+      "description": "Reference manager",
+      "category": "Productivity",
+      "platform": "All",
+      "packages": {
+        "winget": "Zotero.Zotero",
+        "brewCask": "zotero",
+        "apt": "zotero",
+        "snap": "zotero-snap"
+      }
+    },
+    {
+      "name": "npcap",
+      "displayName": "Npcap",
+      "description": "Packet capture library",
+      "category": "Networking",
+      "platform": "Windows",
+      "packages": {
+        "winget": "Nmap.Npcap"
+      }
+    },
+    {
+      "name": "ocenaudio",
+      "displayName": "Ocenaudio",
+      "description": "Audio editor",
+      "category": "Creative-Audio",
+      "platform": "All",
+      "packages": {
+        "winget": "Ocenaudio.Ocenaudio",
+        "brewCask": "ocenaudio"
+      }
+    },
+    {
+      "name": "olivevideoeditor",
+      "displayName": "Olive Video Editor",
+      "description": "Non-linear video editor",
+      "category": "Creative-Video",
+      "platform": "All",
+      "packages": {
+        "winget": "OliveTeam.Olive",
+        "brewCask": "olive",
+        "snap": "olive-editor"
+      }
+    },
+    {
+      "name": "openhardwaremonitor",
+      "displayName": "Open Hardware Monitor",
+      "description": "Hardware monitoring tool",
+      "category": "System-Windows",
+      "platform": "Windows",
+      "packages": {
+        "winget": "openhardwaremonitor.openhardwaremonitor"
+      }
+    },
+    {
+      "name": "openjdk17",
+      "displayName": "Microsoft OpenJDK 17",
+      "description": "Java Development Kit 17",
+      "category": "Development",
+      "platform": "All",
+      "packages": {
+        "winget": "Microsoft.OpenJDK.17",
+        "brewCask": "temurin17",
+        "apt": "openjdk-17-jdk"
+      }
+    },
+    {
+      "name": "openjdk21",
+      "displayName": "Microsoft OpenJDK 21",
+      "description": "Java Development Kit 21",
+      "category": "Development",
+      "platform": "All",
+      "packages": {
+        "winget": "Microsoft.OpenJDK.21",
+        "brewCask": "temurin21",
+        "apt": "openjdk-21-jdk"
+      }
+    },
+    {
+      "name": "opentoonz",
+      "displayName": "OpenToonz",
+      "description": "2D animation software",
+      "category": "Creative-Graphics",
+      "platform": "All",
+      "packages": {
+        "winget": "OpenToonz.OpenToonz",
+        "brewCask": "opentoonz"
+      }
+    },
+    {
+      "name": "paintdotnet",
+      "displayName": "Paint.NET",
+      "description": "Image editor",
+      "category": "Creative-Graphics",
+      "platform": "Windows",
+      "packages": {
+        "winget": "dotPDN.PaintDotNet"
+      }
+    },
+    {
+      "name": "palemoon",
+      "displayName": "Pale Moon",
+      "description": "Web browser",
+      "category": "Browsers",
+      "platform": "Windows",
+      "packages": {
+        "winget": "MoonchildProductions.PaleMoon"
+      }
+    },
+    {
+      "name": "pdf24",
+      "displayName": "PDF24 Creator",
+      "description": "PDF tools",
+      "category": "Productivity",
+      "platform": "Windows",
+      "packages": {
+        "winget": "geek.PDF24Creator"
+      }
+    },
+    {
+      "name": "peek",
+      "displayName": "Peek",
+      "description": "GIF screen recorder",
+      "category": "Utilities",
+      "platform": "Linux",
+      "packages": {
+        "apt": "peek",
+        "snap": "peek"
+      }
+    },
+    {
+      "name": "pencilproject",
+      "displayName": "Pencil Project",
+      "description": "GUI prototyping tool",
+      "category": "Creative-Graphics",
+      "platform": "All",
+      "packages": {
+        "winget": "Pencil.Pencil",
+        "brewCask": "pencil"
+      }
+    },
+    {
+      "name": "penpot",
+      "displayName": "Penpot",
+      "description": "Design and prototyping platform",
+      "category": "Creative-Graphics",
+      "platform": "All",
+      "packages": {
+        "snap": "penpot-desktop"
+      }
+    },
+    {
+      "name": "php",
+      "displayName": "PHP",
+      "description": "PHP programming language",
+      "category": "Development",
+      "platform": "All",
+      "packages": {
+        "winget": "PHP.PHP",
+        "brewFormula": "php",
+        "apt": "php",
+        "dnf": "php",
+        "pacman": "php"
+      }
+    },
+    {
+      "name": "protonpass",
+      "displayName": "Proton Pass",
+      "description": "Password manager",
+      "category": "Security",
+      "platform": "All",
+      "packages": {
+        "winget": "Proton.ProtonPass",
+        "brewCask": "proton-pass"
+      }
+    },
+    {
+      "name": "quantux",
+      "displayName": "Quant-UX",
+      "description": "Prototyping tool",
+      "category": "Creative-Graphics",
+      "platform": "All",
+      "packages": {}
+    },
+    {
+      "name": "revouninstaller",
+      "displayName": "Revo Uninstaller",
+      "description": "Advanced uninstaller",
+      "category": "Utilities",
+      "platform": "Windows",
+      "packages": {
+        "winget": "RevoUninstaller.RevoUninstaller"
+      }
+    },
+    {
+      "name": "rocketchat",
+      "displayName": "Rocket.Chat",
+      "description": "Team communication",
+      "category": "Communication",
+      "platform": "All",
+      "packages": {
+        "winget": "RocketChat.RocketChat",
+        "brewCask": "rocket-chat",
+        "snap": "rocketchat-desktop"
+      }
+    },
+    {
+      "name": "rustdesk",
+      "displayName": "RustDesk",
+      "description": "Remote desktop",
+      "category": "Utilities",
+      "platform": "All",
+      "packages": {
+        "winget": "RustDesk.RustDesk",
+        "brewCask": "rustdesk"
+      }
+    },
+    {
+      "name": "scratch",
+      "displayName": "Scratch",
+      "description": "Visual programming language",
+      "category": "Development",
+      "platform": "All",
+      "packages": {
+        "winget": "MIT.Scratch",
+        "brewCask": "scratch",
+        "snap": "scratch"
+      }
+    },
+    {
+      "name": "screentogif",
+      "displayName": "ScreenToGif",
+      "description": "Screen recorder to GIF",
+      "category": "Utilities",
+      "platform": "Windows",
+      "packages": {
+        "winget": "NickeManarin.ScreenToGif"
+      }
+    },
+    {
+      "name": "shutup10",
+      "displayName": "ShutUp10++",
+      "description": "Windows privacy tool",
+      "category": "System-Windows",
+      "platform": "Windows",
+      "packages": {
+        "winget": "OOSoftware.ShutUp10"
+      }
+    },
+    {
+      "name": "simplenote",
+      "displayName": "Simplenote",
+      "description": "Note-taking app",
+      "category": "Productivity",
+      "platform": "All",
+      "packages": {
+        "winget": "Automattic.Simplenote",
+        "brewCask": "simplenote",
+        "snap": "simplenote"
+      }
+    },
+    {
+      "name": "simplescreenrecorder",
+      "displayName": "SimpleScreenRecorder",
+      "description": "Screen recorder for Linux",
+      "category": "Creative-Video",
+      "platform": "Linux",
+      "packages": {
+        "apt": "simplescreenrecorder",
+        "dnf": "simplescreenrecorder",
+        "pacman": "simplescreenrecorder"
+      }
+    },
+    {
+      "name": "skrooge",
+      "displayName": "Skrooge",
+      "description": "Personal finance manager",
+      "category": "Finance",
+      "platform": "All",
+      "packages": {
+        "apt": "skrooge",
+        "dnf": "skrooge",
+        "pacman": "skrooge",
+        "snap": "skrooge"
+      }
+    },
+    {
+      "name": "slic3r",
+      "displayName": "Slic3r",
+      "description": "3D printing slicer",
+      "category": "Creative-Graphics",
+      "platform": "All",
+      "packages": {
+        "winget": "Slic3r.Slic3r",
+        "brewCask": "slic3r"
+      }
+    },
+
+    {
+      "name": "sophos",
+      "displayName": "Sophos Home",
+      "description": "Antivirus software",
+      "category": "Security",
+      "platform": "Windows+macOS",
+      "packages": {
+        "brewCask": "sophos-home"
+      }
+    },
+    {
+      "name": "storyboarder",
+      "displayName": "Storyboarder",
+      "description": "Storyboard creation tool",
+      "category": "Creative-Graphics",
+      "platform": "All",
+      "packages": {
+        "winget": "WonderUnit.Storyboarder",
+        "brewCask": "storyboarder"
+      }
+    },
+    {
+      "name": "streamlabsdesktop",
+      "displayName": "Streamlabs Desktop",
+      "description": "Streaming software",
+      "category": "Creative-Video",
+      "platform": "Windows+macOS",
+      "packages": {
+        "winget": "Streamlabs.Streamlabs",
+        "brewCask": "streamlabs"
+      }
+    },
+    {
+      "name": "streamlink",
+      "displayName": "Streamlink",
+      "description": "Stream extraction tool",
+      "category": "Utilities",
+      "platform": "All",
+      "packages": {
+        "winget": "Streamlink.Streamlink",
+        "brewFormula": "streamlink",
+        "apt": "streamlink"
+      }
+    },
+    {
+      "name": "sweethome3d",
+      "displayName": "Sweet Home 3D",
+      "description": "Interior design software",
+      "category": "Creative-Graphics",
+      "platform": "All",
+      "packages": {
+        "winget": "eTeks.SweetHome3D",
+        "brewCask": "sweet-home3d",
+        "apt": "sweethome3d",
+        "snap": "sweethome3d-homedesign"
+      }
+    },
+    {
+      "name": "sync",
+      "displayName": "Sync.com",
+      "description": "Cloud storage",
+      "category": "Backup",
+      "platform": "All",
+      "packages": {
+        "winget": "Sync.Sync",
+        "brewCask": "sync"
+      }
+    },
+    {
+      "name": "systeminformer",
+      "displayName": "System Informer",
+      "description": "Process viewer (Process Hacker fork)",
+      "category": "System-Windows",
+      "platform": "Windows",
+      "packages": {
+        "winget": "SystemInformer.SystemInformer"
+      }
+    },
+    {
+      "name": "tcpview",
+      "displayName": "TCPView",
+      "description": "Network connection viewer",
+      "category": "Networking",
+      "platform": "Windows",
+      "packages": {
+        "winget": "Microsoft.Sysinternals.TCPView"
+      }
+    },
+    {
+      "name": "teams",
+      "displayName": "Microsoft Teams",
+      "description": "Team collaboration",
+      "category": "Communication",
+      "platform": "All",
+      "packages": {
+        "winget": "Microsoft.Teams",
+        "brewCask": "microsoft-teams"
+      }
+    },
+    {
+      "name": "tenacity",
+      "displayName": "Tenacity",
+      "description": "Audio editor (Audacity fork)",
+      "category": "Creative-Audio",
+      "platform": "All",
+      "packages": {
+        "snap": "tenacity"
+      }
+    },
+    {
+      "name": "tightvnc",
+      "displayName": "TightVNC",
+      "description": "VNC remote desktop",
+      "category": "Utilities",
+      "platform": "Windows",
+      "packages": {
+        "winget": "GlavSoft.TightVNC"
+      }
+    },
+    {
+      "name": "toggltrack",
+      "displayName": "Toggl Track",
+      "description": "Time tracking",
+      "category": "Productivity",
+      "platform": "All",
+      "packages": {
+        "winget": "Toggl.TogglTrack",
+        "brewCask": "toggl-track"
+      }
+    },
+    {
+      "name": "torbrowser",
+      "displayName": "Tor Browser",
+      "description": "Anonymous browsing",
+      "category": "Browsers",
+      "platform": "All",
+      "packages": {
+        "winget": "TorProject.TorBrowser",
+        "brewCask": "tor-browser"
+      }
+    },
+    {
+      "name": "treesizefree",
+      "displayName": "TreeSize Free",
+      "description": "Disk space analyzer",
+      "category": "Utilities",
+      "platform": "Windows",
+      "packages": {
+        "winget": "JAMSoftware.TreeSize.Free"
+      }
+    },
+    {
+      "name": "twitchstudio",
+      "displayName": "Twitch Studio",
+      "description": "Streaming software",
+      "category": "Gaming",
+      "platform": "Windows",
+      "packages": {
+        "winget": "Twitch.TwitchStudio"
+      }
+    },
+    {
+      "name": "ubisoftconnect",
+      "displayName": "Ubisoft Connect",
+      "description": "Ubisoft game launcher",
+      "category": "Gaming",
+      "platform": "Windows",
+      "packages": {
+        "winget": "Ubisoft.Connect"
+      }
+    },
+    {
+      "name": "ultravnc",
+      "displayName": "UltraVNC",
+      "description": "VNC remote desktop",
+      "category": "Utilities",
+      "platform": "Windows",
+      "packages": {
+        "winget": "uvnc.UltraVNC"
+      }
+    },
+    {
+      "name": "ungoogledchromium",
+      "displayName": "Ungoogled Chromium",
+      "description": "Privacy-focused Chromium",
+      "category": "Browsers",
+      "platform": "All",
+      "packages": {
+        "winget": "AdrianGabrielK.UngoogledChromium",
+        "brewCask": "eloston-chromium"
+      }
+    },
+    {
+      "name": "uninstall-mcafee",
+      "displayName": "McAfee Uninstaller",
+      "description": "Remove McAfee products",
+      "category": "Utilities",
+      "platform": "Windows",
+      "packages": {}
+    },
+    {
+      "name": "vcredist",
+      "displayName": "Visual C++ Redistributable",
+      "description": "Microsoft Visual C++ runtime",
+      "category": "Development",
+      "platform": "Windows",
+      "packages": {
+        "winget": "Microsoft.VCRedist.2015+.x64"
+      }
+    },
+    {
+      "name": "veeam",
+      "displayName": "Veeam Agent",
+      "description": "Backup software",
+      "category": "Backup",
+      "platform": "Windows",
+      "packages": {
+        "winget": "Veeam.Agent"
+      }
+    },
+    {
+      "name": "ventoy",
+      "displayName": "Ventoy",
+      "description": "Bootable USB solution",
+      "category": "Utilities",
+      "platform": "All",
+      "packages": {
+        "winget": "Ventoy.Ventoy"
+      }
+    },
+    {
+      "name": "viber",
+      "displayName": "Viber",
+      "description": "Messaging app",
+      "category": "Communication",
+      "platform": "All",
+      "packages": {
+        "winget": "Viber.Viber",
+        "brewCask": "viber"
+      }
+    },
+    {
+      "name": "vidcutter",
+      "displayName": "VidCutter",
+      "description": "Video cutter",
+      "category": "Creative-Video",
+      "platform": "All",
+      "packages": {
+        "winget": "ozmartian.VidCutter",
+        "snap": "vidcutter"
+      }
+    },
+    {
+      "name": "vim",
+      "displayName": "Vim",
+      "description": "Text editor",
+      "category": "Development",
+      "platform": "All",
+      "packages": {
+        "winget": "vim.vim",
+        "brewFormula": "vim",
+        "apt": "vim",
+        "dnf": "vim",
+        "pacman": "vim"
+      }
+    },
+    {
+      "name": "vmwareplayer",
+      "displayName": "VMware Workstation Player",
+      "description": "Virtualization",
+      "category": "Virtualization",
+      "platform": "Windows",
+      "packages": {
+        "winget": "VMware.WorkstationPlayer"
+      }
+    },
+    {
+      "name": "voicemeeterbanana",
+      "displayName": "VoiceMeeter Banana",
+      "description": "Virtual audio mixer",
+      "category": "Creative-Audio",
+      "platform": "Windows",
+      "packages": {
+        "winget": "VB-Audio.Voicemeeter.Banana"
+      }
+    },
+    {
+      "name": "vsdcvideoeditor",
+      "displayName": "VSDC Video Editor",
+      "description": "Video editor",
+      "category": "Creative-Video",
+      "platform": "Windows",
+      "packages": {
+        "winget": "Multilab.VSDCFreeVideoEditor"
+      }
+    },
+    {
+      "name": "windowsterminal",
+      "displayName": "Windows Terminal",
+      "description": "Modern terminal",
+      "category": "Development",
+      "platform": "Windows",
+      "packages": {
+        "winget": "Microsoft.WindowsTerminal"
+      }
+    },
+    {
+      "name": "winget-update",
+      "displayName": "Winget-AutoUpdate",
+      "description": "Automatic winget updates",
+      "category": "System-Windows",
+      "platform": "Windows",
+      "packages": {
+        "winget": "Romanitho.Winget-AutoUpdate"
+      }
+    },
+    {
+      "name": "wings3d",
+      "displayName": "Wings 3D",
+      "description": "3D modeling software",
+      "category": "Creative-Graphics",
+      "platform": "All",
+      "packages": {
+        "winget": "Wings3D.Wings3D",
+        "brewCask": "wings3d"
+      }
+    },
+    {
+      "name": "wpsoffice",
+      "displayName": "WPS Office",
+      "description": "Office suite",
+      "category": "Productivity",
+      "platform": "All",
+      "packages": {
+        "winget": "Kingsoft.WPSOffice",
+        "brewCask": "wpsoffice",
+        "snap": "wps-office"
+      }
+    },
+    {
+      "name": "xnviewmp",
+      "displayName": "XnView MP",
+      "description": "Image viewer",
+      "category": "Utilities",
+      "platform": "All",
+      "packages": {
+        "winget": "XnSoft.XnViewMP",
+        "brewCask": "xnviewmp"
+      }
+    },
+    {
+      "name": "ywriter",
+      "displayName": "yWriter",
+      "description": "Novel writing software",
+      "category": "Productivity",
+      "platform": "Windows",
+      "packages": {
+        "winget": "Spacejock.yWriter7"
+      }
+    },
+    {
+      "name": "zenmap",
+      "displayName": "Zenmap",
+      "description": "Nmap GUI",
+      "category": "Networking",
+      "platform": "All",
+      "packages": {
+        "winget": "Insecure.Nmap",
+        "brewCask": "zenmap",
+        "apt": "zenmap"
+      },
+      "notes": "Included with Nmap installation"
+    }
+  ]
+}
+

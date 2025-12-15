@@ -1,9 +1,16 @@
 ﻿# MSI Afterburner Installation Script
 # Part of myTech.Today Application Installer Suite
+# Windows-only: MSI Afterburner is not available on macOS or Linux.
 
 param(
     [string]$LogPath = "C:\myTech.Today\logs\AppInstaller.md"
 )
+
+# Platform check - this application is Windows-only
+if (-not ($IsWindows -or $env:OS -match 'Windows')) {
+    Write-Host "[INFO] MSI Afterburner is only available for Windows." -ForegroundColor Yellow
+    exit 0
+}
 
 $AppName = "MSI Afterburner"
 $WingetId = "Guru3D.Afterburner"

@@ -1,49 +1,34 @@
 ﻿<#
 .SYNOPSIS
     Installs Wings 3D.
-
 .DESCRIPTION
-    This script installs Wings 3D using winget package manager.
-
+    Cross-platform installer for Wings 3D modeling software.
+    Supports Windows (winget) and macOS (Homebrew).
 .NOTES
     File Name      : wings3d.ps1
     Author         : myTech.Today
-    Version        : 1.0.0
-    Copyright      : (c) 2025 myTech.Today. All rights reserved.
+    Prerequisite   : PowerShell 5.1+ (Windows) or PowerShell 7+ (macOS/Linux)
 #>
 
 [CmdletBinding()]
 param()
 
+# Import platform detection module
+. "$PSScriptRoot/../platform-detect.ps1"
+
 $ErrorActionPreference = 'Stop'
+$AppName = "Wings 3D"
 
 try {
-    Write-Host "Installing Wings 3D..." -ForegroundColor Cyan
-    
-    # Check if winget is available
-    $wingetCmd = Get-Command winget -ErrorAction SilentlyContinue
-    if (-not $wingetCmd) {
-        Write-Host "  [X] winget not found. Please install App Installer from Microsoft Store." -ForegroundColor Red
-        exit 1
-    }
+    Write-Host "Installing $AppName..." -ForegroundColor Cyan
 
-    # Install using winget
-    Write-Host "  Installing via winget..." -ForegroundColor Yellow
+    $result = Install-CrossPlatformApp -AppName $AppName `
+        -WingetId "Wings3D.Wings3D" `
+        -BrewCask "wings3d"
 
-    $result = winget install --id Wings3D.Wings3D --silent --accept-source-agreements --accept-package-agreements 2>&1
-
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host "  [OK] Wings 3D installed successfully!" -ForegroundColor Green
-        exit 0
-    }
-    else {
-        Write-Host "  [X] Installation failed with exit code: $LASTEXITCODE" -ForegroundColor Red
-        Write-Host "  $result" -ForegroundColor Gray
-        exit 1
-    }
+    exit $result
 }
 catch {
-    Write-Host "Error installing Wings 3D: $_" -ForegroundColor Red
+    Write-Host "[ERROR] Failed to install $AppName`: $_" -ForegroundColor Red
     exit 1
 }
-

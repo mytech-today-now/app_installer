@@ -3,6 +3,7 @@
     Installs Open Hardware Monitor.
 .DESCRIPTION
     Installs Open Hardware Monitor using winget.
+    Windows-only: Open Hardware Monitor is not available on macOS or Linux.
 .NOTES
     File Name      : openhardwaremonitor.ps1
     Author         : myTech.Today
@@ -11,6 +12,12 @@
 
 [CmdletBinding()]
 param()
+
+# Platform check - this application is Windows-only
+if (-not ($IsWindows -or $env:OS -match 'Windows')) {
+    Write-Host "[INFO] Open Hardware Monitor is only available for Windows." -ForegroundColor Yellow
+    exit 0
+}
 
 $ErrorActionPreference = 'Stop'
 

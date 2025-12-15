@@ -1,9 +1,10 @@
-﻿<#
+<#
 .SYNOPSIS
     Installs Revo Uninstaller.
 
 .DESCRIPTION
     This script installs Revo Uninstaller using winget package manager.
+    Windows-only: Revo Uninstaller is not available on macOS or Linux.
 
 .NOTES
     File Name      : revouninstaller.ps1
@@ -14,6 +15,12 @@
 
 [CmdletBinding()]
 param()
+
+# Platform check - this application is Windows-only
+if (-not ($IsWindows -or $env:OS -match 'Windows')) {
+    Write-Host "[INFO] Revo Uninstaller is only available for Windows." -ForegroundColor Yellow
+    exit 0
+}
 
 $ErrorActionPreference = 'Stop'
 
