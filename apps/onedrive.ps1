@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs OneDrive.
+    Installs OneDrive. 
 .DESCRIPTION
     Cross-platform installer for Microsoft OneDrive cloud storage.
     Supports Windows (winget) and macOS (Homebrew).

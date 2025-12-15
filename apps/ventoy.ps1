@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Ventoy.
+    Installs Ventoy.  
 .DESCRIPTION
     Cross-platform installer for Ventoy bootable USB solution.
     Supports Windows (winget). Linux users should download from ventoy.net.

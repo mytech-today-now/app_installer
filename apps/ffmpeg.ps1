@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs FFmpeg.
+    Installs FFmpeg. 
 .DESCRIPTION
     Cross-platform installer for FFmpeg.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman/snap).

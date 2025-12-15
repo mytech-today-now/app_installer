@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs RustDesk.
+    Installs RustDesk. 
 .DESCRIPTION
     Cross-platform installer for RustDesk remote desktop.
     Supports Windows (winget) and macOS (Homebrew).

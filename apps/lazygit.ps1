@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Lazygit.
+    Installs Lazygit. 
 .DESCRIPTION
     Cross-platform installer for Lazygit terminal UI for git.
     Supports Windows (winget), macOS (Homebrew), and Linux (pacman/snap).

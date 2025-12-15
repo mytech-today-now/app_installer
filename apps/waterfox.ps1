@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Waterfox browser.
+    Installs Waterfox browser. 
 .DESCRIPTION
     Cross-platform installer for Waterfox.
     Supports Windows (winget) and macOS (Homebrew).

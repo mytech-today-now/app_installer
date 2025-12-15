@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs TightVNC.
+    Installs TightVNC. 
 
 .DESCRIPTION
     This script installs TightVNC using winget package manager.

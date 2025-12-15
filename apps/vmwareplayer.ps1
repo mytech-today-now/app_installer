@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs VMware Workstation Player.
+    Installs VMware Workstation Player. 
 .DESCRIPTION
     Installs VMware Workstation Player using winget.
     Windows-only: VMware Workstation Player is not available on macOS or Linux.

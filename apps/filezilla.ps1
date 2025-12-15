@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs FileZilla.
+    Installs FileZilla. 
 .DESCRIPTION
     Cross-platform installer for FileZilla FTP client.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman/snap).

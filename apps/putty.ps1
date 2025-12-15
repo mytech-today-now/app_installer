@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs PuTTY.
+    Installs PuTTY. 
 
 .DESCRIPTION
     This script installs PuTTY using winget package manager.

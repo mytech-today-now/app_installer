@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Ungoogled Chromium.
+    Installs Ungoogled Chromium.  
 .DESCRIPTION
     Cross-platform installer for Ungoogled Chromium privacy-focused browser.
     Supports Windows (winget) and macOS (Homebrew).

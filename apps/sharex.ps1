@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs ShareX.
+    Installs ShareX. 
 
 .DESCRIPTION
     This script installs ShareX using winget package manager.

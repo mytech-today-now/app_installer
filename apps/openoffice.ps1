@@ -1,5 +1,5 @@
 ﻿<#
-.SYNOPSIS
+.SYNOPSIS 
     Installs Apache OpenOffice.
 .DESCRIPTION
     Cross-platform installer for Apache OpenOffice.

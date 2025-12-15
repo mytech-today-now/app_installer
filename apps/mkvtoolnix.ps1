@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs MKVToolNix.
+    Installs MKVToolNix. 
 .DESCRIPTION
     Cross-platform installer for MKVToolNix MKV manipulation tools.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman).

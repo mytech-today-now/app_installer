@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Spotify.
+    Installs Spotify. 
 .DESCRIPTION
     Cross-platform installer for Spotify music streaming.
     Supports Windows (winget), macOS (Homebrew), and Linux (snap).

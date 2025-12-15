@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Voicemeeter Banana.
+    Installs Voicemeeter Banana. 
 .DESCRIPTION
     Installs Voicemeeter Banana using winget.
     Windows-only: VoiceMeeter Banana is not available on macOS or Linux.

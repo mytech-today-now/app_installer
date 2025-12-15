@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Downloads and installs O&O ShutUp10++.
+    Downloads and installs O&O ShutUp10++. 
 
 .DESCRIPTION
     This script downloads the latest version of O&O ShutUp10++ privacy tool

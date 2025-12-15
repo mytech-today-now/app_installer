@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Twitch Studio.
+    Installs Twitch Studio. 
 .DESCRIPTION
     Installs Twitch Studio using winget.
     Windows-only: Twitch Studio is not available on macOS or Linux.

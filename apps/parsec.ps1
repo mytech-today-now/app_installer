@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Parsec.
+    Installs Parsec. 
 .DESCRIPTION
     Cross-platform installer for Parsec remote desktop for gaming.
     Supports Windows (winget) and macOS (Homebrew).

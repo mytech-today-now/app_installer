@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Notepad++ text editor.
+    Installs Notepad++ text editor. 
 
 .DESCRIPTION
     This script installs Notepad++ using winget package manager.

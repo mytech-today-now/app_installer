@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Downloads and installs the Hosts File Manager script.
+    Downloads and installs the Hosts File Manager script. 
 
 .DESCRIPTION
     This script downloads the Hosts File Manager from GitHub, saves it to a standard

@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Atom.
+    Installs Atom. 
 .DESCRIPTION
     Cross-platform installer for Atom text editor (discontinued).
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/snap).

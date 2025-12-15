@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs ClipGrab.
+    Installs ClipGrab. 
 .DESCRIPTION
     Cross-platform installer for ClipGrab video downloader.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt).

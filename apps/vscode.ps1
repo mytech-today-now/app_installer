@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Visual Studio Code.
+    Installs Visual Studio Code. 
 .DESCRIPTION
     Cross-platform installer for Visual Studio Code.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/snap).

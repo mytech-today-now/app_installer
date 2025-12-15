@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Opera browser.
+    Installs Opera browser. 
 .DESCRIPTION
     Cross-platform installer for Opera.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/snap).

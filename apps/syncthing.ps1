@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Syncthing.
+    Installs Syncthing. 
 .DESCRIPTION
     Cross-platform installer for Syncthing file synchronization.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman/snap).

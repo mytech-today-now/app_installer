@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Multipass.
+    Installs Multipass. 
 .DESCRIPTION
     Cross-platform installer for Multipass Ubuntu VM manager.
     Supports Windows (winget), macOS (Homebrew), and Linux (snap).

@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs GPU-Z.
+    Installs GPU-Z. 
 
 .DESCRIPTION
     This script installs GPU-Z using winget package manager.

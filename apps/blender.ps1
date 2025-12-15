@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Blender.
+    Installs Blender. 
 .DESCRIPTION
     Cross-platform installer for Blender.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman/snap).

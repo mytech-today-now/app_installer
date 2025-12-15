@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs SQL Server Management Studio (SSMS).
+    Installs SQL Server Management Studio (SSMS). 
 .DESCRIPTION
     Installs SQL Server Management Studio using winget.
     Windows-only: SQL Server Management Studio is not available on macOS or Linux.

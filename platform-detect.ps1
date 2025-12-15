@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Cross-platform detection module for app installers.
+    Cross-platform detection module for app installers. 
 .DESCRIPTION
     Provides platform detection, package manager abstraction, and helper
     functions for cross-platform PowerShell app installer scripts.

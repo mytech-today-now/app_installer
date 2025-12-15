@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Sophos Home.
+    Installs Sophos Home. 
 .DESCRIPTION
     Cross-platform installer for Sophos Home antivirus.
     Supports macOS (Homebrew).

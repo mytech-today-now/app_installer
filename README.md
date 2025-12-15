@@ -1,8 +1,8 @@
 # App Installer - myTech.Today
 
-**Version:** 1.4.1 (GUI) / 1.5.3 (CLI)
+**Version:** 1.5.0 (GUI) / 1.6.0 (CLI)
 **Author:** myTech.Today
-**License:** All rights reserved
+**License:** All rights reserved 
 
 ## Overview
 
@@ -37,9 +37,10 @@ The **App Installer** is a comprehensive PowerShell application installer system
 ✅ **Centralized Logging** - All activities logged to `C:\mytech.today\logs\` in markdown table format
 ✅ **winget Integration** - Leverages Windows Package Manager for 90+ applications
 ✅ **Custom Installers** - Specialized scripts for apps not available via winget
-✅ **Error Handling** - Comprehensive error handling with fallback solutions
+✅ **Error Handling** - Comprehensive error handling with 100+ winget error code mappings
 ✅ **Silent Installation** - Most apps install silently without user interaction
 ✅ **Administrator Privileges** - Automatic elevation and privilege checking
+✅ **Automatic Shortcuts** - Creates Start Menu shortcuts for web-based apps (Chrome Remote Desktop)
 
 ## Supported Applications (212)
 
@@ -554,26 +555,25 @@ Edit the `Category` property in the application registry to organize apps differ
 - All installations run with user consent
 - Logs contain no sensitive information
 
-## Recent Updates (v1.3.7)
+## Recent Updates (v1.5.0 GUI / v1.6.0 CLI)
 
-### GUI Improvements
-- ✅ Dynamic progress tracking - Shows "0 / X applications" as you select
-- ✅ Increased HTML panel font sizes for better readability (14px → 18px)
-- ✅ Fixed progress label text clipping (descenders now fully visible)
-- ✅ Improved button layout with proper spacing and sizing
-- ✅ Real-time status updates during installation
-- ✅ Professional Windows Forms design with DPI scaling
-
-### Application Additions
-- ✅ Expanded from 27 to 93 applications
-- ✅ Added 13 categories for better organization
-- ✅ New categories: Communication, 3D & CAD, Networking, Writing, Runtime
+### New Features
+- ✅ **Automatic Start Menu Shortcut Creation** - Chrome Remote Desktop now gets a Start Menu shortcut automatically
+- ✅ **Missing Shortcut Repair** - Automatically detects and repairs missing shortcuts during app detection
+- ✅ **Enhanced Error Handling** - Comprehensive winget error code mapping (100+ error codes)
+- ✅ **Improved Terminal Compatibility** - ASCII text markers replace Unicode emojis for better compatibility
 
 ### Bug Fixes
-- ✅ Fixed Brave Browser detection issue
-- ✅ Fixed button text truncation
-- ✅ Fixed progress bar not updating correctly
-- ✅ Improved version detection accuracy
+- ✅ **Chrome Remote Desktop Package ID** - Fixed incorrect WingetId (Google.ChromeRemoteDesktop → Google.ChromeRemoteDesktopHost)
+- ✅ **Exit Code Handling** - Improved exit code capture and error reporting in custom scripts
+- ✅ **Error Messages** - Human-readable error descriptions with specific exit codes
+
+### Previous Updates (v1.4.5)
+- ✅ Multi-line button text with narrower width for more compact layout
+- ✅ Improved button spacing and sizing
+- ✅ Enhanced GUI responsiveness and DPI scaling
+- ✅ Export/Import configuration profiles
+- ✅ Uninstall applications feature with confirmation dialogs
 
 ## Contributing
 
@@ -593,13 +593,14 @@ For issues, questions, or contributions:
 
 ## Version History
 
-See [CHANGELOG.md](CHANGELOG.md) for detailed version history.
+See [CHANGELOG.md](other_files/CHANGELOG.md) for detailed version history.
 
 **Recent Versions:**
-- **v1.3.7** - GUI improvements, dynamic progress tracking, font size increases
-- **v1.3.0** - Added 30+ new applications, expanded to 93 total
-- **v1.2.0** - Introduced GUI version (install-gui.ps1)
-- **v1.0.0** - Initial release with 27 applications
+- **v1.5.0 (GUI) / v1.6.0 (CLI)** - Chrome Remote Desktop shortcuts, enhanced error handling, terminal compatibility
+- **v1.4.5 (GUI)** - Multi-line button text, improved layout
+- **v1.4.1 (GUI) / v1.5.3 (CLI)** - Uninstall applications feature
+- **v1.4.0 (GUI) / v1.5.2 (CLI)** - Generic logging module integration
+- **v1.3.8 (GUI) / v1.5.1 (CLI)** - Export/Import configuration profiles
 
 ## License
 
@@ -627,6 +628,6 @@ https://github.com/mytech-today-now/PowerShellScripts
 
 ---
 
-**Last Updated:** 2025-11-02
-**Version:** 1.3.7
+**Last Updated:** 2025-12-15
+**Version:** 1.5.0 (GUI) / 1.6.0 (CLI)
 **Maintained by:** myTech.Today

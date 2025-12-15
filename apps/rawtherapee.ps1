@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs RawTherapee.
+    Installs RawTherapee. 
 .DESCRIPTION
     Cross-platform installer for RawTherapee.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman/snap).

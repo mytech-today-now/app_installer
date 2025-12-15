@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs OpenToonz.
+    Installs OpenToonz. 
 .DESCRIPTION
     Cross-platform installer for OpenToonz.
     Supports Windows (winget) and macOS (Homebrew).

@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Scribus.
+    Installs Scribus. 
 .DESCRIPTION
     Cross-platform installer for Scribus desktop publishing.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman/snap).

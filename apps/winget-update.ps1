@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Monthly Windows Package Manager (winget) Update Script
+    Monthly Windows Package Manager (winget) Update Script 
 
 .DESCRIPTION
     This script updates all applications installed via winget on a monthly basis.

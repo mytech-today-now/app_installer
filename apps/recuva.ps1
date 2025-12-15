@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Recuva.
+    Installs Recuva. 
 
 .DESCRIPTION
     This script installs Recuva using winget package manager.

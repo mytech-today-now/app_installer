@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Stellarium.
+    Installs Stellarium. 
 .DESCRIPTION
     Cross-platform installer for Stellarium planetarium software.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman/snap).

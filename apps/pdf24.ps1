@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs PDF24 Creator.
+    Installs PDF24 Creator. 
 
 .DESCRIPTION
     This script installs PDF24 Creator using winget package manager.

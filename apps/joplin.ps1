@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Joplin.
+    Installs Joplin. 
 .DESCRIPTION
     Cross-platform installer for Joplin note-taking and to-do app.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/snap).

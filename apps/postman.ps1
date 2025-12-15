@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Postman API testing tool.
+    Installs Postman API testing tool. 
 .DESCRIPTION
     Cross-platform installer for Postman.
     Supports Windows (winget), macOS (Homebrew), and Linux (snap).

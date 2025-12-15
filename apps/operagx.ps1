@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Opera GX.
+    Installs Opera GX. 
 .DESCRIPTION
     Cross-platform installer for Opera GX gaming browser.
     Supports Windows (winget) and macOS (Homebrew).

@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Chrome Remote Desktop.
+    Installs Chrome Remote Desktop. 
 .DESCRIPTION
     Cross-platform installer for Chrome Remote Desktop.
     Supports Windows (winget) and macOS (Homebrew).

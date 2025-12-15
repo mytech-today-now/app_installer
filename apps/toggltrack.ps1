@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Toggl Track.
+    Installs Toggl Track. 
 .DESCRIPTION
     Cross-platform installer for Toggl Track time tracking.
     Supports Windows (winget) and macOS (Homebrew).

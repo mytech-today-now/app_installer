@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs OBS Studio.
+    Installs OBS Studio. 
 .DESCRIPTION
     Cross-platform installer for OBS Studio.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman/snap).

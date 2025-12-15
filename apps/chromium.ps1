@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Chromium browser.
+    Installs Chromium browser. 
 .DESCRIPTION
     Cross-platform installer for Chromium.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman/snap).

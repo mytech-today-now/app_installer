@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs draw.io.
+    Installs draw.io. 
 .DESCRIPTION
     Cross-platform installer for draw.io diagramming application.
     Supports Windows (winget), macOS (Homebrew), and Linux (snap).

@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs DaVinci Resolve video editor.
+    Installs DaVinci Resolve video editor. 
 .DESCRIPTION
     Cross-platform installer for DaVinci Resolve.
     Supports Windows (winget) and macOS (Homebrew).

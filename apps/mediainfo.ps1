@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs MediaInfo.
+    Installs MediaInfo. 
 .DESCRIPTION
     Cross-platform installer for MediaInfo media file information tool.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman).

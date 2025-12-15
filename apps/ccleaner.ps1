@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs CCleaner.
+    Installs CCleaner. 
 .DESCRIPTION
     Cross-platform installer for CCleaner system cleaner.
     Supports Windows (winget) and macOS (Homebrew).

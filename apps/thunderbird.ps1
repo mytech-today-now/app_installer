@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Thunderbird.
+    Installs Thunderbird. 
 .DESCRIPTION
     Cross-platform installer for Thunderbird email client.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman/snap).

@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Mixxx.
+    Installs Mixxx. 
 .DESCRIPTION
     Cross-platform installer for Mixxx DJ software.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman).

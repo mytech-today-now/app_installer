@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================================
-#  myTech.Today - App Installer Setup
+#  myTech.Today - App Installer Setup 
 #  Checks for PowerShell 7+, installs if needed, then runs the installer
 # ============================================================================
 

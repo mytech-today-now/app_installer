@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs SimpleScreenRecorder.
+    Installs SimpleScreenRecorder. 
 .DESCRIPTION
     Cross-platform installer for SimpleScreenRecorder screen recorder.
     Supports Linux (apt/dnf/pacman).

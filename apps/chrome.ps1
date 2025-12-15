@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Google Chrome browser.
+    Installs Google Chrome browser. 
 .DESCRIPTION
     Cross-platform installer for Google Chrome.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf).

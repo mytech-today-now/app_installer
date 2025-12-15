@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Foxit PDF Reader.
+    Installs Foxit PDF Reader. 
 .DESCRIPTION
     Cross-platform installer for Foxit PDF Reader.
     Supports Windows (winget) and macOS (Homebrew).

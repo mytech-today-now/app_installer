@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Lightworks.
+    Installs Lightworks. 
 .DESCRIPTION
     Cross-platform installer for Lightworks.
     Supports Windows (winget) and macOS (Homebrew).

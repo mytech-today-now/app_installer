@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Speccy.
+    Installs Speccy. 
 
 .DESCRIPTION
     This script installs Speccy using winget package manager.

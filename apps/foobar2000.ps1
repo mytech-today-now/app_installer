@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs foobar2000.
+    Installs foobar2000. 
 .DESCRIPTION
     Cross-platform installer for foobar2000 audio player.
     Supports Windows (winget) and macOS (Homebrew).

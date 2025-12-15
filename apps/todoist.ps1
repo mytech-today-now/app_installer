@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Todoist.
+    Installs Todoist. 
 .DESCRIPTION
     Cross-platform installer for Todoist task management.
     Supports Windows (winget), macOS (Homebrew), and Linux (snap).

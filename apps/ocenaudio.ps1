@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Ocenaudio.
+    Installs Ocenaudio. 
 .DESCRIPTION
     Cross-platform installer for Ocenaudio audio editor.
     Supports Windows (winget) and macOS (Homebrew).

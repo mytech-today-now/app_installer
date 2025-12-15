@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs VirtualBox.
+    Installs VirtualBox. 
 .DESCRIPTION
     Cross-platform installer for Oracle VirtualBox virtualization.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman).

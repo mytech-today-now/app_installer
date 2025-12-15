@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Creates desktop and start menu shortcuts for dictation.io.
+    Creates desktop and start menu shortcuts for dictation.io. 
 
 .DESCRIPTION
     This script creates shortcuts that open https://dictation.io/speech in Chrome browser

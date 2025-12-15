@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Sync.com.
+    Installs Sync.com. 
 .DESCRIPTION
     Cross-platform installer for Sync.com cloud storage.
     Supports Windows (winget) and macOS (Homebrew).

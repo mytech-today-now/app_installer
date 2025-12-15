@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs IntelliJ IDEA Community.
+    Installs IntelliJ IDEA Community. 
 .DESCRIPTION
     Cross-platform installer for IntelliJ IDEA Community.
     Supports Windows (winget), macOS (Homebrew), and Linux (snap).

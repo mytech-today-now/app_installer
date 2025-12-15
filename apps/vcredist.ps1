@@ -1,6 +1,6 @@
 <#
-.SYNOPSIS
-    Installs Visual C++ Redistributable.
+.SYNOPSIS 
+    Installs Visual C++ Redistributable. 
 
 .DESCRIPTION
     This script installs Visual C++ Redistributable using winget package manager.

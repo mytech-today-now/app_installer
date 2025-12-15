@@ -1,0 +1,42 @@
+# App Installer Version Information
+
+## Current Versions
+
+**GUI Version:** 1.5.0  
+**CLI Version:** 1.6.0  
+**Release Date:** 2025-12-15
+
+## Version History
+
+### 1.5.0 (GUI) / 1.6.0 (CLI) - 2025-12-15
+- Added automatic Start Menu shortcut creation for Chrome Remote Desktop
+- Fixed Chrome Remote Desktop winget package ID
+- Enhanced error handling with comprehensive winget error code mapping
+- Improved terminal compatibility with ASCII text markers
+
+### 1.4.5 (GUI) - 2025-11-11
+- Multi-line button text with narrower width
+- Improved button layout and spacing
+
+### 1.4.4 (GUI) / 1.5.4 (CLI) - 2025-11-11
+- Fixed GitHub URLs for scripts repository
+- Enabled online loading of responsive and logging modules
+
+### 1.4.1 (GUI) / 1.5.3 (CLI) - 2025-11-11
+- Added uninstall applications feature
+- Confirmation dialogs and progress tracking
+
+## Semantic Versioning
+
+This project follows [Semantic Versioning](https://semver.org/):
+- **MAJOR** version for incompatible API changes
+- **MINOR** version for new functionality in a backwards compatible manner
+- **PATCH** version for backwards compatible bug fixes
+
+## Support
+
+For version-specific issues or questions:
+- **GitHub Issues:** https://github.com/mytech-today-now/app_installer/issues
+- **Documentation:** See README.md and CHANGELOG.md
+- **Company Website:** https://mytech.today
+

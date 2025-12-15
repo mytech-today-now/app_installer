@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Grammarly.
+    Installs Grammarly. 
 .DESCRIPTION
     Cross-platform installer for Grammarly writing assistant.
     Supports Windows (winget) and macOS (Homebrew).

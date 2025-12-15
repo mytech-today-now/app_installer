@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs EA App.
+    Installs EA App. 
 
 .DESCRIPTION
     This script installs EA App using winget package manager.

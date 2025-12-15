@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs darktable.
+    Installs darktable. 
 .DESCRIPTION
     Cross-platform installer for darktable.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman/snap).

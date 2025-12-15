@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs LibreWolf browser.
+    Installs LibreWolf browser. 
 .DESCRIPTION
     Cross-platform installer for LibreWolf.
     Supports Windows (winget) and macOS (Homebrew).

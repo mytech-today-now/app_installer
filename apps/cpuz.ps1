@@ -1,4 +1,4 @@
-﻿# CPU-Z Installation Script
+﻿# CPU-Z Installation Script 
 # Part of myTech.Today Application Installer Suite
 # Windows-only: CPU-Z is not available on macOS or Linux.
 

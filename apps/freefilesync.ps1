@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs FreeFileSync.
+    Installs FreeFileSync. 
 .DESCRIPTION
     Cross-platform installer for FreeFileSync file synchronization.
     Supports Windows (winget) and macOS (Homebrew).

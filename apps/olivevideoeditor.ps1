@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Olive Video Editor.
+    Installs Olive Video Editor. 
 .DESCRIPTION
     Cross-platform installer for Olive Video Editor.
     Supports Windows (winget), macOS (Homebrew), and Linux (snap).

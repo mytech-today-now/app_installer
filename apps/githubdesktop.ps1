@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs GitHub Desktop.
+    Installs GitHub Desktop. 
 .DESCRIPTION
     Cross-platform installer for GitHub Desktop.
     Supports Windows (winget) and macOS (Homebrew).

@@ -1,4 +1,4 @@
-﻿# Hemingway Editor Installation Script
+﻿# Hemingway Editor Installation Script 
 # Part of myTech.Today Application Installer Suite
 
 param(

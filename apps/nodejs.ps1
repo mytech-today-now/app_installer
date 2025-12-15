@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Node.js JavaScript runtime.
+    Installs Node.js JavaScript runtime. 
 .DESCRIPTION
     Cross-platform installer for Node.js.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman/snap).

@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Tor Browser.
+    Installs Tor Browser. 
 .DESCRIPTION
     Cross-platform installer for Tor Browser.
     Supports Windows (winget) and macOS (Homebrew).

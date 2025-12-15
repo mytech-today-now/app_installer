@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Jitsi Meet.
+    Installs Jitsi Meet. 
 .DESCRIPTION
     Cross-platform installer for Jitsi Meet.
     Supports Windows (winget), macOS (Homebrew), and Linux (snap).

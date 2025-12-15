@@ -1,4 +1,4 @@
-﻿# AceMoney Lite Installation Script
+﻿# AceMoney Lite Installation Script 
 # Part of myTech.Today Application Installer Suite
 # Windows-only: AceMoney Lite is not available on macOS or Linux.
 

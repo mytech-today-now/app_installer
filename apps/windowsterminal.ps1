@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Windows Terminal.
+    Installs Windows Terminal. 
 
 .DESCRIPTION
     This script installs Windows Terminal using winget package manager.

@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Angry IP Scanner.
+    Installs Angry IP Scanner. 
 .DESCRIPTION
     Cross-platform installer for Angry IP Scanner network scanner.
     Supports Windows (winget) and macOS (Homebrew).

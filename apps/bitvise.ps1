@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Bitvise SSH Client.
+    Installs Bitvise SSH Client. 
 
 .DESCRIPTION
     This script installs Bitvise SSH Client using winget package manager.

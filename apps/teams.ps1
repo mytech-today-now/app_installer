@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Microsoft Teams.
+    Installs Microsoft Teams. 
 .DESCRIPTION
     Cross-platform installer for Microsoft Teams.
     Supports Windows (winget) and macOS (Homebrew).

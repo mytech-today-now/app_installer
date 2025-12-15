@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Rust programming language.
+    Installs Rust programming language. 
 .DESCRIPTION
     Cross-platform installer for Rust.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman).

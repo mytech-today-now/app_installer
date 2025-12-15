@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs KiCad.
+    Installs KiCad. 
 .DESCRIPTION
     Cross-platform installer for KiCad electronics design automation.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman).

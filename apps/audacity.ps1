@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Audacity audio editor.
+    Installs Audacity audio editor. 
 .DESCRIPTION
     Cross-platform installer for Audacity.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman/snap).

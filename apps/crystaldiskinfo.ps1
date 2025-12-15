@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs CrystalDiskInfo.
+    Installs CrystalDiskInfo. 
 
 .DESCRIPTION
     This script installs CrystalDiskInfo using winget package manager.

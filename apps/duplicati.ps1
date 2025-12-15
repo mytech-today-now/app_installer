@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Duplicati.
+    Installs Duplicati. 
 .DESCRIPTION
     Cross-platform installer for Duplicati backup software.
     Supports Windows (winget) and macOS (Homebrew).

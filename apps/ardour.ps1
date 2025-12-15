@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Ardour.
+    Installs Ardour. 
 .DESCRIPTION
     Cross-platform installer for Ardour digital audio workstation.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman).

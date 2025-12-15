@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs itch.io.
+    Installs itch.io. 
 .DESCRIPTION
     Cross-platform installer for itch.io indie game marketplace.
     Supports Windows (winget) and macOS (Homebrew).

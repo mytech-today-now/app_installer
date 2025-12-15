@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Evernote.
+    Installs Evernote. 
 .DESCRIPTION
     Cross-platform installer for Evernote note-taking application.
     Supports Windows (winget) and macOS (Homebrew).

@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Open Hardware Monitor.
+    Installs Open Hardware Monitor. 
 .DESCRIPTION
     Installs Open Hardware Monitor using winget.
     Windows-only: Open Hardware Monitor is not available on macOS or Linux.

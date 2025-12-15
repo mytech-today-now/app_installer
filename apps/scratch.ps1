@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Scratch.
+    Installs Scratch. 
 .DESCRIPTION
     Cross-platform installer for Scratch visual programming language.
     Supports Windows (winget), macOS (Homebrew), and Linux (snap).

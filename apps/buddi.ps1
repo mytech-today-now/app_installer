@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Buddi.
+    Installs Buddi. 
 .DESCRIPTION
     Cross-platform installer for Buddi personal budget software.
     Supports macOS (Homebrew). Cross-platform Java app, no winget package.

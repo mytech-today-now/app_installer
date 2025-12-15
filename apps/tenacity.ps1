@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Tenacity.
+    Installs Tenacity. 
 .DESCRIPTION
     Cross-platform installer for Tenacity audio editor (Audacity fork).
     Supports Linux (snap).

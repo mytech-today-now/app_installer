@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Microsoft OpenJDK 21.
+    Installs Microsoft OpenJDK 21. 
 .DESCRIPTION
     Cross-platform installer for Microsoft OpenJDK 21.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt).

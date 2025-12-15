@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs VidCutter.
+    Installs VidCutter. 
 .DESCRIPTION
     Cross-platform installer for VidCutter video cutter.
     Supports Windows (winget) and Linux (snap).

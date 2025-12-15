@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Wireshark.
+    Installs Wireshark. 
 .DESCRIPTION
     Cross-platform installer for Wireshark network protocol analyzer.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman).

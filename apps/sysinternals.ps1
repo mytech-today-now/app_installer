@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Sysinternals Suite.
+    Installs Sysinternals Suite. 
 
 .DESCRIPTION
     This script installs Sysinternals Suite using winget package manager.

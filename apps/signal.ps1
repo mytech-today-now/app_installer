@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Signal.
+    Installs Signal. 
 .DESCRIPTION
     Cross-platform installer for Signal.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/snap).

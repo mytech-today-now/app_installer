@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Wings 3D.
+    Installs Wings 3D. 
 .DESCRIPTION
     Cross-platform installer for Wings 3D modeling software.
     Supports Windows (winget) and macOS (Homebrew).

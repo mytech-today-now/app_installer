@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs NetWorx.
+    Installs NetWorx. 
 .DESCRIPTION
     Installs NetWorx using winget.
 .NOTES

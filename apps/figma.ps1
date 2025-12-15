@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Figma.
+    Installs Figma. 
 .DESCRIPTION
     Cross-platform installer for Figma collaborative design tool.
     Supports Windows (winget) and macOS (Homebrew).

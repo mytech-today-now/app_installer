@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs NetLimiter internet traffic control.
+    Installs NetLimiter internet traffic control. 
 
 .DESCRIPTION
     This script installs NetLimiter using winget package manager.

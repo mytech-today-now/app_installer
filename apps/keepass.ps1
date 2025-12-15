@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs KeePass.
+    Installs KeePass. 
 
 .DESCRIPTION
     This script installs KeePass using winget package manager.

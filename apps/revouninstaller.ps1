@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Revo Uninstaller.
+    Installs Revo Uninstaller. 
 
 .DESCRIPTION
     This script installs Revo Uninstaller using winget package manager.

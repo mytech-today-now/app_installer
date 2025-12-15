@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Eclipse IDE.
+    Installs Eclipse IDE. 
 .DESCRIPTION
     Cross-platform installer for Eclipse IDE.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/snap).

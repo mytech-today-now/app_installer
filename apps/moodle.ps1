@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Moodle Desktop.
+    Installs Moodle Desktop. 
 .DESCRIPTION
     Cross-platform installer for Moodle Desktop learning management client.
     Supports Windows (winget) and macOS (Homebrew).

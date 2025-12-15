@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Geany.
+    Installs Geany. 
 .DESCRIPTION
     Cross-platform installer for Geany lightweight IDE.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman).

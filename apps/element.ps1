@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Element secure messaging.
+    Installs Element secure messaging. 
 .DESCRIPTION
     Cross-platform installer for Element (Matrix client).
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/snap).

@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs KMyMoney.
+    Installs KMyMoney. 
 .DESCRIPTION
     Cross-platform installer for KMyMoney personal finance manager.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman).

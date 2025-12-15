@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs HeidiSQL.
+    Installs HeidiSQL. 
 
 .DESCRIPTION
     This script installs HeidiSQL using winget package manager.

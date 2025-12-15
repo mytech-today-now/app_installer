@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs iTunes.
+    Installs iTunes. 
 
 .DESCRIPTION
     This script installs iTunes using winget package manager.

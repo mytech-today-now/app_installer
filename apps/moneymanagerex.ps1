@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Money Manager Ex.
+    Installs Money Manager Ex. 
 .DESCRIPTION
     Cross-platform installer for Money Manager Ex personal finance manager.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/snap).

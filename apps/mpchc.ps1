@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs MPC-HC.
+    Installs MPC-HC. 
 
 .DESCRIPTION
     This script installs MPC-HC using winget package manager.

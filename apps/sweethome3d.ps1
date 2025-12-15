@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Sweet Home 3D.
+    Installs Sweet Home 3D. 
 .DESCRIPTION
     Cross-platform installer for Sweet Home 3D interior design software.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/snap).

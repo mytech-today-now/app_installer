@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs OpenSCAD.
+    Installs OpenSCAD. 
 .DESCRIPTION
     Cross-platform installer for OpenSCAD programmable CAD modeler.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman/snap).

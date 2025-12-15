@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs WinDirStat.
+    Installs WinDirStat. 
 
 .DESCRIPTION
     This script installs WinDirStat using winget package manager.

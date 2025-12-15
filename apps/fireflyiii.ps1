@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Firefly III Desktop.
+    Installs Firefly III Desktop. 
 
 .DESCRIPTION
     This script installs Firefly III Desktop using winget package manager.

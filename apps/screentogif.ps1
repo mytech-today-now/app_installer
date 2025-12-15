@@ -1,4 +1,4 @@
-﻿# ScreenToGif Installation Script
+﻿# ScreenToGif Installation Script 
 # Part of myTech.Today Application Installer Suite
 # Windows-only: ScreenToGif is not available on macOS or Linux.
 

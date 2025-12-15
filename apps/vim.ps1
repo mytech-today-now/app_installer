@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Vim text editor.
+    Installs Vim text editor. 
 .DESCRIPTION
     Cross-platform installer for Vim.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman).

@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Cinelerra.
+    Installs Cinelerra. 
 .DESCRIPTION
     Cross-platform installer for Cinelerra professional video editing software.
     Supports Linux (apt/snap).

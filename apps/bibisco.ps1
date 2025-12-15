@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs bibisco.
+    Installs bibisco. 
 .DESCRIPTION
     Cross-platform installer for bibisco novel writing software.
     Supports Windows (winget) and macOS (Homebrew).

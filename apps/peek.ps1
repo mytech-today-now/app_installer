@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Peek.
+    Installs Peek. 
 .DESCRIPTION
     Cross-platform installer for Peek GIF screen recorder.
     Supports Linux (apt/snap).

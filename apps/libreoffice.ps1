@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs LibreOffice.
+    Installs LibreOffice. 
 .DESCRIPTION
     Cross-platform installer for LibreOffice office suite.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman/snap).

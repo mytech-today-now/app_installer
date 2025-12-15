@@ -1,4 +1,4 @@
-﻿# HWMonitor Installation Script
+﻿# HWMonitor Installation Script 
 # Part of myTech.Today Application Installer Suite
 # Windows-only: HWMonitor is not available on macOS or Linux.
 

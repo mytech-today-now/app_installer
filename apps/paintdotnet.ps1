@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Paint.NET.
+    Installs Paint.NET. 
 
 .DESCRIPTION
     This script installs Paint.NET using winget package manager.

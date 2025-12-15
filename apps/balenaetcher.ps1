@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs balenaEtcher.
+    Installs balenaEtcher. 
 .DESCRIPTION
     Cross-platform installer for balenaEtcher USB image flasher.
     Supports Windows (winget), macOS (Homebrew), and Linux (snap).

@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs BleachBit.
+    Installs BleachBit. 
 .DESCRIPTION
     Cross-platform installer for BleachBit system cleaner and privacy tool.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman).

@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs EaseUS Todo Backup Free.
+    Installs EaseUS Todo Backup Free. 
 
 .DESCRIPTION
     This script installs EaseUS Todo Backup Free using winget package manager.

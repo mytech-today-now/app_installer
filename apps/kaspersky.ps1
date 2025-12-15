@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Kaspersky Security Cloud.
+    Installs Kaspersky Security Cloud. 
 .DESCRIPTION
     Cross-platform installer for Kaspersky Security Cloud antivirus.
     Supports Windows (winget) and macOS (Homebrew).

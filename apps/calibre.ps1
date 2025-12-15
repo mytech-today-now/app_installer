@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Calibre.
+    Installs Calibre. 
 .DESCRIPTION
     Cross-platform installer for Calibre e-book management.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman).

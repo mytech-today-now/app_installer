@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Slack.
+    Installs Slack. 
 .DESCRIPTION
     Cross-platform installer for Slack.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/snap).

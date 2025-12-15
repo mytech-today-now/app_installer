@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Pencil Project.
+    Installs Pencil Project. 
 .DESCRIPTION
     Cross-platform installer for Pencil Project GUI prototyping tool.
     Supports Windows (winget) and macOS (Homebrew).

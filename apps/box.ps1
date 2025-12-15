@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Box Drive.
+    Installs Box Drive. 
 .DESCRIPTION
     Cross-platform installer for Box Drive cloud storage.
     Supports Windows (winget) and macOS (Homebrew).

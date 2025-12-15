@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Battle.net.
+    Installs Battle.net. 
 .DESCRIPTION
     Cross-platform installer for Battle.net game launcher.
     Supports Windows (winget) and macOS (Homebrew).

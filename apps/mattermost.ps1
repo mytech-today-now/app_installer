@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Mattermost Desktop.
+    Installs Mattermost Desktop. 
 .DESCRIPTION
     Cross-platform installer for Mattermost Desktop.
     Supports Windows (winget), macOS (Homebrew), and Linux (snap).

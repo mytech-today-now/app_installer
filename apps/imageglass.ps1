@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs ImageGlass.
+    Installs ImageGlass. 
 .DESCRIPTION
     Installs ImageGlass using winget.
     Windows-only: ImageGlass is not available on macOS or Linux.

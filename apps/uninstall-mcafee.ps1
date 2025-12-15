@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Uninstalls all McAfee products from the system.
+    Uninstalls all McAfee products from the system.  
 
 .DESCRIPTION
     This script removes all McAfee products using the official McAfee Consumer Product Removal tool (MCPR).

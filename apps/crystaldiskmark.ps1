@@ -1,4 +1,4 @@
-﻿# CrystalDiskMark Installation Script
+﻿# CrystalDiskMark Installation Script 
 # Part of myTech.Today Application Installer Suite
 # Windows-only: CrystalDiskMark is not available on macOS or Linux.
 

@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Viber.
+    Installs Viber. 
 .DESCRIPTION
     Cross-platform installer for Viber messaging app.
     Supports Windows (winget) and macOS (Homebrew).

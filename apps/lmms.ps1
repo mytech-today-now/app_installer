@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs LMMS.
+    Installs LMMS. 
 .DESCRIPTION
     Cross-platform installer for LMMS (Linux MultiMedia Studio).
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman/snap).

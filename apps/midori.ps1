@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Midori Browser.
+    Installs Midori Browser. 
 .DESCRIPTION
     Cross-platform installer for Midori Browser.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/snap).

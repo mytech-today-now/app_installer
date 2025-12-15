@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Java Runtime Environment.
+    Installs Java Runtime Environment. 
 .DESCRIPTION
     Cross-platform installer for Java Runtime Environment.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman).

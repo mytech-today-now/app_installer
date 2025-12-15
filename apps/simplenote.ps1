@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Simplenote.
+    Installs Simplenote. 
 .DESCRIPTION
     Cross-platform installer for Simplenote note-taking app.
     Supports Windows (winget), macOS (Homebrew), and Linux (snap).

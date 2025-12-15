@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Kdenlive.
+    Installs Kdenlive. 
 .DESCRIPTION
     Cross-platform installer for Kdenlive.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman/snap).

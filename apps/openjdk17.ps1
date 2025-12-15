@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Microsoft OpenJDK 17.
+    Installs Microsoft OpenJDK 17. 
 .DESCRIPTION
     Cross-platform installer for Microsoft OpenJDK 17.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt).

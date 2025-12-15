@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs AutoHotkey automation scripting.
+    Installs AutoHotkey automation scripting. 
 
 .DESCRIPTION
     This script installs AutoHotkey using winget package manager.

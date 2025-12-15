@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs DBeaver database tool.
+    Installs DBeaver database tool. 
 .DESCRIPTION
     Cross-platform installer for DBeaver.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/snap).

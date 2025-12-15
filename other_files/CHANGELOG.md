@@ -7,6 +7,101 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0] - 2025-12-15 (GUI) / [1.6.0] - 2025-12-15 (CLI)
+
+### Added - Automatic Start Menu Shortcut for Chrome Remote Desktop 🔗
+
+- **New Feature: Automatic shortcut creation for Chrome Remote Desktop**
+- **Missing shortcut detection and repair**
+- **Enhanced error handling with comprehensive winget error codes**
+
+**Chrome Remote Desktop Shortcut Creation:**
+
+Chrome Remote Desktop is a web-based application that requires users to navigate to `https://remotedesktop.google.com/access` to configure and use it. To improve user experience, the installer now automatically creates a Start Menu shortcut that opens this URL directly.
+
+**Implementation Details:**
+
+1. **New-WebApplicationShortcut Function**
+   - Creates Start Menu shortcuts that open URLs in the default browser
+   - Detects Chrome browser installation (checks 3 common paths)
+   - Falls back to default browser if Chrome not found
+   - Proper COM object creation and cleanup
+   - Configurable shortcut name, URL, description, and icon
+   - Returns boolean success/failure status
+   - Location: `%ProgramData%\Microsoft\Windows\Start Menu\Programs`
+
+2. **Automatic Shortcut Creation**
+   - Shortcut created after successful Chrome Remote Desktop installation
+   - Works with both winget and custom script installations
+   - Opens `https://remotedesktop.google.com/access` in browser
+   - Uses Chrome browser with `--new-window` flag if available
+   - Falls back to `explorer.exe` for default browser
+   - Descriptive shortcut: "Configure and access Chrome Remote Desktop"
+
+3. **Missing Shortcut Detection**
+   - `Get-InstalledApplications` checks for Chrome Remote Desktop shortcut
+   - If app is installed but shortcut is missing, creates it automatically
+   - Logs shortcut creation status for troubleshooting
+   - Ensures users always have easy access to configuration page
+
+4. **Enhanced Error Handling**
+   - Custom script exit codes captured immediately after execution
+   - Uses `Get-WingetErrorMessage` for custom script failures
+   - Detailed error messages with exit codes in both CLI and GUI
+   - Consistent error handling across installation methods
+
+**Bug Fixes:**
+
+1. **Chrome Remote Desktop Package ID**
+   - Fixed incorrect WingetId in `apps/chromeremote.ps1`
+   - Changed from `Google.ChromeRemoteDesktop` to `Google.ChromeRemoteDesktopHost`
+   - Ensures successful installation via winget
+   - Improved exit code handling in custom script
+
+2. **Exit Code Handling**
+   - Capture exit code in variable before using it
+   - Prevents `$LASTEXITCODE` from being overwritten by subsequent commands
+   - Return actual winget exit code for better debugging
+   - Consistent exit code usage throughout scripts
+
+**Benefits:**
+
+- ✅ **User Experience:** Easy access to Chrome Remote Desktop configuration via Start Menu
+- ✅ **Reliability:** Missing shortcuts are automatically repaired during app detection
+- ✅ **Consistency:** Uniform shortcut creation across CLI and GUI installers
+- ✅ **Debugging:** Better error messages for custom script failures
+- ✅ **Accessibility:** Start Menu shortcut provides quick access to web interface
+- ✅ **Compatibility:** Works with or without Chrome browser installed
+
+**Technical Details:**
+
+- Function: `New-WebApplicationShortcut` (100+ lines)
+- Shortcut location: `%ProgramData%\Microsoft\Windows\Start Menu\Programs`
+- Target: Chrome browser with `--new-window` flag, or `explorer.exe` for default browser
+- Icon: Chrome executable or Windows internet icon (SHELL32.dll,14)
+- COM object: WScript.Shell for .lnk file creation
+
+**Files Modified:**
+
+- `apps/chromeremote.ps1` - Fixed WingetId and improved error handling
+- `install.ps1` - Version 1.6.0
+  * Added `New-WebApplicationShortcut` function
+  * Added shortcut creation after Chrome Remote Desktop installation
+  * Added missing shortcut detection in `Get-InstalledApplications`
+  * Enhanced custom script error handling
+- `install-gui.ps1` - Version 1.5.0
+  * Added `New-WebApplicationShortcut` function
+  * Added shortcut creation after Chrome Remote Desktop installation
+  * Added missing shortcut detection in `Get-InstalledApplications`
+  * Enhanced custom script error handling
+
+**Impact:**
+
+- Features: Automatic shortcut creation and repair for web-based applications
+- Performance: Minimal overhead - only runs for Chrome Remote Desktop
+- Breaking: None - all changes are additive enhancements
+- Compatibility: Works with or without Chrome browser installed
+
 ## [1.4.5] - 2025-11-11 (GUI)
 
 ### Changed - Multi-Line Button Text with Narrower Width 🎨

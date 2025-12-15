@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Go Programming Language.
+    Installs Go Programming Language. 
 .DESCRIPTION
     Cross-platform installer for Go.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman/snap).

@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs PHP scripting language.
+    Installs PHP scripting language. 
 .DESCRIPTION
     Cross-platform installer for PHP.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman).

@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Avira Security.
+    Installs Avira Security. 
 
 .DESCRIPTION
     This script installs Avira Security using winget package manager (Microsoft Store version).

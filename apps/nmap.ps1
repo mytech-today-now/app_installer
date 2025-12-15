@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Nmap.
+    Installs Nmap. 
 .DESCRIPTION
     Cross-platform installer for Nmap network scanner.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman/snap).

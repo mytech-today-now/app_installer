@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Celtx screenwriting software.
+    Installs Celtx screenwriting software. 
 
 .DESCRIPTION
     This script installs Celtx using winget package manager.

@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Penpot.
+    Installs Penpot. 
 .DESCRIPTION
     Cross-platform installer for Penpot design and prototyping platform.
     Supports Linux (snap).

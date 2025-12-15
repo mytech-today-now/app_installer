@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs KeePassXC.
+    Installs KeePassXC. 
 .DESCRIPTION
     Cross-platform installer for KeePassXC password manager.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman/snap).

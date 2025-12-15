@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs TeamViewer.
+    Installs TeamViewer. 
 .DESCRIPTION
     Cross-platform installer for TeamViewer remote desktop.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt).

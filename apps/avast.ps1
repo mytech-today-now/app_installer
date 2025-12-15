@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Avast Free Antivirus.
+    Installs Avast Free Antivirus. 
 
 .DESCRIPTION
     This script installs Avast Free Antivirus using winget package manager.

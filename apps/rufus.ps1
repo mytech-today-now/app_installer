@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Rufus bootable USB creator.
+    Installs Rufus bootable USB creator. 
 
 .DESCRIPTION
     This script installs Rufus using winget package manager.

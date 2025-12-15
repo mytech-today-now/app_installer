@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Filemail.
+    Installs Filemail. 
 .DESCRIPTION
     Cross-platform installer for Filemail large file transfer service.
     Supports macOS (Homebrew).

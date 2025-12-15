@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Actual Budget.
+    Installs Actual Budget. 
 .DESCRIPTION
     Cross-platform installer for Actual Budget privacy-focused budgeting app.
     Supports Windows (winget) and macOS (Homebrew).

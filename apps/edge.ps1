@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Microsoft Edge.
+    Installs Microsoft Edge. 
 .DESCRIPTION
     Cross-platform installer for Microsoft Edge.
     Supports Windows (winget) and macOS (Homebrew).

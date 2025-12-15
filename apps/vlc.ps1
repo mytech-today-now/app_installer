@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs VLC Media Player.
+    Installs VLC Media Player. 
 .DESCRIPTION
     Cross-platform installer for VLC Media Player.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman/snap).

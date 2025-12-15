@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Streamlabs Desktop.
+    Installs Streamlabs Desktop. 
 .DESCRIPTION
     Cross-platform installer for Streamlabs Desktop streaming software.
     Supports Windows (winget) and macOS (Homebrew).

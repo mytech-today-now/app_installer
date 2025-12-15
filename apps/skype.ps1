@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Skype.
+    Installs Skype. 
 .DESCRIPTION
     Cross-platform installer for Skype.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/snap).

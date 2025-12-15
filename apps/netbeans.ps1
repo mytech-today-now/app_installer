@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs NetBeans IDE.
+    Installs NetBeans IDE. 
 .DESCRIPTION
     Cross-platform installer for NetBeans.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/snap).

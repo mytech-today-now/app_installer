@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs MongoDB Compass.
+    Installs MongoDB Compass. 
 .DESCRIPTION
     Cross-platform installer for MongoDB Compass.
     Supports Windows (winget) and macOS (Homebrew).

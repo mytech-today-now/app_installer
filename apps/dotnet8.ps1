@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs .NET Desktop Runtime 8.
+    Installs .NET Desktop Runtime 8. 
 .DESCRIPTION
     Cross-platform installer for .NET Desktop Runtime 8.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt).

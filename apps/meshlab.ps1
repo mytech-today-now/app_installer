@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs MeshLab.
+    Installs MeshLab. 
 .DESCRIPTION
     Cross-platform installer for MeshLab 3D mesh processing.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/snap).

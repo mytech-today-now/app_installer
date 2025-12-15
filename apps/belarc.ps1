@@ -1,5 +1,5 @@
 <#
-.SYNOPSIS
+.SYNOPSIS 
     Downloads and installs Belarc Advisor.
 
 .DESCRIPTION

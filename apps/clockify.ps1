@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Clockify.
+    Installs Clockify. 
 .DESCRIPTION
     Cross-platform installer for Clockify time tracking app.
     Supports Windows (winget) and macOS (Homebrew).

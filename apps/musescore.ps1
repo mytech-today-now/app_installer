@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs MuseScore.
+    Installs MuseScore. 
 .DESCRIPTION
     Cross-platform installer for MuseScore music notation software.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman/snap).

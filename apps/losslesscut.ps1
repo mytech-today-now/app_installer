@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs LosslessCut.
+    Installs LosslessCut. 
 .DESCRIPTION
     Cross-platform installer for LosslessCut.
     Supports Windows (winget), macOS (Homebrew), and Linux (snap).

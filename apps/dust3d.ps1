@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Dust3D.
+    Installs Dust3D. 
 .DESCRIPTION
     Cross-platform installer for Dust3D 3D modeling software.
     Supports Windows (winget), macOS (Homebrew), and Linux (snap).

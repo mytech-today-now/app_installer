@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Mozilla Firefox browser.
+    Installs Mozilla Firefox browser. 
 .DESCRIPTION
     Cross-platform installer for Mozilla Firefox.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman/snap).

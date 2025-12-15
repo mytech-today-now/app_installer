@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Ubisoft Connect game launcher.
+    Installs Ubisoft Connect game launcher.  
 
 .DESCRIPTION
     This script installs Ubisoft Connect using winget package manager.

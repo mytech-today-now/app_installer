@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Flowblade.
+    Installs Flowblade. 
 .DESCRIPTION
     Cross-platform installer for Flowblade video editor.
     Supports Linux (apt/dnf/snap).

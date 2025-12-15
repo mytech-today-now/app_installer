@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs LibreCAD.
+    Installs LibreCAD. 
 .DESCRIPTION
     Cross-platform installer for LibreCAD 2D CAD application.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman).

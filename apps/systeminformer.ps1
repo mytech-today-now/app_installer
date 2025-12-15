@@ -1,4 +1,4 @@
-# System Informer Installation Helper Script
+# System Informer Installation Helper Script 
 # Part of myTech.Today Application Installer Suite
 # Windows-only: System Informer is not available on macOS or Linux.
 

@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Brave Browser.
+    Installs Brave Browser. 
 .DESCRIPTION
     Cross-platform installer for Brave Browser.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman/snap).

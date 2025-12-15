@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Shotcut.
+    Installs Shotcut. 
 .DESCRIPTION
     Cross-platform installer for Shotcut.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman/snap).

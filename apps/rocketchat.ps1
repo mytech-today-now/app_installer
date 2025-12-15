@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Rocket.Chat.
+    Installs Rocket.Chat. 
 .DESCRIPTION
     Cross-platform installer for Rocket.Chat.
     Supports Windows (winget), macOS (Homebrew), and Linux (snap).

@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Python programming language.
+    Installs Python programming language. 
 .DESCRIPTION
     Cross-platform installer for Python.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman).

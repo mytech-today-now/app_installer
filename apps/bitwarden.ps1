@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Bitwarden.
+    Installs Bitwarden. 
 .DESCRIPTION
     Cross-platform installer for Bitwarden password manager.
     Supports Windows (winget), macOS (Homebrew), and Linux (snap).

@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs GIMP image editor.
+    Installs GIMP image editor. 
 .DESCRIPTION
     Cross-platform installer for GIMP.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman/snap).

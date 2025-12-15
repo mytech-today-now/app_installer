@@ -2,7 +2,7 @@
 .SYNOPSIS
     Advanced CLI application installer for automated Windows setup with multi-select capabilities.
 
-.DESCRIPTION
+.DESCRIPTION 
     This script provides a comprehensive command-line interface for installing and managing
     multiple applications on Windows systems. Features include:
     - Interactive menu with installation status display
@@ -69,7 +69,7 @@
     Author         : myTech.Today
     Prerequisite   : PowerShell 5.1 or later, Administrator privileges
     Copyright      : (c) 2025 myTech.Today. All rights reserved.
-    Version        : 1.5.4
+    Version        : 1.6.0
 
 .LINK
     https://github.com/mytech-today-now/PowerShellScripts/app_installer
@@ -135,7 +135,7 @@ catch {
 #endregion
 
 # Script variables
-$script:ScriptVersion = '1.5.4'
+$script:ScriptVersion = '1.6.0'
 $script:OriginalScriptPath = $PSScriptRoot
 $script:SystemInstallPath = "$env:USERPROFILE\myTech.Today\AppInstaller"
 $script:ScriptPath = $script:SystemInstallPath  # Will be updated after copy

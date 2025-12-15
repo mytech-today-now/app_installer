@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Creates desktop and start menu shortcuts for Grok AI.
+    Creates desktop and start menu shortcuts for Grok AI. 
 
 .DESCRIPTION
     This script creates shortcuts to Grok AI (https://grok.x.ai) on the desktop

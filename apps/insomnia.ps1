@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Insomnia API testing client.
+    Installs Insomnia API testing client. 
 .DESCRIPTION
     Cross-platform installer for Insomnia.
     Supports Windows (winget), macOS (Homebrew), and Linux (snap).

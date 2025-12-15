@@ -1,4 +1,4 @@
-﻿# Charles Proxy Installation Script
+﻿# Charles Proxy Installation Script 
 # Part of myTech.Today Application Installer Suite
 
 param(

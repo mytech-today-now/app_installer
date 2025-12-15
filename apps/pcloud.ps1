@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs pCloud.
+    Installs pCloud. 
 .DESCRIPTION
     Cross-platform installer for pCloud cloud storage.
     Supports Windows (winget) and macOS (Homebrew).

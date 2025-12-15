@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Storyboarder.
+    Installs Storyboarder. 
 .DESCRIPTION
     Cross-platform installer for Storyboarder storyboard creation tool.
     Supports Windows (winget) and macOS (Homebrew).

@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Manuskript.
+    Installs Manuskript. 
 .DESCRIPTION
     Cross-platform installer for Manuskript novel writing software.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/snap).

@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs WinSCP.
+    Installs WinSCP. 
 
 .DESCRIPTION
     This script installs WinSCP using winget package manager.

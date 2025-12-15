@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Dropbox.
+    Installs Dropbox. 
 .DESCRIPTION
     Cross-platform installer for Dropbox cloud storage.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/pacman).

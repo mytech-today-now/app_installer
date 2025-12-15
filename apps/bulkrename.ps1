@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Bulk Rename Utility.
+    Installs Bulk Rename Utility. 
 
 .DESCRIPTION
     This script installs Bulk Rename Utility using winget package manager.

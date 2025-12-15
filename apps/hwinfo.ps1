@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs HWiNFO.
+    Installs HWiNFO. 
 
 .DESCRIPTION
     This script installs HWiNFO using winget package manager.

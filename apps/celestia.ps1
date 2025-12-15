@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Celestia.
+    Installs Celestia. 
 .DESCRIPTION
     Cross-platform installer for Celestia space simulation.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/pacman).

@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Vivaldi browser.
+    Installs Vivaldi browser. 
 .DESCRIPTION
     Cross-platform installer for Vivaldi.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/snap).

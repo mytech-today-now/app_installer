@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Azure Data Studio.
+    Installs Azure Data Studio. 
 .DESCRIPTION
     Cross-platform installer for Azure Data Studio.
     Supports Windows (winget) and macOS (Homebrew).

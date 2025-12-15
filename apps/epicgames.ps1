@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Epic Games Launcher.
+    Installs Epic Games Launcher. 
 .DESCRIPTION
     Cross-platform installer for Epic Games Launcher.
     Supports Windows (winget) and macOS (Homebrew).

@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Skrooge.
+    Installs Skrooge. 
 .DESCRIPTION
     Cross-platform installer for Skrooge personal finance manager.
     Supports Linux (apt/dnf/pacman/snap).

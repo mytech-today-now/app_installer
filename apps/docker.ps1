@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Docker Desktop.
+    Installs Docker Desktop. 
 .DESCRIPTION
     Cross-platform installer for Docker Desktop.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman).

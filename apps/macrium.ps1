@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Macrium Reflect Free.
+    Installs Macrium Reflect Free. 
 
 .DESCRIPTION
     This script installs Macrium Reflect Free using winget package manager.

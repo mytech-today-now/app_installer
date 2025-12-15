@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs REAPER.
+    Installs REAPER. 
 .DESCRIPTION
     Cross-platform installer for REAPER digital audio workstation.
     Supports Windows (winget) and macOS (Homebrew).

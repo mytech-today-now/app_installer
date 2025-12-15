@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs TCPView network connection viewer.
+    Installs TCPView network connection viewer. 
 
 .DESCRIPTION
     This script installs TCPView using winget package manager.

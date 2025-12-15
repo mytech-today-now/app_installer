@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs GnuCash.
+    Installs GnuCash. 
 .DESCRIPTION
     Cross-platform installer for GnuCash personal finance software.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman).

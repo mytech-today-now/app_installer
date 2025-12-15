@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Cobian Backup.
+    Installs Cobian Backup. 
 
 .DESCRIPTION
     This script installs Cobian Backup using winget package manager.

@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Everything.
+    Installs Everything. 
 
 .DESCRIPTION
     This script installs Everything using winget package manager.

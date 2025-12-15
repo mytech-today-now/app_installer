@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs ClickUp.
+    Installs ClickUp. 
 .DESCRIPTION
     Cross-platform installer for ClickUp project management and productivity.
     Supports Windows (winget) and macOS (Homebrew).

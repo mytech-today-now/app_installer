@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs HomeBank.
+    Installs HomeBank. 
 .DESCRIPTION
     Cross-platform installer for HomeBank personal finance software.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman).

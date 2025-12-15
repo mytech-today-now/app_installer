@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Proton Pass.
+    Installs Proton Pass. 
 .DESCRIPTION
     Cross-platform installer for Proton Pass password manager.
     Supports Windows (winget) and macOS (Homebrew).

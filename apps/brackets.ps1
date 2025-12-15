@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Brackets.
+    Installs Brackets. 
 .DESCRIPTION
     Cross-platform installer for Brackets text editor (discontinued).
     Supports Windows (winget), macOS (Homebrew), and Linux (snap).

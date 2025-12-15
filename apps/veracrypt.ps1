@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs VeraCrypt.
+    Installs VeraCrypt.  
 .DESCRIPTION
     Cross-platform installer for VeraCrypt disk encryption.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt).

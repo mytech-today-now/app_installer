@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Typora markdown editor.
+    Installs Typora markdown editor.  
 
 .DESCRIPTION
     This script installs Typora using winget package manager.

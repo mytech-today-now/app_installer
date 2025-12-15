@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Slic3r.
+    Installs Slic3r. 
 .DESCRIPTION
     Cross-platform installer for Slic3r 3D printing slicer.
     Supports Windows (winget) and macOS (Homebrew).

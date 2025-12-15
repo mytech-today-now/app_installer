@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs WPS Office.
+    Installs WPS Office. 
 .DESCRIPTION
     Cross-platform installer for WPS Office suite.
     Supports Windows (winget), macOS (Homebrew), and Linux (snap).

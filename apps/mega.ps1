@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs MEGA.
+    Installs MEGA. 
 .DESCRIPTION
     Cross-platform installer for MEGA cloud storage.
     Supports Windows (winget) and macOS (Homebrew).

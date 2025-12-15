@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Anki.
+    Installs Anki. 
 .DESCRIPTION
     Cross-platform installer for Anki flashcard learning app.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman).

@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs HandBrake video transcoder.
+    Installs HandBrake video transcoder. 
 .DESCRIPTION
     Cross-platform installer for HandBrake.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman/snap).

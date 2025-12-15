@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Trello.
+    Installs Trello.  
 .DESCRIPTION
     Cross-platform installer for Trello project management.
     Supports Windows (winget) and macOS (Homebrew).

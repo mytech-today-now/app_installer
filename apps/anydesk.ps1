@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs AnyDesk.
+    Installs AnyDesk. 
 .DESCRIPTION
     Cross-platform installer for AnyDesk remote desktop software.
     Supports Windows (winget) and macOS (Homebrew).

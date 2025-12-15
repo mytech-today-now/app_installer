@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Lightshot.
+    Installs Lightshot. 
 .DESCRIPTION
     Cross-platform installer for Lightshot screenshot tool.
     Supports Windows (winget) and macOS (Homebrew).

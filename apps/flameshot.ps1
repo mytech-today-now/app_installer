@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Flameshot.
+    Installs Flameshot. 
 .DESCRIPTION
     Cross-platform installer for Flameshot screenshot tool.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman/snap).

@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Core Temp.
+    Installs Core Temp. 
 
 .DESCRIPTION
     This script installs Core Temp using winget package manager.

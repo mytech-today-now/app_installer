@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Sumatra PDF.
+    Installs Sumatra PDF. 
 
 .DESCRIPTION
     This script installs Sumatra PDF using winget package manager.

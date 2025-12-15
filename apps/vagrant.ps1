@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Vagrant.
+    Installs Vagrant.  
 .DESCRIPTION
     Cross-platform installer for Vagrant development environments.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman).

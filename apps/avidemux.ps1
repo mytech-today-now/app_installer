@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Avidemux.
+    Installs Avidemux. 
 .DESCRIPTION
     Cross-platform installer for Avidemux video editor.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/pacman).

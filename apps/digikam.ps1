@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs digiKam.
+    Installs digiKam. 
 .DESCRIPTION
     Cross-platform installer for digiKam.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman).

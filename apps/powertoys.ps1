@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs PowerToys.
+    Installs PowerToys. 
 
 .DESCRIPTION
     This script installs PowerToys using winget package manager.

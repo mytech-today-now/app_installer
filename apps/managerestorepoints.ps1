@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Manage Restore Points script.
+    Installs Manage Restore Points script. 
 
 .DESCRIPTION
     This script downloads and installs the Manage-RestorePoints.ps1 script from GitHub,

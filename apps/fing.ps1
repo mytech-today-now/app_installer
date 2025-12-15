@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Fing CLI.
+    Installs Fing CLI. 
 
 .DESCRIPTION
     This script installs Fing CLI using winget package manager.

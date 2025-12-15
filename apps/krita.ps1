@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Krita.
+    Installs Krita. 
 .DESCRIPTION
     Cross-platform installer for Krita.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman/snap).

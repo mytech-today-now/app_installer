@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs GOG Galaxy.
+    Installs GOG Galaxy. 
 .DESCRIPTION
     Cross-platform installer for GOG Galaxy game launcher.
     Supports Windows (winget) and macOS (Homebrew).

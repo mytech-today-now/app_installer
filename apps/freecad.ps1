@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs FreeCAD.
+    Installs FreeCAD. 
 .DESCRIPTION
     Cross-platform installer for FreeCAD 3D parametric modeler.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman/snap).

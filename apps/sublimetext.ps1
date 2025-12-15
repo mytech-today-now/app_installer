@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Sublime Text.
+    Installs Sublime Text. 
 .DESCRIPTION
     Cross-platform installer for Sublime Text.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/pacman/snap).

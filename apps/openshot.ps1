@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs OpenShot video editor.
+    Installs OpenShot video editor. 
 .DESCRIPTION
     Cross-platform installer for OpenShot.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman/snap).

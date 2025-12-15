@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Kap.
+    Installs Kap. 
 .DESCRIPTION
     Cross-platform installer for Kap screen recorder.
     Supports macOS (Homebrew).

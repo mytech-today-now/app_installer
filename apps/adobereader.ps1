@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Adobe Acrobat Reader.
+    Installs Adobe Acrobat Reader. 
 .DESCRIPTION
     Cross-platform installer for Adobe Acrobat Reader PDF viewer.
     Supports Windows (winget) and macOS (Homebrew).

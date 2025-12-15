@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Notion.
+    Installs Notion. 
 .DESCRIPTION
     Cross-platform installer for Notion all-in-one workspace.
     Supports Windows (winget), macOS (Homebrew), and Linux (snap).

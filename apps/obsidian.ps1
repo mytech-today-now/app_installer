@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Obsidian.
+    Installs Obsidian. 
 .DESCRIPTION
     Cross-platform installer for Obsidian knowledge base and note-taking.
     Supports Windows (winget), macOS (Homebrew), and Linux (snap).

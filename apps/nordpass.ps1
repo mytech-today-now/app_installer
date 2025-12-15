@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs NordPass.
+    Installs NordPass. 
 .DESCRIPTION
     Cross-platform installer for NordPass password manager.
     Supports Windows (winget) and macOS (Homebrew).

@@ -1,4 +1,4 @@
-﻿# MSI Afterburner Installation Script
+﻿# MSI Afterburner Installation Script 
 # Part of myTech.Today Application Installer Suite
 # Windows-only: MSI Afterburner is not available on macOS or Linux.
 

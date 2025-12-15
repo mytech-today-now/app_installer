@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Lunacy.
+    Installs Lunacy. 
 .DESCRIPTION
     Cross-platform installer for Lunacy graphic design software.
     Supports Windows (winget), macOS (Homebrew), and Linux (snap).

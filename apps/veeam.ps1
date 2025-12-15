@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Veeam Agent FREE.
+    Installs Veeam Agent FREE.  
 
 .DESCRIPTION
     This script installs Veeam Agent FREE using winget package manager.

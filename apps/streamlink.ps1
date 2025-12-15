@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Streamlink.
+    Installs Streamlink. 
 .DESCRIPTION
     Cross-platform installer for Streamlink stream extraction tool.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt).

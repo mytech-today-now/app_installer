@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs TreeSize Free.
+    Installs TreeSize Free.  
 
 .DESCRIPTION
     This script installs TreeSize Free using winget package manager.

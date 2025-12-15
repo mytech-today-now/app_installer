@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs UltraVNC remote desktop.
+    Installs UltraVNC remote desktop.  
 
 .DESCRIPTION
     This script installs UltraVNC using winget package manager.

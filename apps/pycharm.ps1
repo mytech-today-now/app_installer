@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs PyCharm Community Edition.
+    Installs PyCharm Community Edition. 
 .DESCRIPTION
     Cross-platform installer for PyCharm Community.
     Supports Windows (winget), macOS (Homebrew), and Linux (snap).

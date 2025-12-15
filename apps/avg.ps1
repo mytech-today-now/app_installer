@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs AVG AntiVirus Free.
+    Installs AVG AntiVirus Free. 
 
 .DESCRIPTION
     This script installs AVG AntiVirus Free using winget package manager.

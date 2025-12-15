@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Telegram Desktop.
+    Installs Telegram Desktop. 
 .DESCRIPTION
     Cross-platform installer for Telegram Desktop.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/snap).

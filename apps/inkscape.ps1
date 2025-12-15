@@ -1,5 +1,5 @@
 ﻿<#
-.SYNOPSIS
+.SYNOPSIS 
     Installs Inkscape.
 .DESCRIPTION
     Cross-platform installer for Inkscape.

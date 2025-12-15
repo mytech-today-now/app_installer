@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Pale Moon browser.
+    Installs Pale Moon browser. 
 .DESCRIPTION
     Installer for Pale Moon browser.
     Windows-only: Pale Moon is not available on macOS or Linux.

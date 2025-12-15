@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs FreeMind.
+    Installs FreeMind. 
 .DESCRIPTION
     Cross-platform installer for FreeMind mind mapping software.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/snap).

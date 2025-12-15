@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs GlassWire network security monitor.
+    Installs GlassWire network security monitor. 
 
 .DESCRIPTION
     This script installs GlassWire using winget package manager.

@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Rainmeter.
+    Installs Rainmeter. 
 .DESCRIPTION
     Installs Rainmeter using winget.
     Windows-only: Rainmeter is not available on macOS or Linux.

@@ -1,5 +1,5 @@
 <#
-.SYNOPSIS
+.SYNOPSIS 
     Creates desktop and start menu shortcuts for ChatGPT.
 
 .DESCRIPTION

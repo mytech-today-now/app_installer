@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Discord.
+    Installs Discord. 
 .DESCRIPTION
     Cross-platform installer for Discord.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/snap).

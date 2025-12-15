@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs WhatsApp Desktop.
+    Installs WhatsApp Desktop. 
 .DESCRIPTION
     Cross-platform installer for WhatsApp Desktop.
     Supports Windows (winget) and macOS (Homebrew).

@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs GeoGebra.
+    Installs GeoGebra. 
 .DESCRIPTION
     Cross-platform installer for GeoGebra math software.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/snap).

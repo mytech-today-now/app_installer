@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs FocusWriter.
+    Installs FocusWriter. 
 .DESCRIPTION
     Cross-platform installer for FocusWriter distraction-free writing.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman).

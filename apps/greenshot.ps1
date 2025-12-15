@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Greenshot.
+    Installs Greenshot. 
 
 .DESCRIPTION
     This script installs Greenshot using winget package manager.

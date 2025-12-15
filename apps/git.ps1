@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Git version control system.
+    Installs Git version control system. 
 .DESCRIPTION
     Cross-platform installer for Git.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman).

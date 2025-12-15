@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Min Browser.
+    Installs Min Browser. 
 .DESCRIPTION
     Cross-platform installer for Min minimalist browser.
     Supports Windows (winget), macOS (Homebrew), and Linux (snap).

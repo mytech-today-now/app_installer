@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs Advanced IP Scanner.
+    Installs Advanced IP Scanner. 
 
 .DESCRIPTION
     This script installs Advanced IP Scanner using winget package manager.

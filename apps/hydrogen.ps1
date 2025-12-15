@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Hydrogen.
+    Installs Hydrogen. 
 .DESCRIPTION
     Cross-platform installer for Hydrogen drum machine/sequencer.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman).

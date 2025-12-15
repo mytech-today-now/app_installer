@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Steam.
+    Installs Steam. 
 .DESCRIPTION
     Cross-platform installer for Steam gaming platform.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/pacman).

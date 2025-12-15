@@ -3,7 +3,7 @@ REM ============================================================================
 REM  myTech.Today - App Installer Setup
 REM  Checks for PowerShell 7+, installs if needed, then runs the installer
 REM ============================================================================
-setlocal enabledelayedexpansion
+setlocal enabledelayedexpansion 
 
 echo.
 echo ============================================================

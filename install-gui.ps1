@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    GUI-based application installer for automated Windows setup.
+    GUI-based application installer for automated Windows setup. 
 
 .DESCRIPTION
     This script provides a comprehensive graphical user interface for installing and managing
@@ -18,7 +18,7 @@
     Author         : myTech.Today
     Prerequisite   : PowerShell 5.1 or later, Administrator privileges
     Copyright      : (c) 2025 myTech.Today. All rights reserved.
-    Version        : 1.4.5
+    Version        : 1.5.0
 
 .LINK
     https://github.com/mytech-today-now/app_installer

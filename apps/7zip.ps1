@@ -1,5 +1,5 @@
 ﻿<#
-.SYNOPSIS
+.SYNOPSIS 
     Installs 7-Zip.
 .DESCRIPTION
     Cross-platform installer for 7-Zip file archiver.

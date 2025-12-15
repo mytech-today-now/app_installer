@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Installs Google Drive.
+    Installs Google Drive. 
 .DESCRIPTION
     Cross-platform installer for Google Drive cloud storage.
     Supports Windows (winget) and macOS (Homebrew).

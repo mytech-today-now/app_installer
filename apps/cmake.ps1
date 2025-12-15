@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs CMake build system.
+    Installs CMake build system. 
 .DESCRIPTION
     Cross-platform installer for CMake.
     Supports Windows (winget), macOS (Homebrew), and Linux (apt/dnf/pacman/snap).
