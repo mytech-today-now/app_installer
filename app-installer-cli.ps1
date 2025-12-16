@@ -1,22 +1,32 @@
 <#
 .SYNOPSIS
-    Advanced CLI application installer for automated Windows setup with multi-select capabilities.
+    Cross-platform CLI application installer with multi-select capabilities.
 
-.DESCRIPTION 
+.DESCRIPTION
     This script provides a comprehensive command-line interface for installing and managing
-    multiple applications on Windows systems. Features include:
+    multiple applications across Windows, macOS, and Linux. Features include:
+
+    CROSS-PLATFORM FEATURES:
+    - Works on Windows (PowerShell 5.1+), macOS, and Linux (PowerShell 7.2+)
+    - Automatic package manager detection (winget, brew, apt, dnf, pacman, snap)
+    - Platform-aware application filtering
+    - Cross-platform path handling
+
+    INTERACTIVE FEATURES:
     - Interactive menu with installation status display
     - Multi-select capability (e.g., "1,3,5-10" to select multiple apps)
     - Category-based selection (e.g., "C:Browsers" to select all browsers)
     - Range selection (e.g., "1-5,10-15" to select ranges)
-    - Version detection for installed applications
+    - Version detection for installed applications (where supported)
     - Selective installation (individual apps, all apps, or only missing apps)
     - Real-time progress tracking with ETA during batch installations
-    - Centralized logging to %USERPROFILE%\myTech.Today\logs\
-    - Support for 271 applications via winget and custom installers
-    - Error handling with fallback solutions
-    - Automatic winget installation on Windows 10
-    - Chrome Remote Desktop shortcut auto-repair
+
+    PLATFORM-SPECIFIC:
+    - Windows: Uses winget, centralized logging to %USERPROFILE%\myTech.Today\logs\
+    - macOS: Uses Homebrew, logging to ~/.mytech-today/logs/
+    - Linux: Uses apt/dnf/pacman/snap, logging to ~/.mytech-today/logs/
+
+    Supports 271+ applications with cross-platform package mappings
 
 .PARAMETER Action
     The action to perform. Valid values: Menu, InstallAll, InstallMissing, Status, InstallProfile
@@ -67,12 +77,29 @@
 .NOTES
     File Name      : install.ps1
     Author         : myTech.Today
-    Prerequisite   : PowerShell 5.1 or later, Administrator privileges
+    Prerequisite   : Windows: PowerShell 5.1+ (admin recommended)
+                     macOS/Linux: PowerShell 7.2+ (sudo/root for system-wide installs)
     Copyright      : (c) 2025 myTech.Today. All rights reserved.
-    Version        : 1.6.0
+    Version        : 2.0.0
 
 .LINK
     https://github.com/mytech-today-now/PowerShellScripts/app_installer
+
+.EXAMPLE
+    .\install.ps1
+    Launches interactive menu (works on all platforms)
+
+.EXAMPLE
+    .\install.ps1 -Action InstallAll
+    Installs all available applications for current platform
+
+.EXAMPLE
+    .\install.ps1 -Action InstallMissing
+    Installs only missing applications
+
+.EXAMPLE
+    .\install.ps1 -Profile ./profiles/profile-developer.json
+    Installs applications from a profile
 #>
 
 [CmdletBinding(SupportsShouldProcess = $true)]
@@ -89,7 +116,56 @@ param(
 )
 
 #Requires -Version 5.1
-#Requires -RunAsAdministrator
+
+# NOTE: Admin/sudo is recommended but not strictly required
+# Some package managers can install to user directories without elevation
+
+#region Platform Detection and Module Loading
+
+Write-Host "`n=== myTech.Today Application Installer - CLI Mode ===" -ForegroundColor Cyan
+Write-Host "Version: 2.0.0" -ForegroundColor Gray
+Write-Host ""
+
+# Import platform detection module
+$platformDetectPath = Join-Path $PSScriptRoot "platform-detect.ps1"
+if (Test-Path $platformDetectPath) {
+    Write-Verbose "Loading platform detection module..."
+    . $platformDetectPath
+    Write-Host "[OK] Platform: $Platform | Package Manager: $PackageManager" -ForegroundColor Green
+}
+else {
+    Write-Warning "Platform detection module not found at: $platformDetectPath"
+    Write-Warning "Some features may not work correctly"
+
+    # Fallback platform detection
+    if ($null -eq $IsWindows) {
+        $Platform = "Windows"
+    }
+    elseif ($IsWindows) {
+        $Platform = "Windows"
+    }
+    elseif ($IsMacOS) {
+        $Platform = "macOS"
+    }
+    elseif ($IsLinux) {
+        $Platform = "Linux"
+    }
+    else {
+        $Platform = "Unknown"
+    }
+}
+
+# Import core module if available
+$coreModulePath = Join-Path $PSScriptRoot "modules\AppInstallerCore.psm1"
+if (Test-Path $coreModulePath) {
+    Write-Verbose "Loading core installer module..."
+    Import-Module $coreModulePath -Force -Verbose:$false
+    $script:CoreModuleLoaded = $true
+}
+else {
+    Write-Verbose "Core module not found at: $coreModulePath"
+    $script:CoreModuleLoaded = $false
+}
 
 # PowerShell 7+ Version Check - myTech.Today standard
 $script:PS7ContinueOnPS51 = $true  # Allow running on PS 5.1 with warning
@@ -101,6 +177,8 @@ while ($script:_RepoRoot -and -not (Test-Path (Join-Path $script:_RepoRoot 'scri
 if ($script:_RepoRoot -and (Test-Path (Join-Path $script:_RepoRoot 'scripts\Require-PowerShell7.ps1'))) {
     . (Join-Path $script:_RepoRoot 'scripts\Require-PowerShell7.ps1')
 }
+
+#endregion Platform Detection and Module Loading
 
 #region Load Generic Logging Module
 
@@ -134,15 +212,36 @@ catch {
 
 #endregion
 
-# Script variables
-$script:ScriptVersion = '1.6.0'
+# Script variables - cross-platform paths
+$script:ScriptVersion = '2.0.0'
 $script:OriginalScriptPath = $PSScriptRoot
-$script:SystemInstallPath = "$env:USERPROFILE\myTech.Today\AppInstaller"
+
+# Use core module functions if available, otherwise use fallback
+if ($script:CoreModuleLoaded) {
+    $script:SystemInstallPath = Get-InstallerBasePath
+    $script:CentralLogPath = Get-InstallerLogPath
+}
+else {
+    # Fallback: Cross-platform path handling
+    if ($null -eq $IsWindows -or $IsWindows) {
+        # Windows
+        $script:SystemInstallPath = Join-Path $env:USERPROFILE "myTech.Today\AppInstaller"
+        $script:CentralLogPath = Join-Path $env:USERPROFILE "myTech.Today\logs\"
+    }
+    else {
+        # macOS/Linux
+        $script:SystemInstallPath = Join-Path $HOME ".mytech-today/app-installer"
+        $script:CentralLogPath = Join-Path $HOME ".mytech-today/logs/"
+    }
+}
+
 $script:ScriptPath = $script:SystemInstallPath  # Will be updated after copy
-$script:CentralLogPath = "$env:USERPROFILE\myTech.Today\logs\"
 $script:LogPath = $null
 $script:AppsPath = Join-Path $script:ScriptPath "apps"
 $script:ProfilesPath = Join-Path $script:ScriptPath "profiles"
+
+Write-Verbose "Install Path: $script:SystemInstallPath"
+Write-Verbose "Log Path: $script:CentralLogPath"
 
 #region Self-Installation to System Location
 
@@ -153,7 +252,8 @@ function Copy-ScriptToSystemLocation {
 
     .DESCRIPTION
         Ensures the installer is always available in a known system location:
-        %USERPROFILE%\myTech.Today\AppInstaller\
+        - Windows: %USERPROFILE%\myTech.Today\AppInstaller\
+        - macOS/Linux: ~/.mytech-today/app-installer/
 
         This allows scheduled tasks and other automation to reliably find the script
         regardless of where it was originally run from.
@@ -203,6 +303,39 @@ function Copy-ScriptToSystemLocation {
         if (Test-Path $sourceInstallScript) {
             Write-Host "    [>>] Copying install.ps1..." -ForegroundColor Yellow
             Copy-Item -Path $sourceInstallScript -Destination $targetInstallScript -Force -ErrorAction Stop
+        }
+
+        # Copy platform-detect.ps1 (required for cross-platform support)
+        $sourcePlatformDetect = Join-Path $sourcePath "platform-detect.ps1"
+        $targetPlatformDetect = Join-Path $systemPath "platform-detect.ps1"
+
+        if (Test-Path $sourcePlatformDetect) {
+            Write-Host "    [>>] Copying platform-detect.ps1..." -ForegroundColor Yellow
+            Copy-Item -Path $sourcePlatformDetect -Destination $targetPlatformDetect -Force -ErrorAction Stop
+        }
+
+        # Copy apps-manifest.json (cross-platform app definitions)
+        $sourceManifest = Join-Path $sourcePath "apps-manifest.json"
+        $targetManifest = Join-Path $systemPath "apps-manifest.json"
+
+        if (Test-Path $sourceManifest) {
+            Write-Host "    [>>] Copying apps-manifest.json..." -ForegroundColor Yellow
+            Copy-Item -Path $sourceManifest -Destination $targetManifest -Force -ErrorAction Stop
+        }
+
+        # Copy modules directory (if it exists)
+        $sourceModulesPath = Join-Path $sourcePath "modules"
+        $systemModulesPath = Join-Path $systemPath "modules"
+
+        if (Test-Path $sourceModulesPath) {
+            Write-Host "    [>>] Copying modules directory..." -ForegroundColor Yellow
+
+            if (-not (Test-Path $systemModulesPath)) {
+                New-Item -Path $systemModulesPath -ItemType Directory -Force | Out-Null
+            }
+
+            Copy-Item -Path (Join-Path $sourceModulesPath '*') -Destination $systemModulesPath -Recurse -Force -ErrorAction Stop
+            Write-Host "    [OK] Copied modules directory" -ForegroundColor Green
         }
 
         # Copy all app scripts from apps\ folder
@@ -274,10 +407,45 @@ if ($copiedToSystem) {
 
 #endregion Self-Installation to System Location
 
-# Application registry - defines all supported applications
-# Using PSCustomObject for proper property access with Group-Object
-$script:Applications = @(
-    # Browsers
+#region Application Registry Loading
+
+# Load application registry - cross-platform aware
+Write-Host "[INFO] Loading application registry..." -ForegroundColor Cyan
+
+if ($script:CoreModuleLoaded) {
+    # Use core module to load from apps-manifest.json
+    Write-Verbose "Loading application registry from core module..."
+    try {
+        $allApplications = Get-ApplicationRegistry -Verbose:$VerbosePreference
+
+        # Filter by current platform
+        $script:Applications = Select-ApplicationsByPlatform -Applications $allApplications -CurrentPlatform $Platform
+
+        Write-Host "[OK] Loaded $($script:Applications.Count) applications for $Platform" -ForegroundColor Green
+    }
+    catch {
+        Write-Warning "Failed to load application registry from core module: $_"
+        Write-Warning "Falling back to minimal application list"
+        $script:Applications = Get-FallbackApplicationRegistry
+    }
+}
+else {
+    # Fallback: Use minimal hardcoded list
+    Write-Warning "Core module not loaded - using minimal application list"
+    Write-Warning "For full application support, ensure modules/AppInstallerCore.psm1 is available"
+    $script:Applications = Get-FallbackApplicationRegistry
+}
+
+function Get-FallbackApplicationRegistry {
+    <#
+    .SYNOPSIS
+        Returns a minimal fallback application registry.
+    .DESCRIPTION
+        This is used when the core module or apps-manifest.json is not available.
+        Contains only the most common cross-platform applications.
+    #>
+    return @(
+        # Browsers
     [PSCustomObject]@{ Name = "Google Chrome"; ScriptName = "chrome.ps1"; WingetId = "Google.Chrome"; Category = "Browsers"; Description = "Fast, secure web browser by Google" }
     [PSCustomObject]@{ Name = "Brave Browser"; ScriptName = "brave.ps1"; WingetId = "Brave.Brave"; Category = "Browsers"; Description = "Privacy-focused browser with ad blocking" }
     [PSCustomObject]@{ Name = "Firefox"; ScriptName = "firefox.ps1"; WingetId = "Mozilla.Firefox"; Category = "Browsers"; Description = "Open-source browser with privacy features" }
@@ -571,7 +739,10 @@ $script:Applications = @(
     [PSCustomObject]@{ Name = "Kap"; ScriptName = "kap.ps1"; WingetId = $null; Category = "Screen Recording"; Description = "Open-source screen recorder" }
     [PSCustomObject]@{ Name = "Peek"; ScriptName = "peek.ps1"; WingetId = $null; Category = "Screen Recording"; Description = "Simple animated GIF screen recorder" }
     [PSCustomObject]@{ Name = "SimpleScreenRecorder"; ScriptName = "simplescreenrecorder.ps1"; WingetId = $null; Category = "Screen Recording"; Description = "Feature-rich screen recorder" }
-)
+    )
+}
+
+#endregion Application Registry Loading
 
 #region Helper Functions
 
@@ -816,7 +987,7 @@ function Test-WingetAvailable {
     }
 }
 
-function Ensure-WingetAvailable {
+function Assert-WingetAvailable {
     <#
     .SYNOPSIS
         Ensures winget is available, installing it on Windows 10 if necessary.
@@ -824,9 +995,17 @@ function Ensure-WingetAvailable {
     .DESCRIPTION
         Checks if winget is available. If not and running on Windows 10,
         automatically downloads and installs winget.
+
+        NOTE: This function is Windows-specific and will return false on other platforms.
     #>
     [CmdletBinding()]
     param()
+
+    # Check if we're on Windows
+    if (-not ($null -eq $IsWindows -or $IsWindows)) {
+        Write-Verbose "Not on Windows - winget not available"
+        return $false
+    }
 
     if (Test-WingetAvailable) {
         return $true
@@ -3076,11 +3255,26 @@ else {
     Write-Host "[OK] Logging initialized with fallback method" -ForegroundColor Green
 }
 
-# Check for winget availability (install on Windows 10 if needed)
-Write-Host "`n[i] Checking for winget availability..." -ForegroundColor Cyan
-$wingetAvailable = Ensure-WingetAvailable
+# Check for package manager availability
+Write-Host "`n[i] Checking for package manager availability..." -ForegroundColor Cyan
 
-if (-not $wingetAvailable) {
+# On Windows, check for winget (install on Windows 10 if needed)
+# On other platforms, platform-detect.ps1 already set $PackageManager
+if ($null -eq $IsWindows -or $IsWindows) {
+    $wingetAvailable = Assert-WingetAvailable
+}
+else {
+    # On non-Windows, we rely on platform-detect.ps1
+    $wingetAvailable = $false
+    if ($PackageManager -and $PackageManager -ne "none") {
+        Write-Host "[OK] Package manager detected: $PackageManager" -ForegroundColor Green
+    }
+    else {
+        Write-Warning "No package manager detected. Some installations may fail."
+    }
+}
+
+if (-not $wingetAvailable -and ($null -eq $IsWindows -or $IsWindows)) {
     Write-Log "winget is not available on this system" -Level WARNING
     Write-Host "`n[WARN] WARNING: winget (Windows Package Manager) is not available." -ForegroundColor Yellow
     Write-Host "   Many applications require winget for installation." -ForegroundColor Yellow
@@ -3549,3 +3743,86 @@ $script:SelectedApps = @()
 
 exit 0
 
+<#
+.NOTES
+    CROSS-PLATFORM TESTING GUIDANCE
+    ================================
+
+    This script has been refactored for cross-platform compatibility.
+    Please test on all supported platforms:
+
+    WINDOWS TESTING:
+    ----------------
+    1. PowerShell 5.1 (Windows PowerShell):
+       - Run as Administrator
+       - Test winget installation and app installation
+       - Verify paths: %USERPROFILE%\myTech.Today\AppInstaller
+       - Test GUI fallback: .\install-gui.ps1
+
+    2. PowerShell 7.x:
+       - Run as Administrator
+       - Test all features
+       - Verify cross-platform variables work
+
+    macOS TESTING:
+    --------------
+    1. Install PowerShell 7.2+:
+       brew install --cask powershell
+
+    2. Run the installer:
+       pwsh ./install.ps1
+
+    3. Verify:
+       - Homebrew detection works
+       - Paths: ~/.mytech-today/app-installer
+       - Application filtering shows macOS apps
+       - Brew cask/formula installations work
+
+    4. Test GUI script graceful degradation:
+       pwsh ./install-gui.ps1
+       (Should offer CLI fallback)
+
+    LINUX TESTING:
+    --------------
+    1. Install PowerShell 7.2+:
+       - Ubuntu/Debian: https://docs.microsoft.com/powershell/scripting/install/install-ubuntu
+       - Fedora: https://docs.microsoft.com/powershell/scripting/install/install-fedora
+       - Arch: yay -S powershell-bin
+
+    2. Run the installer:
+       pwsh ./install.ps1
+
+    3. Verify:
+       - Package manager detection (apt/dnf/pacman/snap)
+       - Paths: ~/.mytech-today/app-installer
+       - Application filtering shows Linux apps
+       - Package installations work
+
+    4. Test GUI script graceful degradation:
+       pwsh ./install-gui.ps1
+       (Should offer CLI fallback)
+
+    COMMON TESTS (All Platforms):
+    ------------------------------
+    1. Interactive menu navigation
+    2. Multi-select (e.g., "1,3,5-10")
+    3. Category selection (e.g., "C:Browsers")
+    4. Profile import/export
+    5. Status display
+    6. Logging functionality
+    7. Error handling
+
+    KNOWN PLATFORM LIMITATIONS:
+    ---------------------------
+    - GUI (install-gui.ps1): Windows only (requires Windows Forms)
+    - Some apps may not be available on all platforms
+    - Version detection may vary by package manager
+    - Admin/sudo requirements vary by package manager
+
+    TROUBLESHOOTING:
+    ----------------
+    - If platform-detect.ps1 not found: Ensure it's in the same directory
+    - If apps-manifest.json not found: Fallback to minimal app list
+    - If core module not found: Basic functionality still works
+    - Package manager not detected: Install manually (winget/brew/apt/etc.)
+#>

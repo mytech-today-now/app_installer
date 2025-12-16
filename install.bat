@@ -65,7 +65,7 @@ echo [INFO] Running App Installer...
 echo.
 
 REM Run the PowerShell installer script
-pwsh -NoProfile -ExecutionPolicy Bypass -File "%~dp0install.ps1" %*
+pwsh -NoProfile -ExecutionPolicy Bypass -File "%~dp0app-installer.ps1" %*
 
 if %ERRORLEVEL% NEQ 0 (
     echo.

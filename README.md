@@ -1,20 +1,52 @@
 # App Installer - myTech.Today
 
-**Version:** 1.5.0 (GUI) / 1.6.0 (CLI)
+**Version:** 2.0.0 (Cross-Platform Release)
 **Author:** myTech.Today
-**License:** All rights reserved 
+**License:** All rights reserved
 
 ## Overview
 
-The **App Installer** is a comprehensive PowerShell application installer system designed for automated Windows setup. It provides both a modern **graphical user interface (GUI)** and a traditional **command-line interface** for installing and managing **212 essential applications** with real-time status tracking, version detection, and centralized logging.
+The **App Installer** is a comprehensive **cross-platform** PowerShell application installer system for Windows, macOS, and Linux. It provides both a modern **graphical user interface (GUI)** for Windows and a powerful **command-line interface (CLI)** that works on all platforms for installing and managing **271+ essential applications** with real-time status tracking, version detection, and centralized logging.
+
+### Platform Support
+
+- **Windows:** Full GUI and CLI support (PowerShell 5.1+ or PowerShell 7.2+)
+- **macOS:** CLI support with Homebrew integration (PowerShell 7.2+)
+- **Linux:** CLI support with apt/dnf/pacman/snap (PowerShell 7.2+)
+
+### What's New in 2.0.0
+
+🎉 **Major Cross-Platform Release!**
+
+- ✅ **Cross-Platform CLI:** app-installer-cli.ps1 now works on Windows, macOS, and Linux
+- ✅ **Graceful GUI Degradation:** app-installer.ps1 detects platform and offers CLI fallback on non-Windows
+- ✅ **Shared Core Module:** New AppInstallerCore.psm1 eliminates code duplication
+- ✅ **Dynamic App Registry:** Loads from apps-manifest.json instead of hardcoded arrays
+- ✅ **Multi-Package Manager:** Supports winget, brew, apt, dnf, pacman, snap
+- ✅ **Platform-Aware Filtering:** Shows only apps available for your platform
+- ✅ **Cross-Platform Paths:** Automatic path handling for each OS
+
+See [REFACTORING-SUMMARY.md](other_files/REFACTORING-SUMMARY.md) for complete details.
 
 ![App Installer GUI](https://mytech.today/wp-content/uploads/2025/11/install-gui.ps1_.jpeg)
 
 ## Features
 
-### GUI Features (install-gui.ps1)
+### Cross-Platform Features (NEW in 2.0.0)
+
+✅ **Multi-Platform Support** - Works on Windows, macOS, and Linux
+✅ **Automatic Platform Detection** - Detects OS and selects appropriate package manager
+✅ **Package Manager Abstraction** - Supports winget, brew, apt, dnf, pacman, snap
+✅ **Platform-Aware App Filtering** - Shows only apps available for your OS
+✅ **Cross-Platform Paths** - Automatic path handling for each operating system
+✅ **Shared Core Module** - AppInstallerCore.psm1 eliminates code duplication
+✅ **Dynamic App Registry** - Loads 271+ apps from apps-manifest.json
+✅ **Graceful Degradation** - GUI offers CLI fallback on non-Windows platforms
+
+### GUI Features (app-installer.ps1) - Windows Only
 
 ✅ **Modern Windows Forms Interface** - Professional GUI with responsive design and DPI scaling
+✅ **Platform Detection** - Detects non-Windows platforms and offers CLI fallback
 ✅ **Responsive GUI Helper** - Centralized DPI scaling from GitHub for multi-monitor and high-DPI support
 ✅ **Generic Logging Module** - Centralized logging system with monthly rotation and markdown format
 ✅ **Real-Time Search & Filter** - Instantly filter 271 applications by name, category, or description
@@ -29,20 +61,26 @@ The **App Installer** is a comprehensive PowerShell application installer system
 ✅ **Responsive Layout** - Adapts to different screen sizes and resolutions (VGA to 8K UHD)
 ✅ **Professional Buttons** - Standard Windows-style buttons with proper spacing
 
-### Core Features (Both Versions)
+### CLI Features (app-installer-cli.ps1) - All Platforms
 
-✅ **Version Detection** - Automatically detects installed applications via winget and registry
+✅ **Cross-Platform CLI** - Works on Windows, macOS, and Linux
+✅ **Interactive Menu** - User-friendly text-based interface
+✅ **Multi-Select** - Select multiple apps with ranges (e.g., "1,3,5-10")
+✅ **Category Selection** - Select all apps in a category (e.g., "C:Browsers")
+✅ **Version Detection** - Automatically detects installed applications (platform-dependent)
 ✅ **Selective Installation** - Install individual apps, all apps, or only missing apps
 ✅ **Generic Logging Module** - Centralized logging with monthly rotation (scriptname-yyyy-MM.md format)
-✅ **Centralized Logging** - All activities logged to `C:\mytech.today\logs\` in markdown table format
-✅ **winget Integration** - Leverages Windows Package Manager for 90+ applications
-✅ **Custom Installers** - Specialized scripts for apps not available via winget
-✅ **Error Handling** - Comprehensive error handling with 100+ winget error code mappings
+✅ **Centralized Logging** - Platform-specific log paths (Windows: %USERPROFILE%, macOS/Linux: ~/.mytech-today)
+✅ **Package Manager Integration** - Leverages platform-specific package managers
+✅ **Custom Installers** - Specialized scripts for apps not available via package managers
+✅ **Error Handling** - Comprehensive error handling with detailed error messages
 ✅ **Silent Installation** - Most apps install silently without user interaction
-✅ **Administrator Privileges** - Automatic elevation and privilege checking
-✅ **Automatic Shortcuts** - Creates Start Menu shortcuts for web-based apps (Chrome Remote Desktop)
+✅ **Administrator Privileges** - Automatic elevation and privilege checking (platform-dependent)
+✅ **Automatic Shortcuts** - Creates Start Menu shortcuts for web-based apps (Windows only)
 
-## Supported Applications (212)
+## Supported Applications (271+)
+
+**Note:** Application availability varies by platform. The installer automatically filters and shows only apps available for your operating system. Cross-platform package mappings are defined in `apps-manifest.json`.
 
 ### Browsers (15)
 - Google Chrome, Brave Browser, Firefox, Vivaldi, Opera, LibreWolf, Tor Browser, Waterfox
@@ -129,17 +167,32 @@ The **App Installer** is a comprehensive PowerShell application installer system
 
 ## Requirements
 
+### Windows
 - **Operating System:** Windows 10 (1809+), Windows 11, Windows Server 2016+
-- **PowerShell:** 5.1 or later (PowerShell 7.2+ recommended)
-- **Privileges:** Administrator rights required (see **Administrator & Antivirus Notes** below)
-- **winget:** Windows Package Manager (recommended, installed by default on Windows 11)
-- **.NET Framework:** 4.7.2 or later (for GUI version)
-  - **Note:** The GUI installer (`install-gui.ps1`) will automatically detect and offer to install .NET Framework 4.8 if not present or if an older version is detected
+- **PowerShell:** 5.1 or later (PowerShell 7.2+ recommended for best experience)
+- **Privileges:** Administrator rights recommended (see **Administrator & Antivirus Notes** below)
+- **Package Manager:** winget (Windows Package Manager) - installed by default on Windows 11
+- **.NET Framework:** 4.7.2 or later (for GUI version only)
+  - **Note:** The GUI installer (`app-installer.ps1`) will automatically detect and offer to install .NET Framework 4.8 if not present
+
+### macOS
+- **Operating System:** macOS 10.13 (High Sierra) or later
+- **PowerShell:** 7.2 or later (install via: `brew install --cask powershell`)
+- **Package Manager:** Homebrew (install from https://brew.sh)
+- **Privileges:** sudo access recommended for system-wide installations
+- **Note:** GUI mode not available - use CLI mode (`app-installer-cli.ps1`)
+
+### Linux
+- **Operating System:** Ubuntu 18.04+, Debian 10+, Fedora 33+, Arch Linux, or compatible
+- **PowerShell:** 7.2 or later (see https://docs.microsoft.com/powershell)
+- **Package Manager:** apt, dnf, pacman, or snap (automatically detected)
+- **Privileges:** sudo/root access recommended for system-wide installations
+- **Note:** GUI mode not available - use CLI mode (`app-installer-cli.ps1`)
 
 ## Administrator & Antivirus Notes
 
 - **Always run elevated:**
-  - When using the **PowerShell scripts** (`install-gui.ps1`, `install.ps1`): start PowerShell **as Administrator** and run the scripts from an elevated session.
+  - When using the **PowerShell scripts** (`app-installer.ps1`, `app-installer-cli.ps1`): start PowerShell **as Administrator** and run the scripts from an elevated session.
   - When using the **packaged EXE** (for example, `install-GUI.exe` built via IEXPRESS): allow the UAC elevation prompt and run the EXE **as Administrator**.
 - **Why elevation is required:**
   - Installing software, managing services, and modifying system-wide settings (registry, Program Files, etc.) requires administrative rights.
@@ -151,9 +204,11 @@ The **App Installer** is a comprehensive PowerShell application installer system
     - Mark it as **allowed** in your antivirus / endpoint protection.
     - Choose **"More info" → "Run anyway"** if SmartScreen shows a warning.
 - **Recommendation:**
-  - Prefer running the **raw PowerShell script (`install-gui.ps1`) from an elevated PowerShell session** when testing or developing.
+  - Prefer running the **raw PowerShell script (`app-installer.ps1`) from an elevated PowerShell session** when testing or developing.
   - Use the **EXE** for deployment/hand-off scenarios, with the expectation that security software may require manual approval.
 ## Installation
+
+### Windows Installation
 
 1. **Clone or download** the repository:
    ```powershell
@@ -167,24 +222,77 @@ The **App Installer** is a comprehensive PowerShell application installer system
 
 3. **Run as Administrator**:
 
-   **GUI Version (Recommended):**
+   **GUI Version (Windows Only - Recommended):**
    ```powershell
-   .\install-gui.ps1
+   .\app-installer.ps1
    ```
 
    **Command-Line Version:**
    ```powershell
-   .\install.ps1
+   .\app-installer-cli.ps1
+   ```
+
+### macOS Installation
+
+1. **Install PowerShell 7.2+**:
+   ```bash
+   brew install --cask powershell
+   ```
+
+2. **Install Homebrew** (if not already installed):
+   ```bash
+   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+   ```
+
+3. **Clone the repository**:
+   ```bash
+   git clone https://github.com/mytech-today-now/PowerShellScripts.git
+   cd PowerShellScripts/app_installer
+   ```
+
+4. **Run the CLI installer**:
+   ```bash
+   pwsh ./app-installer-cli.ps1
+   ```
+
+### Linux Installation
+
+1. **Install PowerShell 7.2+**:
+   - **Ubuntu/Debian:**
+     ```bash
+     wget https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/packages-microsoft-prod.deb
+     sudo dpkg -i packages-microsoft-prod.deb
+     sudo apt-get update
+     sudo apt-get install -y powershell
+     ```
+   - **Fedora:**
+     ```bash
+     sudo dnf install powershell
+     ```
+   - **Arch Linux:**
+     ```bash
+     yay -S powershell-bin
+     ```
+
+2. **Clone the repository**:
+   ```bash
+   git clone https://github.com/mytech-today-now/PowerShellScripts.git
+   cd PowerShellScripts/app_installer
+   ```
+
+3. **Run the CLI installer**:
+   ```bash
+   pwsh ./app-installer-cli.ps1
    ```
 
 ## Usage
 
-### GUI Mode (install-gui.ps1) - Recommended
+### GUI Mode (app-installer.ps1) - Recommended
 
 Launch the graphical interface:
 
 ```powershell
-.\install-gui.ps1
+.\app-installer.ps1
 ```
 
 **GUI Features:**
@@ -213,11 +321,11 @@ Launch the graphical interface:
 - During installation: Shows "Y / X applications" (Y = completed, X = total)
 - Progress bar fills as each application installs
 
-### Command-Line Mode (install.ps1)
+### Command-Line Mode (app-installer-cli.ps1)
 
 **Interactive Menu:**
 ```powershell
-.\install.ps1
+.\app-installer-cli.ps1
 ```
 
 **Menu Options:**
@@ -235,22 +343,22 @@ Launch the graphical interface:
 
 **Install all applications:**
 ```powershell
-.\install.ps1 -Action InstallAll
+.\app-installer-cli.ps1 -Action InstallAll
 ```
 
 **Install only missing applications:**
 ```powershell
-.\install.ps1 -Action InstallMissing
+.\app-installer-cli.ps1 -Action InstallMissing
 ```
 
 **Show status only:**
 ```powershell
-.\install.ps1 -Action Status
+.\app-installer-cli.ps1 -Action Status
 ```
 
 **Install specific application:**
 ```powershell
-.\install.ps1 -AppName "Chrome"
+.\app-installer-cli.ps1 -AppName "Chrome"
 ```
 
 ## Export/Import Configuration Profiles
@@ -329,8 +437,8 @@ When importing a profile, the installer will:
 
 ```
 app_installer/
-├── install-gui.ps1                  # GUI-based installer (recommended)
-├── install.ps1                      # Command-line menu-driven installer
+├── app-installer.ps1                # GUI-based installer (recommended)
+├── app-installer-cli.ps1            # Command-line menu-driven installer
 ├── apps/                            # Individual app installation scripts (212 total)
 │   ├── chrome.ps1                   # (Uses winget)
 │   ├── brave.ps1                    # (Uses winget)
@@ -357,7 +465,7 @@ app_installer/
 
 Both the GUI and CLI versions support uninstalling applications that were previously installed via winget.
 
-### GUI Uninstall (install-gui.ps1)
+### GUI Uninstall (app-installer.ps1)
 
 1. **Select Applications** - Check the applications you want to uninstall
 2. **Click "Uninstall Selected"** - Dark red button next to "Install Selected"
@@ -372,7 +480,7 @@ Both the GUI and CLI versions support uninstalling applications that were previo
 - ✅ **Detailed logging** - All uninstall operations logged to centralized log
 - ✅ **Error handling** - Failed uninstalls are reported with error details
 
-### CLI Uninstall (install.ps1)
+### CLI Uninstall (app-installer-cli.ps1)
 
 1. **Select Menu Option "X"** - Choose "X. Uninstall/Remove Selected Applications"
 2. **Enter Application Numbers** - Type numbers (e.g., "1,3,5" or "1-10")
@@ -382,7 +490,7 @@ Both the GUI and CLI versions support uninstalling applications that were previo
 
 **Example:**
 ```powershell
-.\install.ps1
+.\app-installer-cli.ps1
 # Select "X" from menu
 # Enter: 1,5,10
 # Confirm: Y
@@ -445,7 +553,7 @@ Both scripts maintain an internal registry of all 212 supported applications wit
 
 ### Adding New Applications
 
-1. **Add to Application Registry** in `install-gui.ps1` or `install.ps1`:
+1. **Add to Application Registry** in `apps-manifest.json`:
    ```powershell
    [PSCustomObject]@{
        Name = "MyApp"
@@ -464,7 +572,7 @@ Both scripts maintain an internal registry of all 212 supported applications wit
 
 3. **Test Installation**:
    ```powershell
-   .\install-gui.ps1
+   .\app-installer.ps1
    ```
 
 ### Modifying Categories
@@ -529,7 +637,7 @@ Edit the `Category` property in the application registry to organize apps differ
 **Issue:** GUI fails to start with assembly loading errors
 
 **Solutions:**
-- Run `install-gui.ps1` - it will automatically detect missing .NET Framework
+- Run `app-installer.ps1` - it will automatically detect missing .NET Framework
 - If prompted, allow the script to install .NET Framework 4.8
 - A system restart may be required after .NET Framework installation
 - If automatic installation fails, install manually from Microsoft's website

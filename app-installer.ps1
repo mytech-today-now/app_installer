@@ -1,31 +1,150 @@
 <#
 .SYNOPSIS
-    GUI-based application installer for automated Windows setup. 
+    GUI-based application installer with cross-platform awareness.
 
 .DESCRIPTION
     This script provides a comprehensive graphical user interface for installing and managing
-    multiple applications on Windows systems. Features include:
-    - Modern Windows Forms GUI with category grouping
+    multiple applications. Platform-specific behavior:
+
+    WINDOWS:
+    - Full Windows Forms GUI with category grouping
     - Real-time installation status display
     - Version detection for installed applications
     - Selective installation (individual apps, all apps, or only missing apps)
     - Progress tracking with detailed logging
-    - Centralized logging to %USERPROFILE%\myTech.Today\logs\
     - Support for 271 applications via winget and custom installers
 
+    macOS/LINUX:
+    - GUI mode is not available (requires Windows Forms/.NET Framework)
+    - Automatically launches CLI mode (app-installer-cli.ps1) without prompting
+    - Seamless cross-platform experience
+    - Full functionality via command-line interface
+
+.PARAMETER ForceCLI
+    Force CLI mode even on Windows (useful for testing or automation).
+
 .NOTES
-    File Name      : install-gui.ps1
+    File Name      : app-installer.ps1
     Author         : myTech.Today
-    Prerequisite   : PowerShell 5.1 or later, Administrator privileges
+    Prerequisite   : PowerShell 7.2+ recommended for cross-platform support
+                     Windows: PowerShell 5.1+ with .NET Framework 4.7.2+
+                     macOS/Linux: PowerShell 7.2+ (will redirect to CLI mode)
     Copyright      : (c) 2025 myTech.Today. All rights reserved.
-    Version        : 1.5.0
+    Version        : 2.0.0
 
 .LINK
     https://github.com/mytech-today-now/app_installer
+
+.EXAMPLE
+    .\app-installer.ps1
+    Launches GUI on Windows, automatically launches CLI on macOS/Linux
+
+.EXAMPLE
+    .\app-installer.ps1 -ForceCLI
+    Forces CLI mode even on Windows (useful for automation or testing)
 #>
 
+[CmdletBinding()]
+param(
+    [Parameter(Mandatory = $false)]
+    [switch]$ForceCLI
+)
+
 #Requires -Version 5.1
-#Requires -RunAsAdministrator
+
+#region Early Platform Detection and GUI Availability Check
+
+Write-Host "`n=== myTech.Today Application Installer ===" -ForegroundColor Cyan
+Write-Host "Version: 2.0.0" -ForegroundColor Gray
+Write-Host ""
+
+# Detect platform - PowerShell 7+ has $IsWindows, $IsMacOS, $IsLinux
+# PowerShell 5.1 (Windows only) does not have these variables
+$script:CurrentPlatform = "Unknown"
+$script:IsWindowsPlatform = $false
+
+if ($null -eq $IsWindows) {
+    # PowerShell 5.1 - must be Windows
+    $script:CurrentPlatform = "Windows"
+    $script:IsWindowsPlatform = $true
+    Write-Verbose "Detected PowerShell 5.1 on Windows"
+}
+elseif ($IsWindows) {
+    $script:CurrentPlatform = "Windows"
+    $script:IsWindowsPlatform = $true
+    Write-Verbose "Detected Windows platform"
+}
+elseif ($IsMacOS) {
+    $script:CurrentPlatform = "macOS"
+    $script:IsWindowsPlatform = $false
+    Write-Verbose "Detected macOS platform"
+}
+elseif ($IsLinux) {
+    $script:CurrentPlatform = "Linux"
+    $script:IsWindowsPlatform = $false
+    Write-Verbose "Detected Linux platform"
+}
+else {
+    # Fallback detection
+    if ($env:OS -match 'Windows') {
+        $script:CurrentPlatform = "Windows"
+        $script:IsWindowsPlatform = $true
+    }
+}
+
+Write-Host "`[INFO] Platform: $script:CurrentPlatform" -ForegroundColor Cyan
+
+# Check if GUI mode is available
+$script:CanUseGUI = $script:IsWindowsPlatform -and -not $ForceCLI
+
+if (-not $script:CanUseGUI) {
+    # GUI not available - automatically launch CLI installer
+    Write-Host ""
+    Write-Host "╔════════════════════════════════════════════════════════════════╗" -ForegroundColor Yellow
+    Write-Host "║                    GUI MODE NOT AVAILABLE                      ║" -ForegroundColor Yellow
+    Write-Host "╚════════════════════════════════════════════════════════════════╝" -ForegroundColor Yellow
+    Write-Host ""
+
+    if ($ForceCLI) {
+        Write-Host "`[INFO] CLI mode forced via -ForceCLI parameter" -ForegroundColor Cyan
+    }
+    else {
+        Write-Host "`[INFO] GUI mode requires Windows with .NET Framework 4.7.2+" -ForegroundColor Cyan
+        Write-Host "`[INFO] Current platform: $script:CurrentPlatform" -ForegroundColor Cyan
+    }
+
+    Write-Host ""
+    Write-Host "The GUI installer uses Windows Forms, which is only available on Windows." -ForegroundColor White
+    Write-Host "Automatically launching the CLI installer instead..." -ForegroundColor Green
+    Write-Host ""
+
+    # Automatically launch CLI mode
+    $cliScriptPath = Join-Path $PSScriptRoot "app-installer-cli.ps1"
+
+    if (Test-Path $cliScriptPath) {
+        Write-Host "`[INFO] Launching CLI installer..." -ForegroundColor Green
+        Write-Host ""
+
+        # Launch CLI installer and pass through any parameters
+        & $cliScriptPath
+        exit $LASTEXITCODE
+    }
+    else {
+        Write-Host "`[ERROR] CLI installer not found at: $cliScriptPath" -ForegroundColor Red
+        Write-Host "`[INFO] Please ensure app-installer-cli.ps1 is in the same directory as app-installer.ps1" -ForegroundColor Yellow
+        Write-Host ""
+        Write-Host "`[INFO] To use the CLI installer manually, run:" -ForegroundColor Cyan
+        Write-Host "       ./app-installer-cli.ps1" -ForegroundColor White
+        Write-Host ""
+        exit 1
+    }
+}
+
+# If we reach here, we're on Windows and can proceed with GUI
+Write-Host "`[OK] GUI mode available - proceeding with Windows Forms interface" -ForegroundColor Green
+Write-Host ""
+
+#endregion Early Platform Detection and GUI Availability Check
 
 # PowerShell 7+ Version Check - myTech.Today standard
 $script:PS7ContinueOnPS51 = $true  # Allow running on PS 5.1 with warning
@@ -48,11 +167,11 @@ try {
     Write-Host "Loading responsive GUI helper..." -ForegroundColor Cyan
     Invoke-Expression (Invoke-WebRequest -Uri $responsiveUrl -UseBasicParsing).Content
     $script:ResponsiveHelperLoaded = $true
-    Write-Host "[OK] Responsive GUI helper loaded successfully" -ForegroundColor Green
+    Write-Host "`[OK] Responsive GUI helper loaded successfully" -ForegroundColor Green
 }
 catch {
-    Write-Host "[ERROR] Failed to load responsive GUI helper: $_" -ForegroundColor Red
-    Write-Host "[INFO] Falling back to local responsive helper implementation" -ForegroundColor Yellow
+    Write-Host "`[ERROR] Failed to load responsive GUI helper: $_" -ForegroundColor Red
+    Write-Host "`[INFO] Falling back to local responsive helper implementation" -ForegroundColor Yellow
 
     # Try to load from local path as fallback
     $localResponsivePath = Join-Path $PSScriptRoot "..\scripts\responsive.ps1"
@@ -60,14 +179,14 @@ catch {
         try {
             . $localResponsivePath
             $script:ResponsiveHelperLoaded = $true
-            Write-Host "[OK] Loaded responsive helper from local path" -ForegroundColor Green
+            Write-Host "`[OK] Loaded responsive helper from local path" -ForegroundColor Green
         }
         catch {
-            Write-Host "[ERROR] Failed to load local responsive helper: $_" -ForegroundColor Red
+            Write-Host "`[ERROR] Failed to load local responsive helper: $_" -ForegroundColor Red
         }
     }
     else {
-        Write-Host "[WARNING] Local responsive helper not found at: $localResponsivePath" -ForegroundColor Yellow
+        Write-Host "`[WARNING] Local responsive helper not found at: $localResponsivePath" -ForegroundColor Yellow
     }
 }
 
@@ -83,11 +202,11 @@ try {
     Write-Host "Loading generic logging module..." -ForegroundColor Cyan
     Invoke-Expression (Invoke-WebRequest -Uri $loggingUrl -UseBasicParsing).Content
     $script:LoggingModuleLoaded = $true
-    Write-Host "[OK] Generic logging module loaded successfully" -ForegroundColor Green
+    Write-Host "`[OK] Generic logging module loaded successfully" -ForegroundColor Green
 }
 catch {
-    Write-Host "[ERROR] Failed to load generic logging module: $_" -ForegroundColor Red
-    Write-Host "[INFO] Falling back to local logging implementation" -ForegroundColor Yellow
+    Write-Host "`[ERROR] Failed to load generic logging module: $_" -ForegroundColor Red
+    Write-Host "`[INFO] Falling back to local logging implementation" -ForegroundColor Yellow
 
     # Try to load from local path as fallback
     $localLoggingPath = Join-Path $PSScriptRoot "..\scripts\logging.ps1"
@@ -95,10 +214,10 @@ catch {
         try {
             . $localLoggingPath
             $script:LoggingModuleLoaded = $true
-            Write-Host "[OK] Loaded logging module from local path" -ForegroundColor Green
+            Write-Host "`[OK] Loaded logging module from local path" -ForegroundColor Green
         }
         catch {
-            Write-Host "[ERROR] Failed to load local logging module: $_" -ForegroundColor Red
+            Write-Host "`[ERROR] Failed to load local logging module: $_" -ForegroundColor Red
         }
     }
 }
@@ -633,16 +752,16 @@ function Get-DotNetFrameworkVersion {
             $release = (Get-ItemProperty -Path $releaseKey -Name Release -ErrorAction SilentlyContinue).Release
 
             if ($release) {
-                Write-Host "[CHECK] .NET Framework release number: $release" -ForegroundColor Cyan
+                Write-Host "`[CHECK] .NET Framework release number: $release" -ForegroundColor Cyan
                 return $release
             }
         }
 
-        Write-Host "[WARN] .NET Framework 4.5+ not detected in registry" -ForegroundColor Yellow
+        Write-Host "`[WARN] .NET Framework 4.5+ not detected in registry" -ForegroundColor Yellow
         return 0
     }
     catch {
-        Write-Host "[ERROR] Failed to check .NET Framework version: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "`[ERROR] Failed to check .NET Framework version: $($_.Exception.Message)" -ForegroundColor Red
         return 0
     }
 }
@@ -696,53 +815,53 @@ function Install-DotNetFramework {
 
     try {
         Write-Host "`n[INSTALL] Installing .NET Framework 4.8..." -ForegroundColor Yellow
-        Write-Host "[INFO] This is required for the GUI to function properly" -ForegroundColor Cyan
-        Write-Host "[INFO] Installation may take several minutes and require a restart" -ForegroundColor Cyan
+        Write-Host "`[INFO] This is required for the GUI to function properly" -ForegroundColor Cyan
+        Write-Host "`[INFO] Installation may take several minutes and require a restart" -ForegroundColor Cyan
 
         # Check if winget is available
         $wingetAvailable = $null -ne (Get-Command winget -ErrorAction SilentlyContinue)
 
         if (-not $wingetAvailable) {
-            Write-Host "[ERROR] winget not available - cannot install .NET Framework automatically" -ForegroundColor Red
-            Write-Host "[INFO] Please install .NET Framework 4.8 manually from:" -ForegroundColor Yellow
+            Write-Host "`[ERROR] winget not available - cannot install .NET Framework automatically" -ForegroundColor Red
+            Write-Host "`[INFO] Please install .NET Framework 4.8 manually from:" -ForegroundColor Yellow
             Write-Host "       https://dotnet.microsoft.com/download/dotnet-framework/net48" -ForegroundColor Yellow
             return $false
         }
 
         # Install .NET Framework 4.8 using winget
-        Write-Host "[DOWNLOAD] Downloading .NET Framework 4.8..." -ForegroundColor Yellow
+        Write-Host "`[DOWNLOAD] Downloading .NET Framework 4.8..." -ForegroundColor Yellow
         $result = winget install --id Microsoft.DotNet.Framework.DeveloperPack_4 --silent --accept-source-agreements --accept-package-agreements 2>&1
 
         if ($LASTEXITCODE -eq 0) {
-            Write-Host "[OK] .NET Framework 4.8 installed successfully!" -ForegroundColor Green
-            Write-Host "[WARN] A system restart may be required for changes to take effect" -ForegroundColor Yellow
-            Write-Host "[INFO] Please restart your computer and run this script again" -ForegroundColor Cyan
+            Write-Host "`[OK] .NET Framework 4.8 installed successfully!" -ForegroundColor Green
+            Write-Host "`[WARN] A system restart may be required for changes to take effect" -ForegroundColor Yellow
+            Write-Host "`[INFO] Please restart your computer and run this script again" -ForegroundColor Cyan
 
             # Prompt user to restart
             $restart = Read-Host "`nWould you like to restart now? (Y/N)"
             if ($restart -eq 'Y' -or $restart -eq 'y') {
-                Write-Host "[INFO] Restarting computer in 10 seconds..." -ForegroundColor Yellow
-                Write-Host "[INFO] Press Ctrl+C to cancel" -ForegroundColor Cyan
+                Write-Host "`[INFO] Restarting computer in 10 seconds..." -ForegroundColor Yellow
+                Write-Host "`[INFO] Press Ctrl+C to cancel" -ForegroundColor Cyan
                 Start-Sleep -Seconds 10
                 Restart-Computer -Force
             }
             else {
-                Write-Host "[INFO] Please restart your computer manually before running this script again" -ForegroundColor Yellow
+                Write-Host "`[INFO] Please restart your computer manually before running this script again" -ForegroundColor Yellow
                 exit 0
             }
 
             return $true
         }
         else {
-            Write-Host "[ERROR] .NET Framework installation failed with exit code: $LASTEXITCODE" -ForegroundColor Red
-            Write-Host "[INFO] Please install .NET Framework 4.8 manually from:" -ForegroundColor Yellow
+            Write-Host "`[ERROR] .NET Framework installation failed with exit code: $LASTEXITCODE" -ForegroundColor Red
+            Write-Host "`[INFO] Please install .NET Framework 4.8 manually from:" -ForegroundColor Yellow
             Write-Host "       https://dotnet.microsoft.com/download/dotnet-framework/net48" -ForegroundColor Yellow
             return $false
         }
     }
     catch {
-        Write-Host "[ERROR] Failed to install .NET Framework: $($_.Exception.Message)" -ForegroundColor Red
-        Write-Host "[INFO] Please install .NET Framework 4.8 manually from:" -ForegroundColor Yellow
+        Write-Host "`[ERROR] Failed to install .NET Framework: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "`[INFO] Please install .NET Framework 4.8 manually from:" -ForegroundColor Yellow
         Write-Host "       https://dotnet.microsoft.com/download/dotnet-framework/net48" -ForegroundColor Yellow
         return $false
     }
@@ -763,78 +882,86 @@ function Ensure-DotNetFramework {
     [CmdletBinding()]
     param()
 
-    Write-Host "`n[CHECK] Checking .NET Framework version..." -ForegroundColor Cyan
+    Write-Host "`n`[CHECK] Checking .NET Framework version..." -ForegroundColor Cyan
 
     $release = Get-DotNetFrameworkVersion
 
     if ($release -eq 0) {
-        Write-Host "[ERROR] .NET Framework not detected" -ForegroundColor Red
-        Write-Host "[INFO] .NET Framework 4.7.2 or later is required for this GUI" -ForegroundColor Yellow
+        Write-Host "`[ERROR] .NET Framework not detected" -ForegroundColor Red
+        Write-Host "`[INFO] .NET Framework 4.7.2 or later is required for this GUI" -ForegroundColor Yellow
 
         $install = Read-Host "`nWould you like to install .NET Framework 4.8 now? (Y/N)"
         if ($install -eq 'Y' -or $install -eq 'y') {
             return Install-DotNetFramework
         }
         else {
-            Write-Host "[ERROR] Cannot continue without .NET Framework" -ForegroundColor Red
+            Write-Host "`[ERROR] Cannot continue without .NET Framework" -ForegroundColor Red
             return $false
         }
     }
 
     $versionName = Get-DotNetFrameworkVersionName -Release $release
-    Write-Host "[OK] .NET Framework $versionName detected (Release: $release)" -ForegroundColor Green
+    Write-Host "`[OK] .NET Framework $versionName detected (Release: $release)" -ForegroundColor Green
 
     # Check if version is 4.7.2 or later (release >= 461808)
     if ($release -lt 461808) {
-        Write-Host "[WARN] .NET Framework $versionName is installed, but 4.7.2 or later is recommended" -ForegroundColor Yellow
-        Write-Host "[INFO] Current version may not support all GUI features" -ForegroundColor Yellow
+        Write-Host "`[WARN] .NET Framework $versionName is installed, but 4.7.2 or later is recommended" -ForegroundColor Yellow
+        Write-Host "`[INFO] Current version may not support all GUI features" -ForegroundColor Yellow
 
         $upgrade = Read-Host "`nWould you like to upgrade to .NET Framework 4.8? (Y/N)"
         if ($upgrade -eq 'Y' -or $upgrade -eq 'y') {
             return Install-DotNetFramework
         }
         else {
-            Write-Host "[WARN] Continuing with .NET Framework $versionName - some features may not work" -ForegroundColor Yellow
+            Write-Host "`[WARN] Continuing with .NET Framework $versionName - some features may not work" -ForegroundColor Yellow
             return $true
         }
     }
 
-    Write-Host "[OK] .NET Framework version is sufficient for GUI" -ForegroundColor Green
+    Write-Host "`[OK] .NET Framework version is sufficient for GUI" -ForegroundColor Green
     return $true
 }
 
 # Check and install .NET Framework before loading assemblies
-Write-Host "=== myTech.Today Application Installer - GUI Mode ===" -ForegroundColor Cyan
-Write-Host "Version: 1.4.5" -ForegroundColor Gray
-Write-Host ""
+# NOTE: This section only runs on Windows - non-Windows platforms exit earlier
+Write-Host "`[CHECK] Verifying .NET Framework prerequisites..." -ForegroundColor Cyan
 
 if (-not (Ensure-DotNetFramework)) {
     Write-Host "`n[ERROR] .NET Framework prerequisites not met" -ForegroundColor Red
-    Write-Host "[INFO] Please install .NET Framework 4.8 and try again" -ForegroundColor Yellow
+    Write-Host "`[INFO] Please install .NET Framework 4.8 and try again" -ForegroundColor Yellow
     Read-Host "`nPress Enter to exit"
     exit 1
 }
 
 #endregion .NET Framework Prerequisites
 
-# Add required assemblies
-Write-Host "`n[INFO] Loading GUI assemblies..." -ForegroundColor Cyan
+#region Load Windows Forms Assemblies
+
+# NOTE: This section only runs on Windows - non-Windows platforms exit earlier
+# Windows Forms is only available on Windows with .NET Framework or .NET Desktop Runtime
+Write-Host "`n[INFO] Loading Windows Forms assemblies..." -ForegroundColor Cyan
 try {
     Add-Type -AssemblyName System.Windows.Forms
     Add-Type -AssemblyName System.Drawing
     Add-Type -AssemblyName System.Web
-    Write-Host "[OK] GUI assemblies loaded successfully" -ForegroundColor Green
+    Write-Host "`[OK] Windows Forms assemblies loaded successfully" -ForegroundColor Green
 }
 catch {
-    Write-Host "[ERROR] Failed to load GUI assemblies: $($_.Exception.Message)" -ForegroundColor Red
-    Write-Host "[INFO] This usually indicates a .NET Framework issue" -ForegroundColor Yellow
-    Write-Host "[INFO] Please ensure .NET Framework 4.8 is properly installed" -ForegroundColor Yellow
-    Read-Host "`nPress Enter to exit"
+    Write-Host "`[ERROR] Failed to load Windows Forms assemblies: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "`[INFO] This usually indicates a .NET Framework issue" -ForegroundColor Yellow
+    Write-Host "`[INFO] Please ensure .NET Framework 4.8 is properly installed" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "`[TIP] You can use the CLI installer instead:" -ForegroundColor Cyan
+    Write-Host "      ./app-installer-cli.ps1" -ForegroundColor White
+    Write-Host ""
+    Read-Host "Press Enter to exit"
     exit 1
 }
 
+#endregion Load Windows Forms Assemblies
+
 # Script variables
-$script:ScriptVersion = '1.4.5'
+$script:ScriptVersion = '2.0.0'
 $script:OriginalScriptPath = $PSScriptRoot
 $script:SystemInstallPath = "$env:USERPROFILE\myTech.Today\AppInstaller"
 $script:ScriptPath = $script:SystemInstallPath
@@ -973,7 +1100,7 @@ $script:Applications = @(
     [PSCustomObject]@{ Name = "AngryIP Scanner"; ScriptName = "angryip.ps1"; WingetId = "angryziber.AngryIPScanner"; Category = "Utilities"; Description = "Fast network IP scanner" }
     [PSCustomObject]@{ Name = "Bitvise SSH Client"; ScriptName = "bitvise.ps1"; WingetId = "Bitvise.SSH.Client"; Category = "Utilities"; Description = "SSH and SFTP client for Windows" }
     [PSCustomObject]@{ Name = "Belarc Advisor"; ScriptName = "belarc.ps1"; WingetId = $null; Category = "Utilities"; Description = "System profile and security status" }
-    [PSCustomObject]@{ Name = "O&O ShutUp10"; ScriptName = "shutup10.ps1"; WingetId = $null; Category = "Utilities"; Description = "Windows privacy settings manager" }
+    [PSCustomObject]@{ Name = "O`&O ShutUp10"; ScriptName = "shutup10.ps1"; WingetId = $null; Category = "Utilities"; Description = "Windows privacy settings manager" }
     [PSCustomObject]@{ Name = "FileMail Desktop"; ScriptName = "filemail.ps1"; WingetId = $null; Category = "Utilities"; Description = "Large file transfer service" }
     [PSCustomObject]@{ Name = "BleachBit"; ScriptName = "bleachbit.ps1"; WingetId = "BleachBit.BleachBit"; Category = "Utilities"; Description = "System cleaner and privacy tool" }
     [PSCustomObject]@{ Name = "Rufus"; ScriptName = "rufus.ps1"; WingetId = "Rufus.Rufus"; Category = "Utilities"; Description = "Bootable USB drive creator" }
@@ -1014,16 +1141,16 @@ $script:Applications = @(
     [PSCustomObject]@{ Name = "Rocket.Chat"; ScriptName = "rocketchat.ps1"; WingetId = "RocketChat.RocketChat"; Category = "Communication"; Description = "Open-source team communication" }
     [PSCustomObject]@{ Name = "Mattermost Desktop"; ScriptName = "mattermost.ps1"; WingetId = "Mattermost.MattermostDesktop"; Category = "Communication"; Description = "Secure team collaboration platform" }
     # 3D & CAD
-    [PSCustomObject]@{ Name = "Blender"; ScriptName = "blender.ps1"; WingetId = "BlenderFoundation.Blender"; Category = "3D & CAD"; Description = "3D modeling, animation, and rendering" }
-    [PSCustomObject]@{ Name = "FreeCAD"; ScriptName = "freecad.ps1"; WingetId = "FreeCAD.FreeCAD"; Category = "3D & CAD"; Description = "Parametric 3D CAD modeler" }
-    [PSCustomObject]@{ Name = "LibreCAD"; ScriptName = "librecad.ps1"; WingetId = "LibreCAD.LibreCAD"; Category = "3D & CAD"; Description = "2D CAD drafting application" }
-    [PSCustomObject]@{ Name = "KiCad"; ScriptName = "kicad.ps1"; WingetId = "KiCad.KiCad"; Category = "3D & CAD"; Description = "Electronic design automation suite" }
-    [PSCustomObject]@{ Name = "OpenSCAD"; ScriptName = "openscad.ps1"; WingetId = "OpenSCAD.OpenSCAD"; Category = "3D & CAD"; Description = "Script-based 3D CAD modeler" }
-    [PSCustomObject]@{ Name = "Wings 3D"; ScriptName = "wings3d.ps1"; WingetId = "Wings3D.Wings3D"; Category = "3D & CAD"; Description = "Polygon mesh modeling tool" }
-    [PSCustomObject]@{ Name = "Sweet Home 3D"; ScriptName = "sweethome3d.ps1"; WingetId = "eTeks.SweetHome3D"; Category = "3D & CAD"; Description = "Interior design and floor planning" }
-    [PSCustomObject]@{ Name = "Dust3D"; ScriptName = "dust3d.ps1"; WingetId = "Dust3D.Dust3D"; Category = "3D & CAD"; Description = "3D modeling software" }
-    [PSCustomObject]@{ Name = "MeshLab"; ScriptName = "meshlab.ps1"; WingetId = "ISTI.MeshLab"; Category = "3D & CAD"; Description = "3D mesh processing system" }
-    [PSCustomObject]@{ Name = "Slic3r"; ScriptName = "slic3r.ps1"; WingetId = "Slic3r.Slic3r"; Category = "3D & CAD"; Description = "3D printing toolbox" }
+    [PSCustomObject]@{ Name = "Blender"; ScriptName = "blender.ps1"; WingetId = "BlenderFoundation.Blender"; Category = "3D `& CAD"; Description = "3D modeling, animation, and rendering" }
+    [PSCustomObject]@{ Name = "FreeCAD"; ScriptName = "freecad.ps1"; WingetId = "FreeCAD.FreeCAD"; Category = "3D `& CAD"; Description = "Parametric 3D CAD modeler" }
+    [PSCustomObject]@{ Name = "LibreCAD"; ScriptName = "librecad.ps1"; WingetId = "LibreCAD.LibreCAD"; Category = "3D `& CAD"; Description = "2D CAD drafting application" }
+    [PSCustomObject]@{ Name = "KiCad"; ScriptName = "kicad.ps1"; WingetId = "KiCad.KiCad"; Category = "3D `& CAD"; Description = "Electronic design automation suite" }
+    [PSCustomObject]@{ Name = "OpenSCAD"; ScriptName = "openscad.ps1"; WingetId = "OpenSCAD.OpenSCAD"; Category = "3D `& CAD"; Description = "Script-based 3D CAD modeler" }
+    [PSCustomObject]@{ Name = "Wings 3D"; ScriptName = "wings3d.ps1"; WingetId = "Wings3D.Wings3D"; Category = "3D `& CAD"; Description = "Polygon mesh modeling tool" }
+    [PSCustomObject]@{ Name = "Sweet Home 3D"; ScriptName = "sweethome3d.ps1"; WingetId = "eTeks.SweetHome3D"; Category = "3D `& CAD"; Description = "Interior design and floor planning" }
+    [PSCustomObject]@{ Name = "Dust3D"; ScriptName = "dust3d.ps1"; WingetId = "Dust3D.Dust3D"; Category = "3D `& CAD"; Description = "3D modeling software" }
+    [PSCustomObject]@{ Name = "MeshLab"; ScriptName = "meshlab.ps1"; WingetId = "ISTI.MeshLab"; Category = "3D `& CAD"; Description = "3D mesh processing system" }
+    [PSCustomObject]@{ Name = "Slic3r"; ScriptName = "slic3r.ps1"; WingetId = "Slic3r.Slic3r"; Category = "3D `& CAD"; Description = "3D printing toolbox" }
     # Networking
     [PSCustomObject]@{ Name = "Wireshark"; ScriptName = "wireshark.ps1"; WingetId = "WiresharkFoundation.Wireshark"; Category = "Networking"; Description = "Network protocol analyzer" }
     [PSCustomObject]@{ Name = "Nmap"; ScriptName = "nmap.ps1"; WingetId = "Insecure.Nmap"; Category = "Networking"; Description = "Network discovery and security scanner" }
@@ -1183,7 +1310,7 @@ function Copy-ScriptToSystemLocation {
 
         # Check if we're already running from the system location
         if ($sourcePath -eq $systemPath) {
-            Write-Host "[i] Already running from system location: $systemPath" -ForegroundColor Cyan
+            Write-Host "`[i] Already running from system location: $systemPath" -ForegroundColor Cyan
             return $true
         }
 
@@ -1207,21 +1334,21 @@ function Copy-ScriptToSystemLocation {
             New-Item -Path $systemProfilesPath -ItemType Directory -Force | Out-Null
         }
 
-        # Copy main install.ps1 script
-        $sourceInstallScript = Join-Path $sourcePath "install.ps1"
-        $targetInstallScript = Join-Path $systemPath "install.ps1"
+        # Copy main CLI script
+        $sourceInstallScript = Join-Path $sourcePath "app-installer-cli.ps1"
+        $targetInstallScript = Join-Path $systemPath "app-installer-cli.ps1"
 
         if (Test-Path $sourceInstallScript) {
-            Write-Host "    [>>] Copying install.ps1..." -ForegroundColor Yellow
+            Write-Host "    [>>] Copying app-installer-cli.ps1..." -ForegroundColor Yellow
             Copy-Item -Path $sourceInstallScript -Destination $targetInstallScript -Force -ErrorAction Stop
         }
 
-        # Copy install-gui.ps1 script
-        $sourceGuiScript = Join-Path $sourcePath "install-gui.ps1"
-        $targetGuiScript = Join-Path $systemPath "install-gui.ps1"
+        # Copy GUI script
+        $sourceGuiScript = Join-Path $sourcePath "app-installer.ps1"
+        $targetGuiScript = Join-Path $systemPath "app-installer.ps1"
 
         if (Test-Path $sourceGuiScript) {
-            Write-Host "    [>>] Copying install-gui.ps1..." -ForegroundColor Yellow
+            Write-Host "    [>>] Copying app-installer.ps1..." -ForegroundColor Yellow
             Copy-Item -Path $sourceGuiScript -Destination $targetGuiScript -Force -ErrorAction Stop
         }
 
@@ -3361,7 +3488,9 @@ function Create-MainForm {
     $colDescription.Width = $colDescWidth
 
     # Add columns to ListView
-    $script:ListView.Columns.AddRange(@($colAppName, $colCategory, $colStatus, $colVersion, $colDescription))
+    # Create properly typed ColumnHeader array to avoid type conversion errors
+    $columnHeaders = [System.Windows.Forms.ColumnHeader[]]@($colAppName, $colCategory, $colStatus, $colVersion, $colDescription)
+    $script:ListView.Columns.AddRange($columnHeaders)
 
     # Add event handler to update progress label when checkboxes are checked/unchecked
     $script:ListView.Add_ItemCheck({
@@ -6037,27 +6166,27 @@ try {
         if ($logPath) {
             Write-Log "=== myTech.Today Application Installer GUI v$script:ScriptVersion ===" -Level INFO
             Write-Log "Log initialized at: $logPath" -Level INFO
-            Write-Host "[OK] Logging initialized with generic module" -ForegroundColor Green
+            Write-Host "`[OK] Logging initialized with generic module" -ForegroundColor Green
         }
         else {
-            Write-Host "[WARN] Generic logging module failed to initialize" -ForegroundColor Yellow
+            Write-Host "`[WARN] Generic logging module failed to initialize" -ForegroundColor Yellow
         }
     }
     else {
         # Fallback to old logging method
         Initialize-Logging
-        Write-Host "[OK] Logging initialized with fallback method" -ForegroundColor Green
+        Write-Host "`[OK] Logging initialized with fallback method" -ForegroundColor Green
     }
 
     Write-Host "`n[i] Creating GUI form..." -ForegroundColor Cyan
 
     # Create the form (this creates the WebBrowser control)
     $form = Create-MainForm
-    Write-Host "[OK] Main form created" -ForegroundColor Green
+    Write-Host "`[OK] Main form created" -ForegroundColor Green
 
-    Write-Host "[i] Creating buttons..." -ForegroundColor Cyan
+    Write-Host "`[i] Creating buttons..." -ForegroundColor Cyan
     Create-Buttons -form $form
-    Write-Host "[OK] Buttons created" -ForegroundColor Green
+    Write-Host "`[OK] Buttons created" -ForegroundColor Green
 
     # Wait for WebBrowser to finish loading before writing output
     Start-Sleep -Milliseconds 500
@@ -6069,21 +6198,21 @@ try {
     # Ensure winget is available (install on Windows 10 if needed)
     Write-Host "`n[i] Checking for winget availability..." -ForegroundColor Cyan
     Ensure-WingetAvailable | Out-Null
-    Write-Host "[OK] winget check complete" -ForegroundColor Green
+    Write-Host "`[OK] winget check complete" -ForegroundColor Green
 
     # Initial load - detect installed applications
     Write-Host "`n[i] Detecting installed applications..." -ForegroundColor Cyan
     Refresh-ApplicationList
-    Write-Host "[OK] Application detection complete" -ForegroundColor Green
+    Write-Host "`[OK] Application detection complete" -ForegroundColor Green
 
     # Display additional marketing information with dynamic stats
     Show-MarketingInformation
 
     Write-Host "`n[OK] GUI initialized successfully!" -ForegroundColor Green
-    Write-Host "[i] Showing GUI window..." -ForegroundColor Cyan
+    Write-Host "`[i] Showing GUI window..." -ForegroundColor Cyan
 
     # Bring the form to the foreground and give it focus
-    Write-Host "[i] Bringing window to foreground..." -ForegroundColor Yellow
+    Write-Host "`[i] Bringing window to foreground..." -ForegroundColor Yellow
     $form.TopMost = $true
     $form.Add_Shown({
         $this.Activate()
@@ -6103,7 +6232,7 @@ try {
 
         # Check if installation is in progress
         if ($script:IsInstalling) {
-            Write-Host "[WARN] Installation in progress - asking user to confirm close" -ForegroundColor Yellow
+            Write-Host "`[WARN] Installation in progress - asking user to confirm close" -ForegroundColor Yellow
             Write-Log "User attempted to close form during installation" -Level WARNING
 
             $confirmClose = [System.Windows.Forms.MessageBox]::Show(
@@ -6124,7 +6253,7 @@ try {
             }
         }
 
-        Write-Host "[i] Cleaning up resources..." -ForegroundColor Cyan
+        Write-Host "`[i] Cleaning up resources..." -ForegroundColor Cyan
 
         try {
             # Dispose of WebBrowser control
@@ -6166,17 +6295,17 @@ try {
             $script:HtmlContent = $null
             $script:Applications = @()
 
-            Write-Host "[OK] Resources cleaned up" -ForegroundColor Green
+            Write-Host "`[OK] Resources cleaned up" -ForegroundColor Green
         }
         catch {
-            Write-Host "[WARN] Error during cleanup: $($_.Exception.Message)" -ForegroundColor Yellow
+            Write-Host "`[WARN] Error during cleanup: $($_.Exception.Message)" -ForegroundColor Yellow
         }
     })
 
     # Show the form (this blocks until the form is closed)
-    Write-Host "[i] Calling ShowDialog()..." -ForegroundColor Yellow
+    Write-Host "`[i] Calling ShowDialog()..." -ForegroundColor Yellow
     $result = $form.ShowDialog()
-    Write-Host "[i] ShowDialog() returned: $result" -ForegroundColor Yellow
+    Write-Host "`[i] ShowDialog() returned: $result" -ForegroundColor Yellow
 
     # Cleanup
     Write-Log "Application installer GUI closed" -Level INFO
@@ -6202,10 +6331,10 @@ catch {
 finally {
     # Final cleanup - dispose of form
     if ($form) {
-        Write-Host "[i] Disposing form..." -ForegroundColor Cyan
+        Write-Host "`[i] Disposing form..." -ForegroundColor Cyan
         $form.Dispose()
         $form = $null
-        Write-Host "[OK] Form disposed" -ForegroundColor Green
+        Write-Host "`[OK] Form disposed" -ForegroundColor Green
     }
 
     # Force garbage collection to free memory

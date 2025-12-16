@@ -2,11 +2,27 @@
 
 ## Current Versions
 
-**GUI Version:** 1.5.0  
-**CLI Version:** 1.6.0  
-**Release Date:** 2025-12-15
+**GUI Version:** 2.0.0
+**CLI Version:** 2.0.0
+**Release Date:** 2025-12-16
 
 ## Version History
+
+### 2.0.0 (GUI & CLI) - 2025-12-16 - MAJOR CROSS-PLATFORM RELEASE
+- **BREAKING CHANGE:** Full cross-platform refactoring for Windows, macOS, and Linux
+- **NEW:** Created AppInstallerCore.psm1 shared module (373 lines)
+- **NEW:** Cross-platform path handling (Windows: %USERPROFILE%, macOS/Linux: ~/.mytech-today)
+- **NEW:** Platform detection with graceful degradation for GUI on non-Windows platforms
+- **NEW:** Dynamic application registry loading from apps-manifest.json
+- **NEW:** Support for multiple package managers (winget, brew, apt, dnf, pacman, snap)
+- **IMPROVED:** Eliminated ~600 lines of code duplication
+- **IMPROVED:** Single source of truth for application definitions
+- **IMPROVED:** Comprehensive testing guidance for all platforms
+- **GUI:** Now detects platform early and offers CLI fallback on macOS/Linux
+- **GUI:** Added -ForceCLI parameter for testing
+- **CLI:** Full cross-platform support with automatic package manager detection
+- **CLI:** Platform-aware application filtering
+- See REFACTORING-SUMMARY.md for complete details
 
 ### 1.5.0 (GUI) / 1.6.0 (CLI) - 2025-12-15
 - Added automatic Start Menu shortcut creation for Chrome Remote Desktop

@@ -90,7 +90,7 @@ echo "[INFO] Running App Installer..."
 echo ""
 
 # Run the PowerShell installer script
-pwsh -NoProfile -ExecutionPolicy Bypass -File "$SCRIPT_DIR/install.ps1" "$@"
+pwsh -NoProfile -ExecutionPolicy Bypass -File "$SCRIPT_DIR/app-installer-cli.ps1" "$@"
 
 echo ""
 echo "[INFO] Setup complete."
