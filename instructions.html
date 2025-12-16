@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>App Installer - User Guide</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            margin: 20px auto;
+            max-width: 1200px;
+            padding: 0 20px;
+            color: #333;
+        }
+        h1 {
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+            margin-top: 0;
+        }
+        h2 {
+            color: #2980b9;
+            border-bottom: 2px solid #ecf0f1;
+            padding-bottom: 8px;
+            margin-top: 30px;
+        }
+        h3 {
+            color: #34495e;
+            margin-top: 20px;
+        }
+        code {
+            font-family: Consolas, Monaco, "Courier New", monospace;
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.9em;
+        }
+        pre {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            border-left: 4px solid #3498db;
+        }
+        pre code {
+            background: transparent;
+            color: #ecf0f1;
+            padding: 0;
+        }
+        .note {
+            background: #fff9e6;
+            padding: 15px;
+            border-left: 4px solid #f39c12;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+        .warning {
+            background: #ffe6e6;
+            padding: 15px;
+            border-left: 4px solid #e74c3c;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+        .info {
+            background: #e8f4f8;
+            padding: 15px;
+            border-left: 4px solid #3498db;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+        .success {
+            background: #e8f8f5;
+            padding: 15px;
+            border-left: 4px solid #27ae60;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+        .github-link {
+            background: #f8f9fa;
+            padding: 20px;
+            border: 2px solid #3498db;
+            border-radius: 8px;
+            margin: 20px 0;
+            text-align: center;
+        }
+        .github-link a {
+            color: #3498db;
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+        .github-link a:hover {
+            text-decoration: underline;
+        }
+        ul, ol {
+            margin: 10px 0;
+            padding-left: 30px;
+        }
+        li {
+            margin: 8px 0;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 15px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #3498db;
+            color: white;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        .step-number {
+            background: #3498db;
+            color: white;
+            border-radius: 50%;
+            padding: 5px 10px;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🚀 App Installer - User Guide</h1>
+
+    <div class="github-link">
+        <p style="margin: 0 0 10px 0; font-size: 1.2em;">📦 <strong>myTech.Today Application Installer</strong></p>
+        <p style="margin: 0 0 10px 0;">A powerful cross-platform tool for installing and managing 270+ applications</p>
+        <p style="margin: 0;">
+            <a href="https://github.com/mytech-today-now/app_installer" target="_blank">
+                🔗 Visit GitHub Repository for Latest Updates, Source Code, and Issue Reporting
+            </a>
+        </p>
+    </div>
+
+    <h2>📖 What is App Installer?</h2>
+    <p>The <strong>App Installer</strong> is a comprehensive PowerShell-based application management system that simplifies the process of installing, updating, and managing software on your computer. Whether you're setting up a new machine, reinstalling Windows, or managing multiple computers, this tool saves you hours of manual work.</p>
+
+    <div class="info">
+        <strong>Key Benefits:</strong>
+        <ul>
+            <li><strong>Save Time:</strong> Install dozens of applications with just a few clicks</li>
+            <li><strong>Cross-Platform:</strong> Works on Windows, macOS, and Linux</li>
+            <li><strong>270+ Applications:</strong> Browsers, development tools, media software, utilities, and more</li>
+            <li><strong>Smart Detection:</strong> Automatically detects what's already installed</li>
+            <li><strong>Profile Support:</strong> Save and reuse your favorite application sets</li>
+        </ul>
+    </div>
+
+    <h2>🖥️ Platform Support</h2>
+    <div class="info">
+        <h3>Windows (Full GUI Support)</h3>
+        <ul>
+            <li><strong>Operating Systems:</strong> Windows 10 (1809+), Windows 11, Windows Server 2016+</li>
+            <li><strong>PowerShell:</strong> 5.1 or later (PowerShell 7.2+ recommended)</li>
+            <li><strong>Interface:</strong> Full graphical user interface (GUI) with Windows Forms</li>
+            <li><strong>.NET Framework:</strong> 4.7.2 or later (automatically installed if missing)</li>
+            <li><strong>Package Manager:</strong> winget (Windows Package Manager) - installed by default on Windows 11</li>
+        </ul>
+    </div>
+
+    <div class="info">
+        <h3>macOS &amp; Linux (CLI Mode)</h3>
+        <ul>
+            <li><strong>PowerShell:</strong> PowerShell 7.2+ required (cross-platform PowerShell Core)</li>
+            <li><strong>Interface:</strong> Command-line interface (CLI) - automatically launched</li>
+            <li><strong>Note:</strong> The GUI requires Windows Forms which is only available on Windows. When you run <code>app-installer.ps1</code> on macOS or Linux, it automatically launches the CLI version (<code>app-installer-cli.ps1</code>) for a seamless experience.</li>
+        </ul>
+    </div>
+
+    <h2>📥 Getting Started</h2>
+
+    <h3>Step 1: Download the App Installer</h3>
+    <ol>
+        <li>Visit the <a href="https://github.com/mytech-today-now/app_installer" target="_blank">GitHub repository</a></li>
+        <li>Click the green <strong>"Code"</strong> button</li>
+        <li>Select <strong>"Download ZIP"</strong> to download the entire repository</li>
+        <li>Extract the ZIP file to a location on your computer (e.g., <code>C:\Tools\app_installer</code>)</li>
+    </ol>
+
+    <div class="note">
+        <strong>💡 Tip:</strong> If you have Git installed, you can clone the repository instead:
+        <pre><code>git clone https://github.com/mytech-today-now/app_installer.git</code></pre>
+    </div>
+
+    <h3>Step 2: Open PowerShell with Administrator Rights</h3>
+
+    <div class="warning">
+        <strong>⚠️ Important:</strong> Administrator privileges are required to install software, modify system settings, and access protected directories.
+    </div>
+
+    <p><strong>On Windows:</strong></p>
+    <ol>
+        <li>Press <code>Windows + X</code> on your keyboard</li>
+        <li>Select <strong>"Windows PowerShell (Admin)"</strong> or <strong>"Terminal (Admin)"</strong></li>
+        <li>Click <strong>"Yes"</strong> when prompted by User Account Control (UAC)</li>
+    </ol>
+
+    <p><strong>Alternative method:</strong></p>
+    <ol>
+        <li>Search for "PowerShell" in the Start menu</li>
+        <li>Right-click on <strong>"Windows PowerShell"</strong></li>
+        <li>Select <strong>"Run as administrator"</strong></li>
+    </ol>
+
+    <h3>Step 3: Navigate to the App Installer Directory</h3>
+    <p>In the PowerShell window, navigate to where you extracted the files:</p>
+    <pre><code>cd C:\Tools\app_installer</code></pre>
+    <p><em>Replace <code>C:\Tools\app_installer</code> with your actual path.</em></p>
+
+    <h3>Step 4: Set Execution Policy (Windows Only, First Time)</h3>
+    <p>If this is your first time running PowerShell scripts, you may need to allow script execution:</p>
+    <pre><code>Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser</code></pre>
+
+    <div class="note">
+        <strong>What does this do?</strong> This command allows you to run locally created scripts while still requiring downloaded scripts to be signed by a trusted publisher. This is a one-time setup.
+    </div>
+
+    <h2>🎯 Using the App Installer</h2>
+
+    <h3>GUI Mode (Windows Only)</h3>
+    <p>Launch the graphical interface:</p>
+    <pre><code>.\app-installer.ps1</code></pre>
+
+    <div class="success">
+        <strong>✅ GUI Features:</strong>
+        <ul>
+            <li><strong>Console/Instructions Toggle:</strong> Click the navigation links at the top to switch between the console output and these instructions</li>
+            <li><strong>Search &amp; Filter:</strong> Real-time search across 270+ applications by name, category, or description</li>
+            <li><strong>Category Organization:</strong> Applications grouped into logical categories (Browsers, Development, Media, etc.)</li>
+            <li><strong>Smart Selection:</strong> Check individual apps, select all, or select only missing applications</li>
+            <li><strong>Progress Tracking:</strong> Real-time installation progress with detailed logging</li>
+            <li><strong>Profile Management:</strong> Save and load application selection profiles</li>
+            <li><strong>Version Detection:</strong> Automatically detects installed applications and their versions</li>
+        </ul>
+    </div>
+
+    <h4>Using the GUI Interface:</h4>
+    <ol>
+        <li><strong>Browse Applications:</strong> Scroll through the list or use the search box to find specific apps</li>
+        <li><strong>Select Applications:</strong>
+            <ul>
+                <li>Click checkboxes next to individual applications</li>
+                <li>Click <strong>"Select All"</strong> to select everything</li>
+                <li>Click <strong>"Select Missing"</strong> to select only apps not currently installed</li>
+            </ul>
+        </li>
+        <li><strong>View Instructions:</strong> Click the <strong>"Instructions"</strong> link at the top to view this guide within the app</li>
+        <li><strong>Install:</strong> Click <strong>"Install Selected"</strong> to begin installation</li>
+        <li><strong>Monitor Progress:</strong> Watch the console output and progress bars for real-time status</li>
+        <li><strong>Switch Views:</strong> Click <strong>"Console"</strong> to return to the installation output at any time</li>
+    </ol>
+
+    <h3>CLI Mode (All Platforms)</h3>
+    <p>For macOS, Linux, or if you prefer command-line on Windows:</p>
+    <pre><code>.\app-installer-cli.ps1</code></pre>
+
+    <div class="note">
+        <strong>📝 Note:</strong> On macOS and Linux, running <code>.\app-installer.ps1</code> will automatically launch the CLI version.
+    </div>
+
+    <h4>CLI Menu Options:</h4>
+    <ol>
+        <li><strong>Install Individual Apps:</strong> Select from a numbered list of applications</li>
+        <li><strong>Install All Apps:</strong> Install every available application</li>
+        <li><strong>Install Missing Apps:</strong> Install only applications not currently detected</li>
+        <li><strong>Show Status:</strong> Display which applications are installed and their versions</li>
+        <li><strong>Export/Import Profiles:</strong> Save or load application selection sets</li>
+        <li><strong>Uninstall Apps:</strong> Remove selected applications</li>
+    </ol>
+
+    <h3>Command-Line Parameters (Advanced)</h3>
+    <p>You can automate installations using command-line parameters:</p>
+    <pre><code># Install all applications
+.\app-installer-cli.ps1 -Action InstallAll
+
+# Install only missing applications
+.\app-installer-cli.ps1 -Action InstallMissing
+
+# Show installation status
+.\app-installer-cli.ps1 -Action Status
+
+# Force CLI mode on Windows
+.\app-installer.ps1 -ForceCLI</code></pre>
+
+    <h2>💾 Profile Management</h2>
+    <p>Profiles allow you to save your application selections and reuse them across multiple computers or share them with others.</p>
+
+    <h3>Exporting a Profile:</h3>
+    <ol>
+        <li>Select the applications you want in your profile</li>
+        <li>Click <strong>"Export Profile"</strong> (GUI) or select the export option (CLI)</li>
+        <li>Choose a location and filename (e.g., <code>developer-setup.json</code>)</li>
+        <li>The profile is saved with your selections</li>
+    </ol>
+
+    <h3>Importing a Profile:</h3>
+    <ol>
+        <li>Click <strong>"Import Profile"</strong> (GUI) or select the import option (CLI)</li>
+        <li>Browse to your saved profile file</li>
+        <li>The application selections are automatically loaded</li>
+        <li>Click <strong>"Install Selected"</strong> to install the profile's applications</li>
+    </ol>
+
+    <div class="success">
+        <strong>💡 Use Cases for Profiles:</strong>
+        <ul>
+            <li><strong>New Computer Setup:</strong> Quickly install your standard application set</li>
+            <li><strong>Team Standardization:</strong> Ensure all team members have the same tools</li>
+            <li><strong>Role-Based Setups:</strong> Create profiles for developers, designers, content creators, etc.</li>
+            <li><strong>Backup:</strong> Keep a record of your installed applications</li>
+        </ul>
+    </div>
+
+    <h3>Pre-Built Profiles:</h3>
+    <p>The installer includes several pre-built profiles in the <code>profiles/</code> directory:</p>
+    <ul>
+        <li><code>profile-developer.json</code> - Development tools and IDEs</li>
+        <li><code>profile-content-creator.json</code> - Media editing and creative software</li>
+        <li><code>profile-gamer.json</code> - Gaming platforms and utilities</li>
+        <li><code>profile-home-office.json</code> - Productivity and communication tools</li>
+        <li>...and many more!</li>
+    </ul>
+
+
+    <h2>🔧 Troubleshooting</h2>
+
+    <h3>Common Issues and Solutions</h3>
+
+    <h4>1. "Script cannot be loaded because running scripts is disabled"</h4>
+    <div class="warning">
+        <strong>Problem:</strong> PowerShell's execution policy prevents running scripts.
+    </div>
+    <p><strong>Solution:</strong></p>
+    <pre><code>Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser</code></pre>
+    <p>Then try running the script again.</p>
+
+    <h4>2. "Access Denied" or "Administrator privileges required"</h4>
+    <div class="warning">
+        <strong>Problem:</strong> The script is not running with administrator rights.
+    </div>
+    <p><strong>Solution:</strong></p>
+    <ul>
+        <li>Close PowerShell</li>
+        <li>Right-click PowerShell and select <strong>"Run as administrator"</strong></li>
+        <li>Navigate back to the app installer directory and run the script again</li>
+    </ul>
+
+    <h4>3. "winget not found" or "winget command not recognized"</h4>
+    <div class="warning">
+        <strong>Problem:</strong> Windows Package Manager (winget) is not installed.
+    </div>
+    <p><strong>Solution for Windows 11:</strong> winget should be pre-installed. Try updating the App Installer from the Microsoft Store.</p>
+    <p><strong>Solution for Windows 10:</strong></p>
+    <ol>
+        <li>Open Microsoft Store</li>
+        <li>Search for "App Installer"</li>
+        <li>Click <strong>"Update"</strong> or <strong>"Get"</strong></li>
+        <li>Restart PowerShell and try again</li>
+    </ol>
+    <p><em>Alternatively, the script will attempt to install winget automatically on Windows 10.</em></p>
+
+    <h4>4. ".NET Framework version too old" (GUI only)</h4>
+    <div class="warning">
+        <strong>Problem:</strong> The GUI requires .NET Framework 4.7.2 or later.
+    </div>
+    <p><strong>Solution:</strong> The script will automatically detect this and offer to install .NET Framework 4.8. Accept the installation and restart your computer when prompted.</p>
+
+    <h4>5. "Installation failed" for specific applications</h4>
+    <div class="note">
+        <strong>Possible causes:</strong>
+        <ul>
+            <li>Internet connection issues</li>
+            <li>Application no longer available in winget repository</li>
+            <li>Antivirus blocking the installation</li>
+            <li>Insufficient disk space</li>
+        </ul>
+    </div>
+    <p><strong>Solutions:</strong></p>
+    <ul>
+        <li>Check your internet connection</li>
+        <li>Temporarily disable antivirus (if you trust the source)</li>
+        <li>Check the console output for specific error messages</li>
+        <li>Try installing the application manually to see if there's a system-specific issue</li>
+        <li>Check the log files in <code>%USERPROFILE%\myTech.Today\logs\</code></li>
+    </ul>
+
+    <h4>6. SmartScreen or Antivirus warnings</h4>
+    <div class="warning">
+        <strong>Problem:</strong> Windows SmartScreen or antivirus software flags the script or downloaded installers.
+    </div>
+    <p><strong>Solution:</strong></p>
+    <ul>
+        <li>This is normal for PowerShell scripts and newly downloaded executables</li>
+        <li>If you trust the source (official GitHub repository), click <strong>"More info"</strong> then <strong>"Run anyway"</strong></li>
+        <li>You can also right-click the script file, select <strong>"Properties"</strong>, and check <strong>"Unblock"</strong> at the bottom</li>
+        <li>For antivirus, add an exception for the app_installer directory</li>
+    </ul>
+
+    <h4>7. macOS/Linux: "GUI mode not available"</h4>
+    <div class="info">
+        <strong>This is expected behavior:</strong> The GUI uses Windows Forms which is only available on Windows.
+    </div>
+    <p><strong>Solution:</strong> The script automatically launches the CLI version. This is the intended cross-platform experience.</p>
+
+    <h4>8. Applications not detected as installed</h4>
+    <div class="note">
+        <strong>Problem:</strong> The script doesn't recognize applications you've already installed.
+    </div>
+    <p><strong>Possible reasons:</strong></p>
+    <ul>
+        <li>Application was installed manually (not via winget)</li>
+        <li>Application was installed to a non-standard location</li>
+        <li>Registry entries are missing or non-standard</li>
+    </ul>
+    <p><strong>Solution:</strong> This won't cause problems. The script will attempt to install, and winget will typically detect the existing installation and skip it or upgrade it.</p>
+
+    <h2>📋 System Requirements</h2>
+
+    <table>
+        <tr>
+            <th>Component</th>
+            <th>Windows</th>
+            <th>macOS / Linux</th>
+        </tr>
+        <tr>
+            <td><strong>Operating System</strong></td>
+            <td>Windows 10 (1809+), Windows 11, Windows Server 2016+</td>
+            <td>macOS 10.13+, Ubuntu 18.04+, or equivalent Linux distribution</td>
+        </tr>
+        <tr>
+            <td><strong>PowerShell</strong></td>
+            <td>5.1 or later (7.2+ recommended)</td>
+            <td>PowerShell 7.2+ required</td>
+        </tr>
+        <tr>
+            <td><strong>Privileges</strong></td>
+            <td>Administrator rights required</td>
+            <td>sudo/root access required</td>
+        </tr>
+        <tr>
+            <td><strong>.NET Framework</strong></td>
+            <td>4.7.2+ (for GUI, auto-installed if missing)</td>
+            <td>Not required (CLI only)</td>
+        </tr>
+        <tr>
+            <td><strong>Package Manager</strong></td>
+            <td>winget (auto-installed on Windows 11)</td>
+            <td>Homebrew (macOS), apt/dnf/pacman (Linux)</td>
+        </tr>
+        <tr>
+            <td><strong>Disk Space</strong></td>
+            <td colspan="2">Varies by applications selected (typically 100MB - 10GB+)</td>
+        </tr>
+        <tr>
+            <td><strong>Internet Connection</strong></td>
+            <td colspan="2">Required for downloading applications</td>
+        </tr>
+    </table>
+
+    <h2>❓ Frequently Asked Questions</h2>
+
+    <h3>Q: Is this tool safe to use?</h3>
+    <p><strong>A:</strong> Yes! The tool is open-source and available on GitHub. It uses official package managers (winget, Homebrew, etc.) to download applications from their official sources. You can review the source code at any time.</p>
+
+    <h3>Q: Can I customize which applications are available?</h3>
+    <p><strong>A:</strong> Yes! The application list is defined in the script. Advanced users can modify the <code>$script:Applications</code> array to add or remove applications.</p>
+
+    <h3>Q: Will this work on Windows 7 or 8?</h3>
+    <p><strong>A:</strong> No. Windows 10 (1809 or later) is required because the tool relies on winget and modern PowerShell features.</p>
+
+    <h3>Q: Can I use this in a corporate environment?</h3>
+    <p><strong>A:</strong> Yes! Many users deploy this tool for standardizing workstation setups. However, check with your IT department first, as some organizations have policies about software installation tools.</p>
+
+    <h3>Q: How do I update the App Installer itself?</h3>
+    <p><strong>A:</strong> Download the latest version from the <a href="https://github.com/mytech-today-now/app_installer" target="_blank">GitHub repository</a> or use <code>git pull</code> if you cloned the repository.</p>
+
+    <h3>Q: Where are the log files stored?</h3>
+    <p><strong>A:</strong> Logs are stored in <code>%USERPROFILE%\myTech.Today\logs\</code> (Windows) or <code>~/myTech.Today/logs/</code> (macOS/Linux). Logs are organized by month in markdown format.</p>
+
+    <h3>Q: Can I run this without administrator rights?</h3>
+    <p><strong>A:</strong> No. Installing software requires administrator/root privileges on all operating systems.</p>
+
+    <h2>📞 Support &amp; Feedback</h2>
+
+    <div class="info">
+        <h3>Need Help?</h3>
+        <ul>
+            <li><strong>GitHub Issues:</strong> <a href="https://github.com/mytech-today-now/app_installer/issues" target="_blank">Report bugs or request features</a></li>
+            <li><strong>GitHub Discussions:</strong> <a href="https://github.com/mytech-today-now/app_installer/discussions" target="_blank">Ask questions and share tips</a></li>
+            <li><strong>Documentation:</strong> <a href="https://github.com/mytech-today-now/app_installer" target="_blank">Full README on GitHub</a></li>
+        </ul>
+    </div>
+
+    <div class="github-link" style="margin-top: 30px;">
+        <p style="margin: 0 0 10px 0; font-size: 1.1em;"><strong>🌟 Found this tool helpful?</strong></p>
+        <p style="margin: 0;">
+            <a href="https://github.com/mytech-today-now/app_installer" target="_blank">
+                ⭐ Star the repository on GitHub
+            </a>
+        </p>
+    </div>
+
+    <hr style="margin: 30px 0; border: none; border-top: 2px solid #ecf0f1;">
+
+    <p style="text-align: center; color: #7f8c8d; font-size: 0.9em;">
+        <strong>App Installer</strong> by <a href="https://mytech.today" target="_blank">myTech.Today</a><br>
+        Version 2.0.0 | Last Updated: December 2025<br>
+        <a href="https://github.com/mytech-today-now/app_installer" target="_blank">GitHub Repository</a> |
+        <a href="https://github.com/mytech-today-now/app_installer/blob/main/LICENSE" target="_blank">License</a>
+    </p>
+
+</body>
+</html>
+

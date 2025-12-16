@@ -983,6 +983,14 @@ $script:IsPaused = $false  # Flag to track if installation is paused
 $script:SkipCurrent = $false  # Flag to skip current installation
 $script:CurrentQueueIndex = 0  # Current position in queue
 
+# Console/Instructions toggle variables
+$script:CurrentView = "Console"  # Current view: "Console" or "Instructions"
+$script:ConsoleHtmlContent = ""  # Stores the console HTML content for persistence
+$script:InstructionsHtmlContent = ""  # Cached instructions HTML from GitHub
+$script:ConsoleLinkLabel = $null  # LinkLabel for Console navigation
+$script:InstructionsLinkLabel = $null  # LinkLabel for Instructions navigation
+$script:NavigationPanel = $null  # Panel containing navigation links
+
 # Application registry - defines all supported applications
 # Using PSCustomObject for proper property access with Group-Object
 $script:Applications = @(
@@ -1525,6 +1533,202 @@ function Write-Output {
         catch {
             # Silently ignore errors during HTML append
         }
+    }
+
+    # Also store console content for persistence across view toggles
+    if ($script:CurrentView -eq "Console" -and $script:WebBrowser -and $script:WebBrowser.Document) {
+        try {
+            $script:ConsoleHtmlContent = $script:WebBrowser.DocumentText
+        }
+        catch {
+            # Silently ignore errors during content capture
+        }
+    }
+}
+
+function Switch-ToConsoleView {
+    <#
+    .SYNOPSIS
+        Switches the WebBrowser view to display the console output.
+
+    .DESCRIPTION
+        Restores the console HTML content, preserving all previous output and logs.
+        Updates navigation link styling to indicate the active view.
+    #>
+    [CmdletBinding()]
+    param()
+
+    if ($script:CurrentView -eq "Console") {
+        # Already on Console view
+        return
+    }
+
+    Write-Log "Switching to Console view" -Level INFO
+
+    try {
+        # Restore console HTML content
+        if ($script:ConsoleHtmlContent) {
+            $script:WebBrowser.DocumentText = $script:ConsoleHtmlContent
+        }
+        else {
+            # Fallback to initial HTML content if console content not stored
+            $script:WebBrowser.DocumentText = $script:HtmlContent
+        }
+
+        # Update current view
+        $script:CurrentView = "Console"
+
+        # Update navigation link styling
+        Update-NavigationLinkStyling
+
+        Write-Log "Switched to Console view successfully" -Level INFO
+    }
+    catch {
+        Write-Log "Failed to switch to Console view: $_" -Level ERROR
+        [System.Windows.Forms.MessageBox]::Show(
+            "Failed to switch to Console view: $($_.Exception.Message)",
+            "View Switch Error",
+            [System.Windows.Forms.MessageBoxButtons]::OK,
+            [System.Windows.Forms.MessageBoxIcon]::Error
+        )
+    }
+}
+
+function Switch-ToInstructionsView {
+    <#
+    .SYNOPSIS
+        Switches the WebBrowser view to display the README instructions from GitHub.
+
+    .DESCRIPTION
+        Fetches README.html from the remote GitHub repository and displays it.
+        Handles network errors gracefully with fallback messaging.
+        Caches the instructions content to avoid repeated downloads.
+    #>
+    [CmdletBinding()]
+    param()
+
+    if ($script:CurrentView -eq "Instructions") {
+        # Already on Instructions view
+        return
+    }
+
+    Write-Log "Switching to Instructions view" -Level INFO
+
+    # Save current console content before switching
+    if ($script:WebBrowser -and $script:WebBrowser.Document) {
+        try {
+            $script:ConsoleHtmlContent = $script:WebBrowser.DocumentText
+        }
+        catch {
+            # Silently ignore errors during content capture
+        }
+    }
+
+    try {
+        # Check if we have cached instructions content
+        if (-not $script:InstructionsHtmlContent) {
+            Write-Log "Fetching instructions.html from GitHub..." -Level INFO
+
+            # GitHub raw URL for instructions.html
+            $instructionsUrl = "https://raw.githubusercontent.com/mytech-today-now/app_installer/refs/heads/main/instructions.html"
+
+            try {
+                # Download instructions.html from GitHub with timeout
+                $response = Invoke-WebRequest -Uri $instructionsUrl -UseBasicParsing -TimeoutSec 10 -ErrorAction Stop
+                $script:InstructionsHtmlContent = $response.Content
+                Write-Log "Successfully fetched instructions.html from GitHub" -Level INFO
+            }
+            catch {
+                Write-Log "Failed to fetch instructions.html from GitHub: $_" -Level WARNING
+
+                # Fallback: Create a basic error message HTML
+                $script:InstructionsHtmlContent = @"
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background-color: #1e1e1e; color: #d4d4d4; margin: 20px; padding: 20px; }
+        h1 { color: #f48771; }
+        p { line-height: 1.6; }
+        .error-box { background-color: #2d2d30; border-left: 4px solid #f48771; padding: 15px; margin: 20px 0; }
+        a { color: #4fc1ff; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <h1>Unable to Load Instructions</h1>
+    <div class="error-box">
+        <p><strong>Error:</strong> Could not fetch instructions.html from GitHub.</p>
+        <p><strong>Reason:</strong> $($_.Exception.Message)</p>
+    </div>
+    <p>Please check your internet connection and try again, or visit the repository directly:</p>
+    <p><a href="https://github.com/mytech-today-now/app_installer" target="_blank">https://github.com/mytech-today-now/app_installer</a></p>
+    <p>You can also view the local README.md file in the installation directory if available.</p>
+</body>
+</html>
+"@
+            }
+        }
+
+        # Display instructions content
+        $script:WebBrowser.DocumentText = $script:InstructionsHtmlContent
+
+        # Update current view
+        $script:CurrentView = "Instructions"
+
+        # Update navigation link styling
+        Update-NavigationLinkStyling
+
+        Write-Log "Switched to Instructions view successfully" -Level INFO
+    }
+    catch {
+        Write-Log "Failed to switch to Instructions view: $_" -Level ERROR
+        [System.Windows.Forms.MessageBox]::Show(
+            "Failed to switch to Instructions view: $($_.Exception.Message)",
+            "View Switch Error",
+            [System.Windows.Forms.MessageBoxButtons]::OK,
+            [System.Windows.Forms.MessageBoxIcon]::Error
+        )
+    }
+}
+
+function Update-NavigationLinkStyling {
+    <#
+    .SYNOPSIS
+        Updates the navigation link styling to indicate the active view.
+
+    .DESCRIPTION
+        Makes the active link bold and changes color to indicate selection.
+        Inactive links are styled normally.
+    #>
+    [CmdletBinding()]
+    param()
+
+    if (-not $script:ConsoleLinkLabel -or -not $script:InstructionsLinkLabel) {
+        return
+    }
+
+    try {
+        if ($script:CurrentView -eq "Console") {
+            # Console is active
+            $script:ConsoleLinkLabel.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
+            $script:ConsoleLinkLabel.LinkColor = [System.Drawing.Color]::FromArgb(78, 201, 176)  # Teal (active)
+
+            $script:InstructionsLinkLabel.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Regular)
+            $script:InstructionsLinkLabel.LinkColor = [System.Drawing.Color]::FromArgb(79, 193, 255)  # Light blue (inactive)
+        }
+        else {
+            # Instructions is active
+            $script:InstructionsLinkLabel.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
+            $script:InstructionsLinkLabel.LinkColor = [System.Drawing.Color]::FromArgb(78, 201, 176)  # Teal (active)
+
+            $script:ConsoleLinkLabel.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Regular)
+            $script:ConsoleLinkLabel.LinkColor = [System.Drawing.Color]::FromArgb(79, 193, 255)  # Light blue (inactive)
+        }
+    }
+    catch {
+        # Silently ignore styling errors
     }
 }
 
@@ -3543,7 +3747,57 @@ function Create-MainForm {
 
     $script:MainSplitContainer.Panel1.Controls.Add($script:ListView)
 
-    # Create WebBrowser control for HTML output (right side of SplitContainer)
+    # Create navigation panel for Console/Instructions toggle (right side of SplitContainer, top)
+    $navPanelHeight = [int](35 * $scaleFactor)
+    $script:NavigationPanel = New-Object System.Windows.Forms.Panel
+    $script:NavigationPanel.Dock = [System.Windows.Forms.DockStyle]::Top
+    $script:NavigationPanel.Height = $navPanelHeight
+    $script:NavigationPanel.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48)  # Dark background
+    $script:MainSplitContainer.Panel2.Controls.Add($script:NavigationPanel)
+
+    # Create Console link label
+    $linkLabelMargin = [int](10 * $scaleFactor)
+    $linkLabelSpacing = [int](20 * $scaleFactor)
+    $script:ConsoleLinkLabel = New-Object System.Windows.Forms.LinkLabel
+    $script:ConsoleLinkLabel.Text = "Console"
+    $script:ConsoleLinkLabel.AutoSize = $true
+    $script:ConsoleLinkLabel.Location = New-Object System.Drawing.Point($linkLabelMargin, [int](($navPanelHeight - 20) / 2))
+    $script:ConsoleLinkLabel.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
+    $script:ConsoleLinkLabel.LinkColor = [System.Drawing.Color]::FromArgb(78, 201, 176)  # Teal (active by default)
+    $script:ConsoleLinkLabel.ActiveLinkColor = [System.Drawing.Color]::FromArgb(78, 201, 176)
+    $script:ConsoleLinkLabel.VisitedLinkColor = [System.Drawing.Color]::FromArgb(78, 201, 176)
+    $script:ConsoleLinkLabel.LinkBehavior = [System.Windows.Forms.LinkBehavior]::HoverUnderline
+    $script:ConsoleLinkLabel.Add_LinkClicked({
+        Switch-ToConsoleView
+    })
+    $script:NavigationPanel.Controls.Add($script:ConsoleLinkLabel)
+
+    # Create Instructions link label
+    $instructionsLeft = $linkLabelMargin + 80  # Approximate width for "Console" + spacing
+    $script:InstructionsLinkLabel = New-Object System.Windows.Forms.LinkLabel
+    $script:InstructionsLinkLabel.Text = "Instructions"
+    $script:InstructionsLinkLabel.AutoSize = $true
+    $script:InstructionsLinkLabel.Location = New-Object System.Drawing.Point($instructionsLeft, [int](($navPanelHeight - 20) / 2))
+    $script:InstructionsLinkLabel.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Regular)
+    $script:InstructionsLinkLabel.LinkColor = [System.Drawing.Color]::FromArgb(79, 193, 255)  # Light blue (inactive by default)
+    $script:InstructionsLinkLabel.ActiveLinkColor = [System.Drawing.Color]::FromArgb(79, 193, 255)
+    $script:InstructionsLinkLabel.VisitedLinkColor = [System.Drawing.Color]::FromArgb(79, 193, 255)
+    $script:InstructionsLinkLabel.LinkBehavior = [System.Windows.Forms.LinkBehavior]::HoverUnderline
+    $script:InstructionsLinkLabel.Add_LinkClicked({
+        Switch-ToInstructionsView
+    })
+    $script:NavigationPanel.Controls.Add($script:InstructionsLinkLabel)
+
+    # Add separator label between links
+    $separatorLabel = New-Object System.Windows.Forms.Label
+    $separatorLabel.Text = "|"
+    $separatorLabel.AutoSize = $true
+    $separatorLabel.Location = New-Object System.Drawing.Point(($linkLabelMargin + 70), [int](($navPanelHeight - 20) / 2))
+    $separatorLabel.Font = New-Object System.Drawing.Font("Segoe UI", 10)
+    $separatorLabel.ForeColor = [System.Drawing.Color]::FromArgb(128, 128, 128)  # Gray
+    $script:NavigationPanel.Controls.Add($separatorLabel)
+
+    # Create WebBrowser control for HTML output (right side of SplitContainer, below navigation)
     $script:WebBrowser = New-Object System.Windows.Forms.WebBrowser
     $script:WebBrowser.Dock = [System.Windows.Forms.DockStyle]::Fill
     $script:MainSplitContainer.Panel2.Controls.Add($script:WebBrowser)
@@ -3788,6 +4042,12 @@ function Create-MainForm {
 "@
 
     $script:WebBrowser.DocumentText = $script:HtmlContent
+
+    # Store initial console HTML content for view persistence
+    $script:ConsoleHtmlContent = $script:HtmlContent
+
+    # Set initial view to Console (default)
+    $script:CurrentView = "Console"
 
     # Calculate progress bar position (above buttons) with scaled dimensions
     $progressTop = $clientHeight - $buttonAreaHeight - $progressAreaHeight
