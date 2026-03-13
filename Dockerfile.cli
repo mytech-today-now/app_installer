@@ -1,0 +1,24 @@
+# CLI-only container for app_installer.
+# The Windows Forms GUI is not available in Linux containers.
+FROM mcr.microsoft.com/powershell:7.4-debian-12
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    POWERSHELL_TELEMETRY_OPTOUT=1 \
+    TERM=xterm
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends sudo ca-certificates curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /opt/app-installer
+
+COPY app-installer-cli.ps1 ./
+COPY app-installer.ps1 ./
+COPY platform-detect.ps1 ./
+COPY apps-manifest.json ./
+COPY modules ./modules
+COPY apps ./apps
+COPY profiles ./profiles
+
+ENTRYPOINT ["pwsh", "-NoLogo", "-NoProfile", "-File", "/opt/app-installer/app-installer-cli.ps1"]
+CMD ["-Action", "Status"]

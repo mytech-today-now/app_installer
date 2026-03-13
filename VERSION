@@ -2,11 +2,17 @@
 
 ## Current Versions
 
-**GUI Version:** 2.0.0
+**GUI Version:** 2.0.1
 **CLI Version:** 2.0.0
-**Release Date:** 2025-12-16
+**Release Date:** 2026-03-13
 
 ## Version History
+
+### 2.0.1 (GUI) - 2026-03-13 - BUG FIX RELEASE
+- **FIX:** Escaped ampersand in "Mockups & Wireframe" category strings for PS 5.1 compatibility
+- **FIX:** Fixed string interpolation for `$script:ScriptVersion` on line 1422 using subexpression syntax
+- **FIX:** install.bat now handles winget "already installed" exit codes gracefully
+- **FIX:** install.bat probes common paths for pwsh.exe when not on PATH
 
 ### 2.0.0 (GUI & CLI) - 2025-12-16 - MAJOR CROSS-PLATFORM RELEASE
 - **BREAKING CHANGE:** Full cross-platform refactoring for Windows, macOS, and Linux

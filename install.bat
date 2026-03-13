@@ -11,10 +11,10 @@ echo   myTech.Today - App Installer Setup
 echo ============================================================
 echo.
 
-REM Check if PowerShell 7+ is installed
-where pwsh >nul 2>&1
-if %ERRORLEVEL% EQU 0 (
-    echo [OK] PowerShell 7+ is installed
+REM Check if PowerShell 7+ is installed (PATH first, then common locations)
+call :FIND_PWSH
+if defined PWSH_EXE (
+    echo [OK] PowerShell 7+ found: %PWSH_EXE%
     goto :RUN_INSTALLER
 )
 
@@ -48,8 +48,18 @@ if %ERRORLEVEL% NEQ 0 (
 )
 
 winget install --id Microsoft.PowerShell --source winget --accept-package-agreements --accept-source-agreements
+set WINGET_RC=%ERRORLEVEL%
 
-if %ERRORLEVEL% NEQ 0 (
+REM Re-check for pwsh after winget attempt (handles "already installed" case)
+call :FIND_PWSH
+if defined PWSH_EXE (
+    echo.
+    echo [OK] PowerShell 7 is available: %PWSH_EXE%
+    echo.
+    goto :RUN_INSTALLER
+)
+
+if %WINGET_RC% NEQ 0 (
     echo [ERROR] Failed to install PowerShell 7.
     echo         Please install manually from: https://github.com/PowerShell/PowerShell/releases
     pause
@@ -65,7 +75,7 @@ echo [INFO] Running App Installer...
 echo.
 
 REM Run the PowerShell installer script
-pwsh -NoProfile -ExecutionPolicy Bypass -File "%~dp0app-installer.ps1" %*
+"%PWSH_EXE%" -NoProfile -ExecutionPolicy Bypass -File "%~dp0app-installer.ps1" %*
 
 if %ERRORLEVEL% NEQ 0 (
     echo.
@@ -75,4 +85,26 @@ if %ERRORLEVEL% NEQ 0 (
 echo.
 echo [INFO] Setup complete.
 pause
+exit /b 0
 
+REM ---- Subroutine: locate pwsh.exe via PATH or common install dirs ----
+:FIND_PWSH
+set "PWSH_EXE="
+where pwsh >nul 2>&1
+if %ERRORLEVEL% EQU 0 (
+    set "PWSH_EXE=pwsh"
+    goto :EOF
+)
+REM Check common install locations
+for %%D in (
+    "%ProgramFiles%\PowerShell\7\pwsh.exe"
+    "%ProgramFiles(x86)%\PowerShell\7\pwsh.exe"
+    "%LocalAppData%\Microsoft\PowerShell\pwsh.exe"
+    "%ProgramW6432%\PowerShell\7\pwsh.exe"
+) do (
+    if exist %%D (
+        set "PWSH_EXE=%%~D"
+        goto :EOF
+    )
+)
+goto :EOF

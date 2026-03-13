@@ -961,7 +961,7 @@ catch {
 #endregion Load Windows Forms Assemblies
 
 # Script variables
-$script:ScriptVersion = '2.0.0'
+$script:ScriptVersion = '2.0.1'
 $script:OriginalScriptPath = $PSScriptRoot
 $script:SystemInstallPath = "$env:USERPROFILE\myTech.Today\AppInstaller"
 $script:ScriptPath = $script:SystemInstallPath
@@ -1257,13 +1257,13 @@ $script:Applications = @(
     [PSCustomObject]@{ Name = "AutoHotkey"; ScriptName = "autohotkey.ps1"; WingetId = "AutoHotkey.AutoHotkey"; Category = "Shortcuts"; Description = "Automation scripting language for Windows" }
     [PSCustomObject]@{ Name = "Everything"; ScriptName = "everything.ps1"; WingetId = "voidtools.Everything"; Category = "Shortcuts"; Description = "Instant file search utility" }
     # Mockups & Wireframe
-    [PSCustomObject]@{ Name = "Figma"; ScriptName = "figma.ps1"; WingetId = "Figma.Figma"; Category = "Mockups & Wireframe"; Description = "Collaborative interface design tool" }
-    [PSCustomObject]@{ Name = "Penpot"; ScriptName = "penpot.ps1"; WingetId = "Penpot.Penpot"; Category = "Mockups & Wireframe"; Description = "Open-source design and prototyping platform" }
-    [PSCustomObject]@{ Name = "Draw.io Desktop"; ScriptName = "drawio.ps1"; WingetId = "JGraph.Draw"; Category = "Mockups & Wireframe"; Description = "Diagramming and wireframing tool" }
-    [PSCustomObject]@{ Name = "Lunacy"; ScriptName = "lunacy.ps1"; WingetId = "Icons8.Lunacy"; Category = "Mockups & Wireframe"; Description = "Free graphic design software" }
-    [PSCustomObject]@{ Name = "Pencil Project"; ScriptName = "pencilproject.ps1"; WingetId = "Pencil.Pencil"; Category = "Mockups & Wireframe"; Description = "GUI prototyping tool" }
-    [PSCustomObject]@{ Name = "Akira"; ScriptName = "akira.ps1"; WingetId = $null; Category = "Mockups & Wireframe"; Description = "Native Linux design tool" }
-    [PSCustomObject]@{ Name = "Quant-UX"; ScriptName = "quantux.ps1"; WingetId = $null; Category = "Mockups & Wireframe"; Description = "Prototyping and usability testing" }
+    [PSCustomObject]@{ Name = "Figma"; ScriptName = "figma.ps1"; WingetId = "Figma.Figma"; Category = "Mockups `& Wireframe"; Description = "Collaborative interface design tool" }
+    [PSCustomObject]@{ Name = "Penpot"; ScriptName = "penpot.ps1"; WingetId = "Penpot.Penpot"; Category = "Mockups `& Wireframe"; Description = "Open-source design and prototyping platform" }
+    [PSCustomObject]@{ Name = "Draw.io Desktop"; ScriptName = "drawio.ps1"; WingetId = "JGraph.Draw"; Category = "Mockups `& Wireframe"; Description = "Diagramming and wireframing tool" }
+    [PSCustomObject]@{ Name = "Lunacy"; ScriptName = "lunacy.ps1"; WingetId = "Icons8.Lunacy"; Category = "Mockups `& Wireframe"; Description = "Free graphic design software" }
+    [PSCustomObject]@{ Name = "Pencil Project"; ScriptName = "pencilproject.ps1"; WingetId = "Pencil.Pencil"; Category = "Mockups `& Wireframe"; Description = "GUI prototyping tool" }
+    [PSCustomObject]@{ Name = "Akira"; ScriptName = "akira.ps1"; WingetId = $null; Category = "Mockups `& Wireframe"; Description = "Native Linux design tool" }
+    [PSCustomObject]@{ Name = "Quant-UX"; ScriptName = "quantux.ps1"; WingetId = $null; Category = "Mockups `& Wireframe"; Description = "Prototyping and usability testing" }
     # Video Editing
     [PSCustomObject]@{ Name = "Lightworks"; ScriptName = "lightworks.ps1"; WingetId = "LWKS.Lightworks"; Category = "Video Editing"; Description = "Professional video editing software" }
     [PSCustomObject]@{ Name = "VSDC Free Video Editor"; ScriptName = "vsdcvideoeditor.ps1"; WingetId = "FlashIntegro.VSDCFreeVideoEditor"; Category = "Video Editing"; Description = "Non-linear video editing suite" }
@@ -1419,7 +1419,7 @@ function Copy-ScriptToSystemLocation {
 
 # Copy script to system location (first thing the script does)
 Write-Host "+===================================================================+" -ForegroundColor Cyan
-Write-Host "|         myTech.Today Application Installer GUI v$script:ScriptVersion          |" -ForegroundColor Cyan
+Write-Host "|         myTech.Today Application Installer GUI v$($script:ScriptVersion)          |" -ForegroundColor Cyan
 Write-Host "+===================================================================+" -ForegroundColor Cyan
 
 $copiedToSystem = Copy-ScriptToSystemLocation
