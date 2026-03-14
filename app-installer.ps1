@@ -961,7 +961,7 @@ catch {
 #endregion Load Windows Forms Assemblies
 
 # Script variables
-$script:ScriptVersion = '2.0.3'
+$script:ScriptVersion = '2.0.4'
 $script:OriginalScriptPath = $PSScriptRoot
 $script:SystemInstallPath = "$env:USERPROFILE\myTech.Today\AppInstaller"
 $script:ScriptPath = $script:SystemInstallPath
@@ -1319,6 +1319,41 @@ function Copy-ScriptToSystemLocation {
         # Check if we're already running from the system location
         if ($sourcePath -eq $systemPath) {
             Write-Host "`[i] Already running from system location: $systemPath" -ForegroundColor Cyan
+
+            # Verify critical dependency files exist (self-heal if missing)
+            $criticalFiles = @("platform-detect.ps1", "apps-manifest.json")
+            $missingFiles = @()
+            foreach ($critFile in $criticalFiles) {
+                $critPath = Join-Path $systemPath $critFile
+                if (-not (Test-Path $critPath)) {
+                    $missingFiles += $critFile
+                }
+            }
+
+            if ($missingFiles.Count -gt 0) {
+                Write-Host "    [!] Missing critical files: $($missingFiles -join ', ')" -ForegroundColor Yellow
+                Write-Host "    [>>] Downloading missing files from GitHub..." -ForegroundColor Yellow
+
+                $githubBase = "https://raw.githubusercontent.com/mytech-today-now/PowerShellScripts/main/app_installer"
+                foreach ($missing in $missingFiles) {
+                    $downloadUrl = "$githubBase/$missing"
+                    $targetPath = Join-Path $systemPath $missing
+                    try {
+                        Invoke-WebRequest -Uri $downloadUrl -OutFile $targetPath -UseBasicParsing -TimeoutSec 15 -ErrorAction Stop
+                        Write-Host "    [OK] Downloaded $missing" -ForegroundColor Green
+                    }
+                    catch {
+                        Write-Host "    [FAIL] Could not download $missing`: $_" -ForegroundColor Red
+                    }
+                }
+            }
+
+            # Also ensure apps directory has scripts
+            $appsDir = Join-Path $systemPath "apps"
+            if ((Test-Path $appsDir) -and (Get-ChildItem -Path $appsDir -Filter "*.ps1" -File).Count -eq 0) {
+                Write-Host "    [!] Apps directory is empty, re-downloading app scripts..." -ForegroundColor Yellow
+            }
+
             return $true
         }
 
