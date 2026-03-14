@@ -2,11 +2,26 @@
 
 ## Current Versions
 
-**GUI Version:** 2.0.2
-**CLI Version:** 2.0.0
-**Release Date:** 2026-03-13
+**GUI Version:** 2.0.5
+**CLI Version:** 2.0.1
+**Platform-Detect Version:** 2.1.0
+**Release Date:** 2026-03-14
 
 ## Version History
+
+### 2.0.5 (GUI) / 2.1.0 (Platform-Detect) - 2026-03-14 - CHROME FIX RELEASE
+- **FIX:** Chrome winget installation failure - added `--force` flag to winget install command
+- **FIX:** `platform-detect.ps1` now returns actual `$LASTEXITCODE` instead of hardcoded `1`
+- **FIX:** Output pattern matching for success detection ("already installed", "Successfully installed")
+- **FIX:** GUI accepts `-1978335191` (winget "already installed") as success from custom scripts
+
+### 2.0.4 (GUI) - 2026-03-13 - SELF-HEAL RELEASE
+- **FIX:** Self-heal missing `platform-detect.ps1` and `apps-manifest.json` at system install path
+- **FIX:** Auto-downloads missing dependencies from GitHub when running from system location
+
+### 2.0.3 (GUI) - 2026-03-13 - O&O SHUTUP10 FIX
+- **FIX:** O&O ShutUp10 install no longer blocks GUI queue (`-NonInteractive` switch)
+- **FIX:** GUI accepts exit code `30` as success for O&O ShutUp10
 
 ### 2.0.2 (GUI) - 2026-03-13 - BUG FIX RELEASE
 - **FIX:** Copy `platform-detect.ps1` and `apps-manifest.json` to system install location during self-installation

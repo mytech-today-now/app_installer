@@ -7,6 +7,7 @@
 .NOTES
     File Name      : platform-detect.ps1
     Author         : myTech.Today
+    Version        : 2.1.0
     Prerequisite   : PowerShell 5.1+ (Windows) or PowerShell 7+ (macOS/Linux)
 #>
 
@@ -184,7 +185,7 @@ function Get-PackageManagerCommand {
     switch ($script:PackageManager) {
         "winget" {
             if ($WingetId) {
-                $result.Command = "winget install --id $WingetId --silent --accept-source-agreements --accept-package-agreements"
+                $result.Command = "winget install --id $WingetId --silent --accept-source-agreements --accept-package-agreements --force"
                 $result.Available = $true
             }
         }
@@ -279,16 +280,42 @@ function Install-CrossPlatformApp {
             $output = & bash -c $pkgInfo.Command 2>&1
         }
 
-        if ($LASTEXITCODE -eq 0) {
+        $installExitCode = $LASTEXITCODE
+        $outputStr = if ($output) { $output | Out-String } else { "" }
+
+        # Log output for diagnostics
+        if ($outputStr) {
+            Write-Host "[DEBUG] Installer output: $outputStr" -ForegroundColor Gray
+        }
+
+        if ($installExitCode -eq 0) {
             Write-Host "[OK] $AppName installed successfully!" -ForegroundColor Green
             return 0
         }
         else {
-            Write-Host "[ERROR] Failed to install $AppName (exit code: $LASTEXITCODE)" -ForegroundColor Red
-            if ($output) {
-                Write-Host "       $output" -ForegroundColor Gray
+            # Check if output indicates success despite non-zero exit code
+            # Winget sometimes returns non-zero but the install actually succeeded
+            if ($outputStr -match "Successfully installed" -or
+                $outputStr -match "already installed" -or
+                $outputStr -match "No applicable update found" -or
+                $outputStr -match "No newer package versions are available") {
+                Write-Host "[OK] $AppName installed successfully (output indicates success despite exit code $installExitCode)" -ForegroundColor Green
+                return 0
             }
-            return 1
+
+            # Known non-fatal winget exit codes
+            # -1978335191 = Package already installed
+            if ($installExitCode -eq -1978335191) {
+                Write-Host "[OK] $AppName is already installed." -ForegroundColor Green
+                return 0
+            }
+
+            Write-Host "[ERROR] Failed to install $AppName (exit code: $installExitCode)" -ForegroundColor Red
+            if ($outputStr) {
+                Write-Host "       $outputStr" -ForegroundColor Gray
+            }
+            # Return the actual exit code so the caller can interpret it
+            return $installExitCode
         }
     }
     catch {

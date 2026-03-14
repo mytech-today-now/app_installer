@@ -1,6 +1,6 @@
 # App Installer - myTech.Today
 
-**Version:** 2.0.0 (Cross-Platform Release)
+**Version:** 2.0.5 (GUI) / 2.0.1 (CLI)
 **Author:** myTech.Today
 **License:** All rights reserved
 
@@ -663,25 +663,29 @@ Edit the `Category` property in the application registry to organize apps differ
 - All installations run with user consent
 - Logs contain no sensitive information
 
-## Recent Updates (v1.5.0 GUI / v1.6.0 CLI)
+## Recent Updates
 
-### New Features
-- ✅ **Automatic Start Menu Shortcut Creation** - Chrome Remote Desktop now gets a Start Menu shortcut automatically
-- ✅ **Missing Shortcut Repair** - Automatically detects and repairs missing shortcuts during app detection
-- ✅ **Enhanced Error Handling** - Comprehensive winget error code mapping (100+ error codes)
-- ✅ **Improved Terminal Compatibility** - ASCII text markers replace Unicode emojis for better compatibility
+### v2.0.5 (GUI) / v2.1.0 (Platform-Detect) - 2026-03-14
+- ✅ **Chrome Install Fix** - Added `--force` flag to winget install for reliable Chrome installation
+- ✅ **Exit Code Preservation** - `platform-detect.ps1` returns actual exit codes instead of hardcoded `1`
+- ✅ **Smart Success Detection** - Output pattern matching for "already installed" / "Successfully installed"
+- ✅ **WinGet Already-Installed Handling** - GUI accepts `-1978335191` as success from custom scripts
 
-### Bug Fixes
-- ✅ **Chrome Remote Desktop Package ID** - Fixed incorrect WingetId (Google.ChromeRemoteDesktop → Google.ChromeRemoteDesktopHost)
-- ✅ **Exit Code Handling** - Improved exit code capture and error reporting in custom scripts
-- ✅ **Error Messages** - Human-readable error descriptions with specific exit codes
+### v2.0.4 (GUI) - 2026-03-13
+- ✅ **Self-Healing Dependencies** - Auto-downloads missing `platform-detect.ps1` and `apps-manifest.json` from GitHub
+- ✅ **System Path Fix** - Resolves failures when running from system install location
 
-### Previous Updates (v1.4.5)
-- ✅ Multi-line button text with narrower width for more compact layout
-- ✅ Improved button spacing and sizing
-- ✅ Enhanced GUI responsiveness and DPI scaling
-- ✅ Export/Import configuration profiles
-- ✅ Uninstall applications feature with confirmation dialogs
+### v2.0.3 (GUI) - 2026-03-13
+- ✅ **O&O ShutUp10 Fix** - `-NonInteractive` switch prevents GUI queue blocking
+- ✅ **Exit Code 30 Accepted** - O&O ShutUp10's exit code 30 treated as success
+
+### v2.0.2 (GUI) - 2026-03-13
+- ✅ **Dependency Copy Fix** - Copies `platform-detect.ps1` and `apps-manifest.json` to system install location
+
+### v2.0.0 (GUI & CLI) - 2025-12-16
+- ✅ **Major Cross-Platform Release** - Full refactoring for Windows, macOS, and Linux
+- ✅ **Shared Core Module** - AppInstallerCore.psm1 eliminates code duplication
+- ✅ **Dynamic App Registry** - Loads 271+ apps from apps-manifest.json
 
 ## Contributing
 
@@ -704,11 +708,10 @@ For issues, questions, or contributions:
 See [CHANGELOG.md](other_files/CHANGELOG.md) for detailed version history.
 
 **Recent Versions:**
-- **v1.5.0 (GUI) / v1.6.0 (CLI)** - Chrome Remote Desktop shortcuts, enhanced error handling, terminal compatibility
-- **v1.4.5 (GUI)** - Multi-line button text, improved layout
-- **v1.4.1 (GUI) / v1.5.3 (CLI)** - Uninstall applications feature
-- **v1.4.0 (GUI) / v1.5.2 (CLI)** - Generic logging module integration
-- **v1.3.8 (GUI) / v1.5.1 (CLI)** - Export/Import configuration profiles
+- **v2.0.5 (GUI) / v2.1.0 (Platform-Detect)** - Chrome install fix, exit code preservation, smart success detection
+- **v2.0.4 (GUI)** - Self-healing dependencies at system install path
+- **v2.0.3 (GUI)** - O&O ShutUp10 non-interactive fix
+- **v2.0.0 (GUI & CLI)** - Major cross-platform release
 
 ## License
 
@@ -736,6 +739,6 @@ https://github.com/mytech-today-now/PowerShellScripts
 
 ---
 
-**Last Updated:** 2025-12-15
-**Version:** 1.5.0 (GUI) / 1.6.0 (CLI)
+**Last Updated:** 2026-03-14
+**Version:** 2.0.5 (GUI) / 2.0.1 (CLI)
 **Maintained by:** myTech.Today

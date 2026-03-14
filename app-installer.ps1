@@ -961,7 +961,7 @@ catch {
 #endregion Load Windows Forms Assemblies
 
 # Script variables
-$script:ScriptVersion = '2.0.4'
+$script:ScriptVersion = '2.0.5'
 $script:OriginalScriptPath = $PSScriptRoot
 $script:SystemInstallPath = "$env:USERPROFILE\myTech.Today\AppInstaller"
 $script:ScriptPath = $script:SystemInstallPath
@@ -2933,7 +2933,8 @@ function Install-Application {
             }
 
             # Check exit code from custom script
-            if ($scriptExitCode -eq 0) {
+            # Exit code 0 = success, -1978335191 = already installed (also success)
+            if ($scriptExitCode -eq 0 -or $scriptExitCode -eq -1978335191) {
                 Write-Log "$($App.Name) installed successfully via custom script" -Level SUCCESS
 
                 # Update status - success
