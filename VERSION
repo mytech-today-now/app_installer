@@ -2,11 +2,15 @@
 
 ## Current Versions
 
-**GUI Version:** 2.0.1
+**GUI Version:** 2.0.2
 **CLI Version:** 2.0.0
 **Release Date:** 2026-03-13
 
 ## Version History
+
+### 2.0.2 (GUI) - 2026-03-13 - BUG FIX RELEASE
+- **FIX:** Copy `platform-detect.ps1` and `apps-manifest.json` to system install location during self-installation
+- **FIX:** Custom app scripts failed because `platform-detect.ps1` was not present at the system install path
 
 ### 2.0.1 (GUI) - 2026-03-13 - BUG FIX RELEASE
 - **FIX:** Escaped ampersand in "Mockups & Wireframe" category strings for PS 5.1 compatibility

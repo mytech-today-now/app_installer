@@ -213,7 +213,7 @@ catch {
 #endregion
 
 # Script variables - cross-platform paths
-$script:ScriptVersion = '2.0.0'
+$script:ScriptVersion = '2.0.1'
 $script:OriginalScriptPath = $PSScriptRoot
 
 # Use core module functions if available, otherwise use fallback
@@ -2472,8 +2472,9 @@ function Install-OOShutUp10FromRemote {
             Remove-Item -Path $tempScriptPath -Force -ErrorAction SilentlyContinue
         }
 
-        if ($exitCode -eq 0) {
-            Write-Log "O&O ShutUp10 installed successfully via remote script" -Level SUCCESS
+        # Exit code 0 = success, exit code 30 = success (settings applied/changes made)
+        if ($exitCode -eq 0 -or $exitCode -eq 30) {
+            Write-Log "O&O ShutUp10 installed successfully via remote script (exit code: $exitCode)" -Level SUCCESS
             Write-Host "  [3/3] [OK] Installation complete!" -ForegroundColor Green
             return $true
         }

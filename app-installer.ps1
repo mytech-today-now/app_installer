@@ -961,7 +961,7 @@ catch {
 #endregion Load Windows Forms Assemblies
 
 # Script variables
-$script:ScriptVersion = '2.0.1'
+$script:ScriptVersion = '2.0.3'
 $script:OriginalScriptPath = $PSScriptRoot
 $script:SystemInstallPath = "$env:USERPROFILE\myTech.Today\AppInstaller"
 $script:ScriptPath = $script:SystemInstallPath
@@ -1371,6 +1371,18 @@ function Copy-ScriptToSystemLocation {
             }
 
             Write-Host "    [OK] Copied $($appScripts.Count) app scripts" -ForegroundColor Green
+        }
+
+        # Copy platform detection module and manifest (required by app scripts)
+        $requiredFiles = @("platform-detect.ps1", "apps-manifest.json")
+        foreach ($reqFile in $requiredFiles) {
+            $sourceReq = Join-Path $sourcePath $reqFile
+            $targetReq = Join-Path $systemPath $reqFile
+
+            if (Test-Path $sourceReq) {
+                Write-Host "    [>>] Copying $reqFile..." -ForegroundColor Yellow
+                Copy-Item -Path $sourceReq -Destination $targetReq -Force -ErrorAction Stop
+            }
         }
 
         # Copy documentation files (optional but helpful)
@@ -2765,8 +2777,8 @@ function Install-OOShutUp10FromRemote {
             [System.Windows.Forms.Application]::DoEvents()
         }
 
-        # Execute the script
-        & $tempScriptPath
+        # Execute the script with -NonInteractive to prevent Read-Host blocking the GUI
+        & $tempScriptPath -NonInteractive
         $exitCode = $LASTEXITCODE
 
         # Clean up
@@ -2774,8 +2786,9 @@ function Install-OOShutUp10FromRemote {
             Remove-Item -Path $tempScriptPath -Force -ErrorAction SilentlyContinue
         }
 
-        if ($exitCode -eq 0) {
-            Write-Log "O&O ShutUp10 installed successfully via remote script" -Level SUCCESS
+        # Exit code 0 = success, exit code 30 = success (settings applied/changes made)
+        if ($exitCode -eq 0 -or $exitCode -eq 30) {
+            Write-Log "O&O ShutUp10 installed successfully via remote script (exit code: $exitCode)" -Level SUCCESS
             Write-Output "  [OK] Installation complete!" -Color ([System.Drawing.Color]::Green)
             return $true
         }
