@@ -117,6 +117,36 @@ param(
 
 #Requires -Version 5.1
 
+#region Safe-TestPath Helper
+
+function Safe-TestPath {
+    <#
+    .SYNOPSIS
+        Wraps Safe-TestPath in a try/catch to suppress Access Denied errors.
+    .DESCRIPTION
+        Some paths (e.g. registry hives, protected directories) throw
+        UnauthorizedAccessException. This helper returns $false instead of
+        terminating or displaying a red error.
+    .PARAMETER Path
+        The path to test.
+    .OUTPUTS
+        System.Boolean
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true, Position = 0)]
+        [string]$Path
+    )
+    try {
+        return (Test-Path $Path -ErrorAction SilentlyContinue)
+    }
+    catch {
+        return $false
+    }
+}
+
+#endregion Safe-TestPath Helper
+
 # NOTE: Admin/sudo is recommended but not strictly required
 # Some package managers can install to user directories without elevation
 
@@ -128,7 +158,7 @@ Write-Host ""
 
 # Import platform detection module
 $platformDetectPath = Join-Path $PSScriptRoot "platform-detect.ps1"
-if (Test-Path $platformDetectPath) {
+if (Safe-TestPath $platformDetectPath) {
     Write-Verbose "Loading platform detection module..."
     . $platformDetectPath
     Write-Host "[OK] Platform: $Platform | Package Manager: $PackageManager" -ForegroundColor Green
@@ -157,7 +187,7 @@ else {
 
 # Import core module if available
 $coreModulePath = Join-Path $PSScriptRoot "modules\AppInstallerCore.psm1"
-if (Test-Path $coreModulePath) {
+if (Safe-TestPath $coreModulePath) {
     Write-Verbose "Loading core installer module..."
     Import-Module $coreModulePath -Force -Verbose:$false
     $script:CoreModuleLoaded = $true
@@ -171,10 +201,10 @@ else {
 $script:PS7ContinueOnPS51 = $true  # Allow running on PS 5.1 with warning
 $script:PS7Silent = $false
 $script:_RepoRoot = $PSScriptRoot
-while ($script:_RepoRoot -and -not (Test-Path (Join-Path $script:_RepoRoot 'scripts\Require-PowerShell7.ps1'))) {
+while ($script:_RepoRoot -and -not (Safe-TestPath (Join-Path $script:_RepoRoot 'scripts\Require-PowerShell7.ps1'))) {
     $script:_RepoRoot = Split-Path $script:_RepoRoot -Parent
 }
-if ($script:_RepoRoot -and (Test-Path (Join-Path $script:_RepoRoot 'scripts\Require-PowerShell7.ps1'))) {
+if ($script:_RepoRoot -and (Safe-TestPath (Join-Path $script:_RepoRoot 'scripts\Require-PowerShell7.ps1'))) {
     . (Join-Path $script:_RepoRoot 'scripts\Require-PowerShell7.ps1')
 }
 
@@ -198,7 +228,7 @@ catch {
 
     # Try to load from local path as fallback
     $localLoggingPath = Join-Path $PSScriptRoot "..\scripts\logging.ps1"
-    if (Test-Path $localLoggingPath) {
+    if (Safe-TestPath $localLoggingPath) {
         try {
             . $localLoggingPath
             $script:LoggingModuleLoaded = $true
@@ -213,7 +243,7 @@ catch {
 #endregion
 
 # Script variables - cross-platform paths
-$script:ScriptVersion = '2.0.1'
+$script:ScriptVersion = '2.0.2'
 $script:OriginalScriptPath = $PSScriptRoot
 
 # Use core module functions if available, otherwise use fallback
@@ -281,17 +311,17 @@ function Copy-ScriptToSystemLocation {
         Write-Host "    Target: $systemPath" -ForegroundColor Gray
 
         # Create system directories if they don't exist
-        if (-not (Test-Path $systemPath)) {
+        if (-not (Safe-TestPath $systemPath)) {
             Write-Host "    [>>] Creating directory: $systemPath" -ForegroundColor Yellow
             New-Item -Path $systemPath -ItemType Directory -Force | Out-Null
         }
 
-        if (-not (Test-Path $systemAppsPath)) {
+        if (-not (Safe-TestPath $systemAppsPath)) {
             Write-Host "    [>>] Creating directory: $systemAppsPath" -ForegroundColor Yellow
             New-Item -Path $systemAppsPath -ItemType Directory -Force | Out-Null
         }
 
-        if (-not (Test-Path $systemProfilesPath)) {
+        if (-not (Safe-TestPath $systemProfilesPath)) {
             Write-Host "    [>>] Creating directory: $systemProfilesPath" -ForegroundColor Yellow
             New-Item -Path $systemProfilesPath -ItemType Directory -Force | Out-Null
         }
@@ -300,52 +330,60 @@ function Copy-ScriptToSystemLocation {
         $sourceInstallScript = Join-Path $sourcePath "install.ps1"
         $targetInstallScript = Join-Path $systemPath "install.ps1"
 
-        if (Test-Path $sourceInstallScript) {
+        if (Safe-TestPath $sourceInstallScript) {
             Write-Host "    [>>] Copying install.ps1..." -ForegroundColor Yellow
             Copy-Item -Path $sourceInstallScript -Destination $targetInstallScript -Force -ErrorAction Stop
+            Unblock-File -Path $targetInstallScript -ErrorAction SilentlyContinue
         }
 
         # Copy platform-detect.ps1 (required for cross-platform support)
         $sourcePlatformDetect = Join-Path $sourcePath "platform-detect.ps1"
         $targetPlatformDetect = Join-Path $systemPath "platform-detect.ps1"
 
-        if (Test-Path $sourcePlatformDetect) {
+        if (Safe-TestPath $sourcePlatformDetect) {
             Write-Host "    [>>] Copying platform-detect.ps1..." -ForegroundColor Yellow
             Copy-Item -Path $sourcePlatformDetect -Destination $targetPlatformDetect -Force -ErrorAction Stop
+            Unblock-File -Path $targetPlatformDetect -ErrorAction SilentlyContinue
         }
 
         # Copy apps-manifest.json (cross-platform app definitions)
         $sourceManifest = Join-Path $sourcePath "apps-manifest.json"
         $targetManifest = Join-Path $systemPath "apps-manifest.json"
 
-        if (Test-Path $sourceManifest) {
+        if (Safe-TestPath $sourceManifest) {
             Write-Host "    [>>] Copying apps-manifest.json..." -ForegroundColor Yellow
             Copy-Item -Path $sourceManifest -Destination $targetManifest -Force -ErrorAction Stop
+            Unblock-File -Path $targetManifest -ErrorAction SilentlyContinue
         }
 
         # Copy modules directory (if it exists)
         $sourceModulesPath = Join-Path $sourcePath "modules"
         $systemModulesPath = Join-Path $systemPath "modules"
 
-        if (Test-Path $sourceModulesPath) {
+        if (Safe-TestPath $sourceModulesPath) {
             Write-Host "    [>>] Copying modules directory..." -ForegroundColor Yellow
 
-            if (-not (Test-Path $systemModulesPath)) {
+            if (-not (Safe-TestPath $systemModulesPath)) {
                 New-Item -Path $systemModulesPath -ItemType Directory -Force | Out-Null
             }
 
             Copy-Item -Path (Join-Path $sourceModulesPath '*') -Destination $systemModulesPath -Recurse -Force -ErrorAction Stop
+            # Unblock all copied module files
+            Get-ChildItem -Path $systemModulesPath -Recurse -File -ErrorAction SilentlyContinue | ForEach-Object {
+                Unblock-File -Path $_.FullName -ErrorAction SilentlyContinue
+            }
             Write-Host "    [OK] Copied modules directory" -ForegroundColor Green
         }
 
         # Copy all app scripts from apps\ folder
-        if (Test-Path $sourceAppsPath) {
+        if (Safe-TestPath $sourceAppsPath) {
             Write-Host "    [>>] Copying app scripts..." -ForegroundColor Yellow
             $appScripts = Get-ChildItem -Path $sourceAppsPath -Filter "*.ps1" -File
 
             foreach ($script in $appScripts) {
                 $targetScript = Join-Path $systemAppsPath $script.Name
                 Copy-Item -Path $script.FullName -Destination $targetScript -Force -ErrorAction Stop
+                Unblock-File -Path $targetScript -ErrorAction SilentlyContinue
             }
 
             Write-Host "    [OK] Copied $($appScripts.Count) app scripts" -ForegroundColor Green
@@ -357,20 +395,25 @@ function Copy-ScriptToSystemLocation {
             $sourceDoc = Join-Path $sourcePath $docFile
             $targetDoc = Join-Path $systemPath $docFile
 
-            if (Test-Path $sourceDoc) {
+            if (Safe-TestPath $sourceDoc) {
                 Copy-Item -Path $sourceDoc -Destination $targetDoc -Force -ErrorAction SilentlyContinue
+                Unblock-File -Path $targetDoc -ErrorAction SilentlyContinue
             }
         }
 
         # Copy profiles directory (if it exists)
-        if (Test-Path $sourceProfilesPath) {
+        if (Safe-TestPath $sourceProfilesPath) {
             Write-Host "    [>>] Copying profiles directory..." -ForegroundColor Yellow
 
-            if (-not (Test-Path $systemProfilesPath)) {
+            if (-not (Safe-TestPath $systemProfilesPath)) {
                 New-Item -Path $systemProfilesPath -ItemType Directory -Force | Out-Null
             }
 
             Copy-Item -Path (Join-Path $sourceProfilesPath '*') -Destination $systemProfilesPath -Recurse -Force -ErrorAction Stop
+            # Unblock all copied profile files
+            Get-ChildItem -Path $systemProfilesPath -Recurse -File -ErrorAction SilentlyContinue | ForEach-Object {
+                Unblock-File -Path $_.FullName -ErrorAction SilentlyContinue
+            }
             Write-Host "    [OK] Copied profiles directory" -ForegroundColor Green
         }
         else {
@@ -756,7 +799,7 @@ function Initialize-Logging {
 
     try {
         # Create central log directory if it doesn't exist
-        if (-not (Test-Path $script:CentralLogPath)) {
+        if (-not (Safe-TestPath $script:CentralLogPath)) {
             New-Item -Path $script:CentralLogPath -ItemType Directory -Force | Out-Null
         }
 
@@ -766,7 +809,7 @@ function Initialize-Logging {
         $script:LogPath = Join-Path $script:CentralLogPath $logFileName
 
         # Initialize markdown log file if it doesn't exist
-        if (-not (Test-Path $script:LogPath)) {
+        if (-not (Safe-TestPath $script:LogPath)) {
             $logHeader = @"
 # $scriptName Log
 
@@ -822,7 +865,7 @@ function Write-Log {
         $logEntry = "| $timestamp | $icon **$Level** | $Message |"
 
         # Write to log file in markdown table format
-        if ($script:LogPath -and (Test-Path $script:LogPath)) {
+        if ($script:LogPath -and (Safe-TestPath $script:LogPath)) {
             Add-Content -Path $script:LogPath -Value $logEntry -ErrorAction SilentlyContinue
         }
 
@@ -905,7 +948,7 @@ function Install-WingetOnWindows10 {
         Write-Log "Installing winget on Windows 10" -Level INFO
 
         $tempDir = Join-Path $env:TEMP "winget_install"
-        if (-not (Test-Path $tempDir)) {
+        if (-not (Safe-TestPath $tempDir)) {
             New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
         }
 
@@ -1093,7 +1136,7 @@ function Get-InstalledApplications {
         # O&O ShutUp10 may not register in standard registry locations
         if (-not $installedApps.ContainsKey("O&O ShutUp10")) {
             $ooShutUpPath = "C:\Program Files\OOShutUp10\OOSU10.exe"
-            if (Test-Path $ooShutUpPath) {
+            if (Safe-TestPath $ooShutUpPath) {
                 try {
                     $fileInfo = Get-Item $ooShutUpPath -ErrorAction SilentlyContinue
                     $version = if ($fileInfo.VersionInfo.FileVersion) {
@@ -1114,7 +1157,7 @@ function Get-InstalledApplications {
         # Special handling: Check for Manage Restore Points script
         if (-not $installedApps.ContainsKey("Manage Restore Points")) {
             $manageRPPath = "C:\myTech.Today\ManageRestorePoints\Manage-RestorePoints.ps1"
-            if (Test-Path $manageRPPath) {
+            if (Safe-TestPath $manageRPPath) {
                 try {
                     $scriptContent = Get-Content $manageRPPath -Raw -ErrorAction SilentlyContinue
                     if ($scriptContent -match '\$script:ScriptVersion\s*=\s*[''"]([^''"]+)[''"]') {
@@ -1136,7 +1179,7 @@ function Get-InstalledApplications {
         # If app is installed but shortcut is missing, create it
         if ($installedApps.ContainsKey("Chrome Remote Desktop")) {
             $shortcutPath = "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Chrome Remote Desktop.lnk"
-            if (-not (Test-Path $shortcutPath)) {
+            if (-not (Safe-TestPath $shortcutPath)) {
                 Write-Log "Chrome Remote Desktop is installed but shortcut is missing - will create it" -Level INFO
                 $shortcutCreated = New-WebApplicationShortcut `
                     -ShortcutName "Chrome Remote Desktop" `
@@ -1199,7 +1242,7 @@ function Export-InstallationProfile {
     try {
         # Create profiles directory if it doesn't exist
         $profilesDir = $script:ProfilesPath
-        if (-not (Test-Path $profilesDir)) {
+        if (-not (Safe-TestPath $profilesDir)) {
             New-Item -Path $profilesDir -ItemType Directory -Force | Out-Null
             Write-Log "Created profiles directory: $profilesDir" -Level INFO
         }
@@ -1267,7 +1310,7 @@ function Import-InstallationProfile {
 
     try {
         # Validate file exists
-        if (-not (Test-Path $FilePath)) {
+        if (-not (Safe-TestPath $FilePath)) {
             Write-Log "Profile file not found: $FilePath" -Level ERROR
             return @{
                 Success = $false
@@ -2373,7 +2416,7 @@ function New-WebApplicationShortcut {
         $shortcutPath = Join-Path $startMenuPath "$ShortcutName.lnk"
 
         # Check if shortcut already exists
-        if (Test-Path $shortcutPath) {
+        if (Safe-TestPath $shortcutPath) {
             Write-Log "Shortcut already exists: $shortcutPath" -Level INFO
             return $true
         }
@@ -2387,7 +2430,7 @@ function New-WebApplicationShortcut {
 
         $chromePath = $null
         foreach ($path in $chromePaths) {
-            if (Test-Path $path) {
+            if (Safe-TestPath $path) {
                 $chromePath = $path
                 break
             }
@@ -2403,7 +2446,7 @@ function New-WebApplicationShortcut {
         else {
             $targetPath = $chromePath
             $arguments = "--new-window `"$Url`""
-            $iconLocation = if ($IconPath -and (Test-Path $IconPath)) { $IconPath } else { $chromePath }
+            $iconLocation = if ($IconPath -and (Safe-TestPath $IconPath)) { $IconPath } else { $chromePath }
         }
 
         # Create WScript.Shell COM object
@@ -2468,7 +2511,7 @@ function Install-OOShutUp10FromRemote {
         $exitCode = $LASTEXITCODE
 
         # Clean up
-        if (Test-Path $tempScriptPath) {
+        if (Safe-TestPath $tempScriptPath) {
             Remove-Item -Path $tempScriptPath -Force -ErrorAction SilentlyContinue
         }
 
@@ -2538,7 +2581,7 @@ function Install-Application {
             if ($remoteSuccess) {
                 # Register O&O ShutUp10 as installed
                 $ooShutUpPath = "C:\Program Files\OOShutUp10\OOSU10.exe"
-                if (Test-Path $ooShutUpPath) {
+                if (Safe-TestPath $ooShutUpPath) {
                     try {
                         $fileInfo = Get-Item $ooShutUpPath -ErrorAction SilentlyContinue
                         $version = if ($fileInfo.VersionInfo.FileVersion) {
@@ -2565,7 +2608,7 @@ function Install-Application {
         # Check if custom script exists
         $scriptPath = Join-Path $script:AppsPath $App.ScriptName
 
-        if (Test-Path $scriptPath) {
+        if (Safe-TestPath $scriptPath) {
             # Use custom installation script
             Write-Log "Using custom script: $scriptPath" -Level INFO
             Write-Verbose "Using custom installation script: $scriptPath"
@@ -3151,7 +3194,7 @@ function Install-MonthlyUpdateTask {
         Write-Host "    [i] Task will use: $updateScriptPath" -ForegroundColor Gray
 
         # Verify the script exists
-        if (-not (Test-Path $updateScriptPath)) {
+        if (-not (Safe-TestPath $updateScriptPath)) {
             Write-Log "Update script not found: $updateScriptPath" -Level ERROR
             Write-Host "  [X] Update script not found. Skipping task creation." -ForegroundColor Red
             return $false
@@ -3341,7 +3384,7 @@ try {
 
                     # Create profiles directory if it doesn't exist
                     $profilesDir = $script:ProfilesPath
-                    if (-not (Test-Path $profilesDir)) {
+                    if (-not (Safe-TestPath $profilesDir)) {
                         New-Item -Path $profilesDir -ItemType Directory -Force | Out-Null
                     }
 
@@ -3386,7 +3429,7 @@ try {
 
                     # List available profiles
                     $profilesDir = $script:ProfilesPath
-                    if (Test-Path $profilesDir) {
+                    if (Safe-TestPath $profilesDir) {
                         $profiles = Get-ChildItem -Path $profilesDir -Filter "*.json" | Sort-Object LastWriteTime -Descending
 
                         if ($profiles.Count -gt 0) {

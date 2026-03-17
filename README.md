@@ -1,6 +1,6 @@
 # App Installer - myTech.Today
 
-**Version:** 2.0.5 (GUI) / 2.0.1 (CLI)
+**Version:** 2.0.6 (GUI) / 2.0.2 (CLI)
 **Author:** myTech.Today
 **License:** All rights reserved
 
@@ -665,6 +665,11 @@ Edit the `Category` property in the application registry to organize apps differ
 
 ## Recent Updates
 
+### v2.0.6 (GUI) / v2.0.2 (CLI) - 2026-03-17
+- ✅ **Access Denied Fix** - All `Test-Path` calls wrapped in `Safe-TestPath` helper with try/catch and `-ErrorAction SilentlyContinue` to suppress `UnauthorizedAccessException` on protected paths
+- ✅ **Security Warning Fix** - `Unblock-File` called after every `Copy-Item` during self-installation so scripts copied to the system location are automatically unblocked (removes Zone.Identifier ADS)
+- ✅ **Feature Parity** - Both GUI and CLI scripts share the same `Safe-TestPath` helper and `Unblock-File` integration
+
 ### v2.0.5 (GUI) / v2.1.0 (Platform-Detect) - 2026-03-14
 - ✅ **Chrome Install Fix** - Added `--force` flag to winget install for reliable Chrome installation
 - ✅ **Exit Code Preservation** - `platform-detect.ps1` returns actual exit codes instead of hardcoded `1`
@@ -708,6 +713,7 @@ For issues, questions, or contributions:
 See [CHANGELOG.md](other_files/CHANGELOG.md) for detailed version history.
 
 **Recent Versions:**
+- **v2.0.6 (GUI) / v2.0.2 (CLI)** - Access Denied fix (Safe-TestPath), security warning fix (Unblock-File)
 - **v2.0.5 (GUI) / v2.1.0 (Platform-Detect)** - Chrome install fix, exit code preservation, smart success detection
 - **v2.0.4 (GUI)** - Self-healing dependencies at system install path
 - **v2.0.3 (GUI)** - O&O ShutUp10 non-interactive fix
@@ -739,6 +745,6 @@ https://github.com/mytech-today-now/PowerShellScripts
 
 ---
 
-**Last Updated:** 2026-03-14
-**Version:** 2.0.5 (GUI) / 2.0.1 (CLI)
+**Last Updated:** 2026-03-17
+**Version:** 2.0.6 (GUI) / 2.0.2 (CLI)
 **Maintained by:** myTech.Today
