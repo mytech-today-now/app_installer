@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Cross-platform CLI application installer with multi-select capabilities.
 

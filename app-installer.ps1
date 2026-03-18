@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     GUI-based application installer with cross-platform awareness.
 
