@@ -2,12 +2,17 @@
 
 ## Current Versions
 
-**GUI Version:** 2.0.5
-**CLI Version:** 2.0.1
+**GUI Version:** 2.0.6
+**CLI Version:** 2.0.2
 **Platform-Detect Version:** 2.1.0
-**Release Date:** 2026-03-14
+**Release Date:** 2026-03-17
 
 ## Version History
+
+### 2.0.6 (GUI) / 2.0.2 (CLI) - 2026-03-17 - ACCESS AND INSTALLATION FIXES
+- **FIX:** Wrapped path checks with `Safe-TestPath` to handle access-denied paths without terminating the installer.
+- **FIX:** Removed Zone.Identifier metadata from copied installer scripts during self-installation.
+- **IMPROVEMENT:** Kept the GUI and CLI path-check and self-install handling consistent.
 
 ### 2.0.5 (GUI) / 2.1.0 (Platform-Detect) - 2026-03-14 - CHROME FIX RELEASE
 - **FIX:** Chrome winget installation failure - added `--force` flag to winget install command

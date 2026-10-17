@@ -37,7 +37,7 @@
 
 .EXAMPLE
     .\app-installer.ps1
-    Launches GUI on Windows, automatically launches CLI on macOS/Linux
+    Launches GUI on Windows or CLI on macOS/Linux using the current execution policy
 
 .EXAMPLE
     .\app-installer.ps1 -ForceCLI
@@ -189,68 +189,71 @@ if ($script:_RepoRoot -and (Safe-TestPath (Join-Path $script:_RepoRoot 'scripts\
 
 #region Load Responsive GUI Helper
 
-# Import responsive GUI helper from GitHub for improved DPI scaling and multi-monitor support
-$responsiveUrl = 'https://raw.githubusercontent.com/mytech-today-now/scripts/main/responsive.ps1'
 $script:ResponsiveHelperLoaded = $false
+$script:ResponsiveHelperLoadAttempted = $false
+$script:ResponsiveHelperModuleName = 'ResponsiveGuiHelper'
+$script:ResponsiveHelperPath = Join-Path $PSScriptRoot 'modules\ResponsiveGuiHelper.psm1'
+$script:ResponsiveHelperSha256 = '76BEDBFC3A8F1A9AB7ED5674E6ED1BF3F8BC556CD10C86314FFD75A57AE581DB'
+$script:StartupHelperFallbackRequired = $false
+$script:StartupHelperFallbackMessage = 'A required optional helper could not be verified. Installation remains available with built-in behavior.'
 
+# The verifier is shipped with the installer. The helper itself is parsed only by
+# Import-Module after its normalized UTF-8 SHA-256 matches this separately reviewed pin.
 try {
-    Write-Host "Loading responsive GUI helper..." -ForegroundColor Cyan
-    Invoke-Expression (Invoke-WebRequest -Uri $responsiveUrl -UseBasicParsing).Content
-    $script:ResponsiveHelperLoaded = $true
-    Write-Host "`[OK] Responsive GUI helper loaded successfully" -ForegroundColor Green
+    $trustModulePath = Join-Path $PSScriptRoot 'modules\StartupHelperTrust.psm1'
+    if (Test-Path -LiteralPath $trustModulePath -PathType Leaf) {
+        $loadedTrustModule = Get-Module -Name StartupHelperTrust |
+            Where-Object { $_.Path -eq $trustModulePath } |
+            Select-Object -First 1
+        if (-not $loadedTrustModule) {
+            Import-Module -Name $trustModulePath -Force -DisableNameChecking -ErrorAction Stop | Out-Null
+        }
+
+        $helperVerifier = Get-Command -Name Test-StartupHelperFile -Module StartupHelperTrust -ErrorAction Stop
+        $helperIntegrity = & $helperVerifier -LiteralPath $script:ResponsiveHelperPath -ExpectedSha256 $script:ResponsiveHelperSha256
+
+        if ($helperIntegrity.Verified) {
+            $verifiedHelperModule = Get-Module -Name $script:ResponsiveHelperModuleName |
+                Where-Object { $_.Path -eq $helperIntegrity.Path } |
+                Select-Object -First 1
+
+            if (-not $verifiedHelperModule) {
+                Import-Module -Name $helperIntegrity.Path -Force -DisableNameChecking -ErrorAction Stop | Out-Null
+                $script:ResponsiveHelperLoadAttempted = $true
+            }
+
+            $verifiedHelperModule = Get-Module -Name $script:ResponsiveHelperModuleName |
+                Where-Object { $_.Path -eq $helperIntegrity.Path } |
+                Select-Object -First 1
+            $verifiedFormCommand = Get-Command -Name New-ResponsiveForm -Module $script:ResponsiveHelperModuleName -ErrorAction SilentlyContinue
+
+            if ($verifiedHelperModule -and $verifiedFormCommand) {
+                $script:ResponsiveHelperLoaded = $true
+                $script:ResponsiveHelperLoadAttempted = $true
+            }
+        }
+    }
 }
 catch {
-    Write-Host "`[ERROR] Failed to load responsive GUI helper: $_" -ForegroundColor Red
-    Write-Host "`[INFO] Falling back to local responsive helper implementation" -ForegroundColor Yellow
+    # Keep startup diagnostics sanitized. The built-in layout remains available.
+    $script:ResponsiveHelperLoaded = $false
+    Get-Module -Name $script:ResponsiveHelperModuleName |
+        Where-Object { $_.Path -eq $script:ResponsiveHelperPath } |
+        Remove-Module -Force -ErrorAction SilentlyContinue
+}
 
-    # Try to load from local path as fallback
-    $localResponsivePath = Join-Path $PSScriptRoot "..\scripts\responsive.ps1"
-    if (Safe-TestPath $localResponsivePath) {
-        try {
-            . $localResponsivePath
-            $script:ResponsiveHelperLoaded = $true
-            Write-Host "`[OK] Loaded responsive helper from local path" -ForegroundColor Green
-        }
-        catch {
-            Write-Host "`[ERROR] Failed to load local responsive helper: $_" -ForegroundColor Red
-        }
-    }
-    else {
-        Write-Host "`[WARNING] Local responsive helper not found at: $localResponsivePath" -ForegroundColor Yellow
-    }
+if (-not $script:ResponsiveHelperLoaded) {
+    $script:StartupHelperFallbackRequired = $true
+    Write-Warning $script:StartupHelperFallbackMessage
+    Write-Verbose '[STARTUP] Responsive helper verification or loading failed; using built-in form behavior.'
 }
 
 #endregion
 
 #region Load Generic Logging Module
 
-# Import generic logging module from GitHub for centralized logging
-$loggingUrl = 'https://raw.githubusercontent.com/mytech-today-now/scripts/main/logging.ps1'
+# Logging is implemented in this entrypoint and does not require a startup download.
 $script:LoggingModuleLoaded = $false
-
-try {
-    Write-Host "Loading generic logging module..." -ForegroundColor Cyan
-    Invoke-Expression (Invoke-WebRequest -Uri $loggingUrl -UseBasicParsing).Content
-    $script:LoggingModuleLoaded = $true
-    Write-Host "`[OK] Generic logging module loaded successfully" -ForegroundColor Green
-}
-catch {
-    Write-Host "`[ERROR] Failed to load generic logging module: $_" -ForegroundColor Red
-    Write-Host "`[INFO] Falling back to local logging implementation" -ForegroundColor Yellow
-
-    # Try to load from local path as fallback
-    $localLoggingPath = Join-Path $PSScriptRoot "..\scripts\logging.ps1"
-    if (Safe-TestPath $localLoggingPath) {
-        try {
-            . $localLoggingPath
-            $script:LoggingModuleLoaded = $true
-            Write-Host "`[OK] Loaded logging module from local path" -ForegroundColor Green
-        }
-        catch {
-            Write-Host "`[ERROR] Failed to load local logging module: $_" -ForegroundColor Red
-        }
-    }
-}
 
 #endregion
 
@@ -999,6 +1002,7 @@ $script:CentralLogPath = "$env:USERPROFILE\myTech.Today\logs\"
 $script:LogPath = $null
 $script:AppsPath = Join-Path $script:ScriptPath "apps"
 $script:ProfilesPath = Join-Path $script:ScriptPath "profiles"
+$script:OOShutUp10TrustModulePath = Join-Path $PSScriptRoot 'modules\OOShutUp10Trust.psm1'
 $script:InstalledApps = @{}
 $script:SelectedApps = @()
 $script:IsClosing = $false  # Flag to prevent event handlers during form closing
@@ -1344,7 +1348,9 @@ function Copy-ScriptToSystemLocation {
         $systemProfilesPath = Join-Path $systemPath "profiles"
         $sourcePath = $script:OriginalScriptPath
         $sourceAppsPath = Join-Path $sourcePath "apps"
+        $sourceModulesPath = Join-Path $sourcePath "modules"
         $sourceProfilesPath = Join-Path $sourcePath "profiles"
+        $systemModulesPath = Join-Path $systemPath "modules"
 
         # Check if we're already running from the system location
         if ($sourcePath -eq $systemPath) {
@@ -1425,6 +1431,21 @@ function Copy-ScriptToSystemLocation {
             Write-Host "    [>>] Copying app-installer.ps1..." -ForegroundColor Yellow
             Copy-Item -Path $sourceGuiScript -Destination $targetGuiScript -Force -ErrorAction Stop
             Unblock-File -Path $targetGuiScript -ErrorAction SilentlyContinue
+        }
+
+        # Copy bundled modules, including the startup helper trust verifier and GUI helper.
+        if (Safe-TestPath $sourceModulesPath) {
+            Write-Host "    [>>] Copying modules directory..." -ForegroundColor Yellow
+
+            if (-not (Safe-TestPath $systemModulesPath)) {
+                New-Item -Path $systemModulesPath -ItemType Directory -Force | Out-Null
+            }
+
+            Copy-Item -Path (Join-Path $sourceModulesPath '*') -Destination $systemModulesPath -Recurse -Force -ErrorAction Stop
+            Get-ChildItem -Path $systemModulesPath -Recurse -File -ErrorAction SilentlyContinue | ForEach-Object {
+                Unblock-File -Path $_.FullName -ErrorAction SilentlyContinue
+            }
+            Write-Host "    [OK] Copied modules directory" -ForegroundColor Green
         }
 
         # Copy all app scripts from apps\ folder
@@ -2284,117 +2305,288 @@ function Get-WingetErrorMessage {
     }
 }
 
+function New-UpdateScanResult {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateSet('CompletedWithUpdates', 'CompletedNoUpdates', 'Failed', 'Unknown', 'Cancelled')]
+        [string]$Status,
+
+        [AllowEmptyCollection()]
+        [object[]]$Updates = @(),
+
+        [AllowNull()]
+        [Nullable[int]]$ExitCode = $null,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Reason
+    )
+
+    return [PSCustomObject]@{
+        Status   = $Status
+        Updates  = [object[]]@($Updates)
+        ExitCode = if ($null -eq $ExitCode) { $null } else { [int]$ExitCode }
+        Reason   = $Reason
+    }
+}
+
+function ConvertFrom-WingetUpgradeTable {
+    [CmdletBinding()]
+    param([AllowNull()][string]$Text)
+
+    if ([string]::IsNullOrWhiteSpace($Text)) {
+        return New-UpdateScanResult -Status Unknown -Reason 'empty-output'
+    }
+
+    $cleanText = [regex]::Replace($Text, '\x1B\[[0-?]*[ -/]*[@-~]', '')
+    $lines = @($cleanText -split '\r?\n')
+    $nonEmptyLines = @($lines | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    if ($nonEmptyLines.Count -eq 1 -and $nonEmptyLines[0].Trim() -match '^(?i:No applicable upgrade found)\.?$') {
+        return New-UpdateScanResult -Status CompletedNoUpdates -Reason 'no-updates-marker'
+    }
+
+    $headerIndexes = @()
+    $headerFieldsByIndex = @{}
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        $fields = @($lines[$i].Trim() -split '\s{2,}' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+        $normalizedHeader = ($fields -join '|').ToLowerInvariant()
+        if ($normalizedHeader -eq 'name|id|version|available' -or $normalizedHeader -eq 'name|id|version|available|source') {
+            $headerIndexes += $i
+            $headerFieldsByIndex[$i] = $fields
+        }
+    }
+
+    if ($headerIndexes.Count -eq 0) {
+        return New-UpdateScanResult -Status Unknown -Reason 'missing-header'
+    }
+    if ($headerIndexes.Count -ne 1) {
+        return New-UpdateScanResult -Status Unknown -Reason 'ambiguous-header'
+    }
+
+    $headerIndex = [int]$headerIndexes[0]
+    $separatorIndex = $headerIndex + 1
+    if ($separatorIndex -ge $lines.Count -or $lines[$separatorIndex].Trim() -notmatch '^-{3,}$') {
+        return New-UpdateScanResult -Status Unknown -Reason 'missing-separator'
+    }
+
+    $expectedFieldCount = $headerFieldsByIndex[$headerIndex].Count
+    $updates = @()
+    $summaryCount = $null
+    for ($i = $separatorIndex + 1; $i -lt $lines.Count; $i++) {
+        $line = $lines[$i].Trim()
+        if ([string]::IsNullOrWhiteSpace($line)) {
+            continue
+        }
+
+        if ($line -match '^([0-9]+)\s+upgrades?\s+available\.?$') {
+            if ($null -ne $summaryCount) {
+                return New-UpdateScanResult -Status Unknown -Reason 'duplicate-summary'
+            }
+            $summaryCount = [int]$matches[1]
+            continue
+        }
+
+        if ($null -ne $summaryCount) {
+            return New-UpdateScanResult -Status Unknown -Reason 'malformed-row'
+        }
+
+        $parts = @($line -split '\s{2,}' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | ForEach-Object { $_.Trim() })
+        if ($parts.Count -ne $expectedFieldCount -or $parts.Count -lt 4 -or $parts[1] -match '\s' -or
+            @($parts | Where-Object { [string]::IsNullOrWhiteSpace($_) }).Count -gt 0) {
+            return New-UpdateScanResult -Status Unknown -Reason 'malformed-row'
+        }
+
+        $updates += [PSCustomObject]@{
+            Name             = $parts[0]
+            Id               = $parts[1]
+            CurrentVersion   = $parts[2]
+            AvailableVersion = $parts[3]
+            Source           = if ($parts.Count -ge 5) { $parts[4] } else { 'winget' }
+        }
+    }
+
+    if ($null -eq $summaryCount) {
+        return New-UpdateScanResult -Status Unknown -Reason 'missing-summary'
+    }
+    if ($summaryCount -ne $updates.Count) {
+        return New-UpdateScanResult -Status Unknown -Reason 'summary-count-mismatch'
+    }
+
+    $status = if ($updates.Count -eq 0) { 'CompletedNoUpdates' } else { 'CompletedWithUpdates' }
+    return New-UpdateScanResult -Status $status -Updates $updates -Reason 'table-validated'
+}
+
 function Get-AvailableUpdates {
-    <#
-    .SYNOPSIS
-        Checks for available updates for installed applications using winget.
-
-    .DESCRIPTION
-        Runs 'winget upgrade' to detect applications with available updates.
-        Parses the output and returns an array of update objects with app details.
-
-    .OUTPUTS
-        Array of PSCustomObject with properties: Name, Id, CurrentVersion, AvailableVersion, Source
-
-    .EXAMPLE
-        $updates = Get-AvailableUpdates
-        Write-Host "Found $($updates.Count) updates available"
-    #>
     [CmdletBinding()]
     param()
 
-    Write-Log "Checking for available updates using winget upgrade" -Level INFO
+    Write-Log 'Checking for available updates using winget upgrade' -Level INFO
+    $result = $null
 
     try {
-        # Run winget upgrade to get list of available updates
-        $wingetOutput = winget upgrade 2>&1 | Out-String
-
-        Write-Log "Winget upgrade command completed" -Level INFO
-
-        # Parse the output
-        $updates = @()
-        $lines = $wingetOutput -split "`r?`n"
-
-        # Find the header line (contains "Name", "Id", "Version", "Available")
-        $headerIndex = -1
-        for ($i = 0; $i -lt $lines.Count; $i++) {
-            if ($lines[$i] -match "Name.*Id.*Version.*Available") {
-                $headerIndex = $i
-                break
-            }
+        $commandResult = Invoke-WingetDependencyCommand -Arguments @('upgrade')
+        if ($null -eq $commandResult -or -not $commandResult.PSObject.Properties['Status']) {
+            $result = New-UpdateScanResult -Status Unknown -Reason 'command-result-missing'
         }
-
-        if ($headerIndex -eq -1) {
-            Write-Log "No updates available or unable to parse winget output" -Level INFO
-            return @()
+        elseif ($commandResult.Status -eq 'Unavailable') {
+            $result = New-UpdateScanResult -Status Failed -ExitCode $commandResult.ExitCode -Reason 'command-unavailable'
         }
-
-        # Find the separator line (dashes)
-        $separatorIndex = $headerIndex + 1
-        if ($separatorIndex -ge $lines.Count -or $lines[$separatorIndex] -notmatch "^-+") {
-            Write-Log "Unable to find separator line in winget output" -Level WARNING
-            return @()
+        elseif ($commandResult.Status -eq 'Cancelled') {
+            $result = New-UpdateScanResult -Status Cancelled -ExitCode $commandResult.ExitCode -Reason 'command-cancelled'
         }
-
-        # Parse each update line
-        for ($i = $separatorIndex + 1; $i -lt $lines.Count; $i++) {
-            $line = $lines[$i].Trim()
-
-            # Skip empty lines
-            if ([string]::IsNullOrWhiteSpace($line)) {
-                continue
-            }
-
-            # Stop at summary line (e.g., "2 upgrades available")
-            if ($line -match "^\d+\s+upgrade") {
-                break
-            }
-
-            # Parse the line - winget output is space-separated with variable spacing
-            # Format: Name  Id  Version  Available  Source
-            $parts = $line -split '\s{2,}' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
-
-            if ($parts.Count -ge 4) {
-                $updateObj = [PSCustomObject]@{
-                    Name = $parts[0].Trim()
-                    Id = $parts[1].Trim()
-                    CurrentVersion = $parts[2].Trim()
-                    AvailableVersion = $parts[3].Trim()
-                    Source = if ($parts.Count -ge 5) { $parts[4].Trim() } else { "winget" }
-                }
-
-                $updates += $updateObj
-                Write-Log "Found update: $($updateObj.Name) ($($updateObj.CurrentVersion) -> $($updateObj.AvailableVersion))" -Level INFO
-            }
+        elseif ($commandResult.Status -eq 'Failed' -or ($null -ne $commandResult.ExitCode -and [int]$commandResult.ExitCode -ne 0)) {
+            $result = New-UpdateScanResult -Status Failed -ExitCode $commandResult.ExitCode -Reason 'command-failed'
         }
-
-        Write-Log "Found $($updates.Count) application(s) with available updates" -Level INFO
-        return $updates
+        elseif ($commandResult.Status -ne 'Succeeded' -or $null -eq $commandResult.ExitCode) {
+            $result = New-UpdateScanResult -Status Unknown -ExitCode $commandResult.ExitCode -Reason 'command-outcome-unknown'
+        }
+        else {
+            $outputText = (@($commandResult.Output) | ForEach-Object { [string]$_ }) -join [Environment]::NewLine
+            $result = ConvertFrom-WingetUpgradeTable -Text $outputText
+            $result.ExitCode = [int]$commandResult.ExitCode
+        }
+    }
+    catch [System.Management.Automation.PipelineStoppedException] {
+        $result = New-UpdateScanResult -Status Cancelled -Reason 'command-cancelled'
+    }
+    catch [System.OperationCanceledException] {
+        $result = New-UpdateScanResult -Status Cancelled -Reason 'command-cancelled'
     }
     catch {
-        Write-Log "Error checking for updates: $($_.Exception.Message)" -Level ERROR
-        return @()
+        $result = New-UpdateScanResult -Status Unknown -Reason 'command-outcome-unknown'
     }
+
+    $logLevel = switch ($result.Status) {
+        'CompletedWithUpdates' { 'INFO' }
+        'CompletedNoUpdates' { 'INFO' }
+        'Cancelled' { 'WARNING' }
+        default { 'ERROR' }
+    }
+    $exitCodeText = if ($null -eq $result.ExitCode) { 'unknown' } else { [string]$result.ExitCode }
+    Write-Log "Update discovery status=$($result.Status); reason=$($result.Reason); exitCode=$exitCodeText" -Level $logLevel
+    foreach ($update in $result.Updates) {
+        Write-Log "Found update: $($update.Name) ($($update.CurrentVersion) -> $($update.AvailableVersion))" -Level INFO
+    }
+    return $result
+}
+function Show-UpdateScanNotice {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)][string]$Message,
+        [Parameter(Mandatory = $true)][string]$Title,
+        [Parameter(Mandatory = $true)][bool]$Warning
+    )
+
+    $icon = if ($Warning) { [System.Windows.Forms.MessageBoxIcon]::Warning } else { [System.Windows.Forms.MessageBoxIcon]::Information }
+    [System.Windows.Forms.MessageBox]::Show(
+        $Message,
+        $Title,
+        [System.Windows.Forms.MessageBoxButtons]::OK,
+        $icon
+    ) | Out-Null
+}
+function Invoke-WingetDependencyCommand {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string[]]$Arguments
+    )
+
+    $processHelper = Get-Command -Name 'Invoke-PackageManagerProcess' -CommandType Function -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($processHelper) {
+        return Invoke-PackageManagerProcess -Executable 'winget' -Arguments $Arguments
+    }
+
+    $application = Get-Command -Name 'winget' -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+    if (-not $application) {
+        return [PSCustomObject]@{
+            Status = 'Unavailable'
+            ExitCode = $null
+            Output = [object[]]@()
+            Diagnostic = 'The WinGet executable is unavailable.'
+        }
+    }
+
+    $executablePath = if ($application.Path) { $application.Path } else { $application.Source }
+    try {
+        if (Get-Variable -Name PSNativeCommandUseErrorActionPreference -ErrorAction SilentlyContinue) {
+            $PSNativeCommandUseErrorActionPreference = $false
+        }
+
+        $processOutput = @(& $executablePath @Arguments 2>&1)
+        $processExitCode = $LASTEXITCODE
+        if ($null -eq $processExitCode) {
+            return [PSCustomObject]@{
+                Status = 'Unknown'
+                ExitCode = $null
+                Output = [object[]]$processOutput
+                Diagnostic = 'WinGet did not return a process exit code.'
+            }
+        }
+
+        return [PSCustomObject]@{
+            Status = if ($processExitCode -eq 0) { 'Succeeded' } else { 'Failed' }
+            ExitCode = [int]$processExitCode
+            Output = [object[]]$processOutput
+            Diagnostic = if ($processExitCode -eq 0) { $null } else { 'WinGet returned a nonzero process exit code.' }
+        }
+    }
+    catch [System.Management.Automation.PipelineStoppedException] {
+        throw
+    }
+    catch [System.OperationCanceledException] {
+        throw
+    }
+    catch {
+        return [PSCustomObject]@{
+            Status = 'Unknown'
+            ExitCode = $null
+            Output = [object[]]@()
+            Diagnostic = 'The WinGet process outcome could not be confirmed.'
+        }
+    }
+}
+
+function Write-PackageDependencyMessage {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Message,
+
+        [Parameter(Mandatory = $true)]
+        [ValidateSet('info', 'succeeded', 'skipped', 'warning')]
+        [string]$Status
+    )
+
+    $outputFunction = Get-Command -Name 'Write-Output' -CommandType Function -ErrorAction SilentlyContinue
+    if ($outputFunction) {
+        $color = switch ($Status) {
+            'succeeded' { [System.Drawing.Color]::Green }
+            'skipped' { [System.Drawing.Color]::Green }
+            'warning' { [System.Drawing.Color]::Orange }
+            default { [System.Drawing.Color]::Gray }
+        }
+        Write-Output $Message -Color $color
+        return
+    }
+
+    $hostColor = switch ($Status) {
+        'succeeded' { 'Green' }
+        'skipped' { 'Green' }
+        'warning' { 'Yellow' }
+        default { 'Gray' }
+    }
+    Write-Host $Message -ForegroundColor $hostColor
 }
 
 function Get-PackageDependencies {
     <#
     .SYNOPSIS
-        Retrieves package dependencies from winget.
-
-    .DESCRIPTION
-        Queries winget to get the list of dependencies for a specific package.
-        Parses the output to extract package dependencies.
-
-    .PARAMETER PackageId
-        The winget package ID to check for dependencies.
+        Retrieves WinGet package dependencies with an explicit discovery status.
 
     .OUTPUTS
-        Array of dependency package IDs, or empty array if none found.
-
-    .EXAMPLE
-        $deps = Get-PackageDependencies -PackageId "TheDocumentFoundation.LibreOffice"
-        # Returns: @("Microsoft.VCRedist.2015+.x64")
+        A result with Status, Success, Dependencies, ExitCode, and Message.
+        A failed query is unknown because the dependency list could not be verified.
     #>
     [CmdletBinding()]
     param(
@@ -2404,73 +2596,69 @@ function Get-PackageDependencies {
 
     try {
         Write-Log "Checking dependencies for package: $PackageId" -Level INFO
-
-        # Run winget show to get package details including dependencies
-        $output = & cmd /c "winget show --id `"$PackageId`" 2>&1"
-
-        if ($LASTEXITCODE -ne 0) {
-            Write-Log "Failed to get package info for $PackageId (exit code: $LASTEXITCODE)" -Level WARNING
-            return @()
+        $showResult = Invoke-WingetDependencyCommand -Arguments @('show', '--id', $PackageId, '--exact')
+        if ($null -eq $showResult -or $showResult.Status -ne 'Succeeded' -or $null -eq $showResult.ExitCode -or $showResult.ExitCode -ne 0) {
+            $exitCode = if ($showResult -and $showResult.PSObject.Properties['ExitCode']) { $showResult.ExitCode } else { $null }
+            Write-Log "Dependency discovery is unknown for $PackageId (exit code: $exitCode)" -Level WARNING
+            return [PSCustomObject]@{
+                Status = 'unknown'
+                Success = $false
+                PackageId = $PackageId
+                Dependencies = [string[]]@()
+                ExitCode = $exitCode
+                Message = 'WinGet could not verify the package dependency list.'
+            }
         }
 
-        $outputStr = $output | Out-String
+        $outputText = (@($showResult.Output | ForEach-Object { [string]$_ }) -join [Environment]::NewLine)
         $dependencies = @()
-
-        # Parse dependencies section
-        # Look for "Dependencies:" followed by "Package Dependencies:"
-        if ($outputStr -match "Dependencies:[\s\S]*?Package Dependencies:\s*\n([\s\S]*?)(?:\n\s*\n|\n[A-Z]|\z)") {
-            $depsSection = $matches[1]
-
-            # Extract package IDs (they typically don't have leading spaces or are indented)
-            $lines = $depsSection -split "`r?`n"
-            foreach ($line in $lines) {
-                $line = $line.Trim()
-                if ($line -and $line -notmatch "^\s*-" -and $line -match "^[A-Za-z0-9\.\+]+") {
-                    $dependencies += $line
-                    Write-Log "Found dependency: $line" -Level INFO
+        if ($outputText -match "Dependencies:[\s\S]*?Package Dependencies:\s*\r?\n([\s\S]*?)(?:\r?\n\s*\r?\n|\r?\n[A-Z]|\z)") {
+            $dependencySection = $matches[1]
+            foreach ($line in ($dependencySection -split "\r?\n")) {
+                $dependencyId = $line.Trim()
+                if ($dependencyId -and $dependencyId -notmatch '^\s*-' -and $dependencyId -match '^[A-Za-z0-9.+]+$') {
+                    $dependencies += $dependencyId
+                    Write-Log "Found dependency: $dependencyId" -Level INFO
                 }
             }
         }
 
-        if ($dependencies.Count -gt 0) {
-            Write-Log "Package $PackageId has $($dependencies.Count) package dependencies" -Level INFO
+        Write-Log "Dependency discovery succeeded for $PackageId with $($dependencies.Count) package dependency(ies)" -Level INFO
+        return [PSCustomObject]@{
+            Status = 'succeeded'
+            Success = $true
+            PackageId = $PackageId
+            Dependencies = [string[]]$dependencies
+            ExitCode = [int]$showResult.ExitCode
+            Message = $null
         }
-        else {
-            Write-Log "Package $PackageId has no package dependencies" -Level INFO
-        }
-
-        return $dependencies
     }
     catch {
-        Write-Log "Error checking dependencies for $PackageId : $($_.Exception.Message)" -Level ERROR
-        return @()
+        Write-Log "Dependency discovery is unknown for $PackageId" -Level WARNING
+        return [PSCustomObject]@{
+            Status = 'unknown'
+            Success = $false
+            PackageId = $PackageId
+            Dependencies = [string[]]@()
+            ExitCode = $null
+            Message = 'WinGet could not verify the package dependency list.'
+        }
     }
 }
 
 function Install-PackageDependencies {
     <#
     .SYNOPSIS
-        Installs missing package dependencies automatically.
-
-    .DESCRIPTION
-        Checks if dependencies are installed and installs missing ones.
-        Logs all operations and handles errors gracefully.
-
-    .PARAMETER Dependencies
-        Array of dependency package IDs to install.
-
-    .PARAMETER PackageName
-        Name of the main package (for logging purposes).
+        Checks and installs package dependencies, returning one outcome per dependency.
 
     .OUTPUTS
-        Boolean - True if all dependencies are satisfied, False otherwise.
-
-    .EXAMPLE
-        $success = Install-PackageDependencies -Dependencies @("Microsoft.VCRedist.2015+.x64") -PackageName "LibreOffice"
+        A result with Status, Success, and ordered per-dependency Outcomes.
+        Per-dependency states are succeeded, failed, skipped, or unknown.
     #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
         [array]$Dependencies,
 
         [Parameter(Mandatory = $true)]
@@ -2478,59 +2666,144 @@ function Install-PackageDependencies {
     )
 
     if ($Dependencies.Count -eq 0) {
-        return $true
+        return [PSCustomObject]@{
+            Status = 'succeeded'
+            Success = $true
+            PackageName = $PackageName
+            Outcomes = [object[]]@()
+        }
     }
 
-    Write-Log "Installing dependencies for $PackageName..." -Level INFO
-    Write-Output "  [DEPS] Checking $($Dependencies.Count) dependencies..." -Color ([System.Drawing.Color]::Gray)
+    Write-Log "Installing dependencies for $PackageName" -Level INFO
+    Write-PackageDependencyMessage -Message "  [DEPS] Checking $($Dependencies.Count) dependencies for $PackageName..." -Status info
+    $outcomes = @()
 
-    $allSuccess = $true
+    foreach ($dependency in $Dependencies) {
+        $dependencyId = [string]$dependency
+        $status = 'unknown'
+        $message = 'The dependency state could not be confirmed.'
+        $checkExitCode = $null
+        $installExitCode = $null
 
-    foreach ($depId in $Dependencies) {
         try {
-            Write-Log "Checking dependency: $depId" -Level INFO
-
-            # Check if dependency is already installed
-            $checkOutput = & cmd /c "winget list --id `"$depId`" --exact 2>&1"
-            $isInstalled = $LASTEXITCODE -eq 0 -and ($checkOutput | Out-String) -match $depId
-
-            if ($isInstalled) {
-                Write-Log "Dependency $depId is already installed" -Level INFO
-                Write-Output "  [OK] $depId (already installed)" -Color ([System.Drawing.Color]::Green)
-                continue
+            Write-Log "Checking dependency: $dependencyId" -Level INFO
+            $checkResult = Invoke-WingetDependencyCommand -Arguments @('list', '--id', $dependencyId, '--exact')
+            if ($checkResult -and $checkResult.PSObject.Properties['ExitCode']) {
+                $checkExitCode = $checkResult.ExitCode
             }
 
-            # Install the dependency
-            Write-Log "Installing dependency: $depId" -Level INFO
-            Write-Output "  [INSTALL] Installing $depId..." -Color ([System.Drawing.Color]::Cyan)
-
-            $installCmd = "winget install --id `"$depId`" --silent --accept-source-agreements --accept-package-agreements"
-            $installOutput = & cmd /c "$installCmd 2>&1"
-            $exitCode = $LASTEXITCODE
-
-            if ($exitCode -eq 0 -or ($installOutput | Out-String) -match "Successfully installed") {
-                Write-Log "Successfully installed dependency: $depId" -Level SUCCESS
-                Write-Output "  [OK] $depId installed successfully" -Color ([System.Drawing.Color]::Green)
+            if ($null -eq $checkResult -or $checkResult.Status -ne 'Succeeded' -or $null -eq $checkExitCode -or $checkExitCode -ne 0) {
+                $status = 'unknown'
+                $message = 'WinGet could not confirm whether the dependency is installed.'
             }
             else {
-                Write-Log "Failed to install dependency $depId (exit code: $exitCode)" -Level WARNING
-                Write-Output "  [WARN] $depId installation failed (continuing anyway)" -Color ([System.Drawing.Color]::Orange)
-                # Don't fail the whole process - winget will try to install it again with the main package
+                $checkText = (@($checkResult.Output | ForEach-Object { [string]$_ }) -join [Environment]::NewLine)
+                if ($checkText -match [regex]::Escape($dependencyId)) {
+                    $status = 'skipped'
+                    $message = 'Already installed.'
+                }
+                else {
+                    Write-Log "Installing dependency: $dependencyId" -Level INFO
+                    $installResult = Invoke-WingetDependencyCommand -Arguments @(
+                        'install', '--id', $dependencyId, '--exact', '--silent',
+                        '--accept-source-agreements', '--accept-package-agreements'
+                    )
+                    if ($installResult -and $installResult.PSObject.Properties['ExitCode']) {
+                        $installExitCode = $installResult.ExitCode
+                    }
+
+                    if ($installResult -and $installResult.Status -eq 'Succeeded' -and $installExitCode -eq 0) {
+                        $status = 'succeeded'
+                        $message = 'WinGet reported the dependency install succeeded.'
+                    }
+                    elseif ($null -ne $installExitCode) {
+                        $status = 'failed'
+                        $message = "WinGet returned exit code $installExitCode."
+                    }
+                    else {
+                        $status = 'unknown'
+                        $message = 'The dependency install outcome could not be confirmed.'
+                    }
+                }
             }
         }
         catch {
-            Write-Log "Exception installing dependency $depId : $($_.Exception.Message)" -Level WARNING
-            Write-Output "  [WARN] $depId error (continuing anyway)" -Color ([System.Drawing.Color]::Orange)
-            # Don't fail - let winget handle it
+            $status = 'unknown'
+            $message = 'The dependency command outcome could not be confirmed.'
         }
 
-        # Process Windows messages to keep UI responsive
-        if ($script:ListView) {
-            [System.Windows.Forms.Application]::DoEvents()
+        $outcomes += [PSCustomObject]@{
+            PackageId = $dependencyId
+            Status = $status
+            CheckExitCode = $checkExitCode
+            InstallExitCode = $installExitCode
+            Message = $message
+        }
+
+        $logLevel = if ($status -eq 'succeeded' -or $status -eq 'skipped') { 'INFO' } elseif ($status -eq 'failed') { 'WARNING' } else { 'ERROR' }
+        Write-Log "Dependency outcome: $dependencyId is $status" -Level $logLevel
+        switch ($status) {
+            'succeeded' {
+                Write-PackageDependencyMessage -Message "  [OK] $dependencyId installed successfully" -Status succeeded
+            }
+            'skipped' {
+                Write-PackageDependencyMessage -Message "  [OK] $dependencyId is already installed" -Status skipped
+            }
+            'failed' {
+                Write-PackageDependencyMessage -Message "  [WARN] $dependencyId did not install (exit code $installExitCode). WinGet will process manifest dependencies during the main operation." -Status warning
+            }
+            default {
+                Write-PackageDependencyMessage -Message "  [WARN] $dependencyId has an unknown preflight result. WinGet will process manifest dependencies during the main operation." -Status warning
+            }
         }
     }
 
-    return $allSuccess
+    $failedCount = @($outcomes | Where-Object { $_.Status -eq 'failed' }).Count
+    $unknownCount = @($outcomes | Where-Object { $_.Status -eq 'unknown' }).Count
+    $aggregateStatus = if ($failedCount -gt 0) { 'failed' } elseif ($unknownCount -gt 0) { 'unknown' } else { 'succeeded' }
+
+    return [PSCustomObject]@{
+        Status = $aggregateStatus
+        Success = $aggregateStatus -eq 'succeeded'
+        PackageName = $PackageName
+        Outcomes = [object[]]$outcomes
+    }
+}
+
+function Write-PackageDependencyFallbackNotice {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$PackageName,
+
+        [AllowNull()]
+        [object]$DiscoveryResult,
+
+        [AllowNull()]
+        [object]$InstallResult
+    )
+
+    if ($null -eq $DiscoveryResult -or $DiscoveryResult.Status -ne 'succeeded') {
+        $message = "Could not verify dependencies for $PackageName. Continuing to WinGet, which processes manifest dependencies by default. If it fails, check WinGet and retry."
+        Write-Log $message -Level WARNING
+        Write-PackageDependencyMessage -Message "  [WARN] $message" -Status warning
+        return
+    }
+
+    if ($null -eq $InstallResult -or $InstallResult.Success) {
+        return
+    }
+
+    $unresolved = @($InstallResult.Outcomes | Where-Object { $_.Status -eq 'failed' -or $_.Status -eq 'unknown' })
+    if ($unresolved.Count -eq 0) {
+        return
+    }
+
+    $dependencySummary = ($unresolved | ForEach-Object { "$($_.PackageId) ($($_.Status))" }) -join ', '
+    $firstDependencyId = [string]$unresolved[0].PackageId
+    $message = "Dependency preflight for $PackageName was incomplete: $dependencySummary. Continuing to WinGet, which processes manifest dependencies by default. If it fails, run: winget install --id $firstDependencyId --exact, then retry."
+    Write-Log $message -Level WARNING
+    Write-PackageDependencyMessage -Message "  [WARN] $message" -Status warning
 }
 
 function Update-Applications {
@@ -2569,12 +2842,12 @@ function Update-Applications {
         Write-Output "[UPDATE] Updating $($update.Name)..." -Color ([System.Drawing.Color]::Blue)
 
         try {
-            # Check and install dependencies first
-            $dependencies = Get-PackageDependencies -PackageId $update.Id
-            if ($dependencies.Count -gt 0) {
-                Write-Log "Package $($update.Name) has $($dependencies.Count) dependencies" -Level INFO
-                Install-PackageDependencies -Dependencies $dependencies -PackageName $update.Name | Out-Null
+            $dependencyDiscovery = Get-PackageDependencies -PackageId $update.Id
+            $dependencyResult = $null
+            if ($dependencyDiscovery.Status -eq 'succeeded') {
+                $dependencyResult = Install-PackageDependencies -Dependencies $dependencyDiscovery.Dependencies -PackageName $update.Name
             }
+            Write-PackageDependencyFallbackNotice -PackageName $update.Name -DiscoveryResult $dependencyDiscovery -InstallResult $dependencyResult
 
             # Run winget upgrade for this specific app with retry logic
             $maxRetries = 3
@@ -2812,71 +3085,71 @@ function New-WebApplicationShortcut {
 function Install-OOShutUp10FromRemote {
     <#
     .SYNOPSIS
-        Downloads and executes the O&O ShutUp10 installation script from GitHub.
+        Executes the O&O ShutUp10 installation script only when its release is pinned and verified.
 
     .DESCRIPTION
-        Downloads the Install-OOShutUp10.ps1 script from the mytech-today-now/OO repository
-        and executes it. This is the preferred installation method for O&O ShutUp10.
+        The current external helper is disabled until an immutable source and reviewed digest
+        or signer are configured in OOShutUp10Trust.psm1.
 
     .OUTPUTS
-        Returns $true if successful, $false otherwise.
+        Returns separate download, verification, installation, and cleanup statuses.
     #>
     [CmdletBinding()]
     param()
 
+    $result = [PSCustomObject]@{
+        Success = $false
+        DownloadStatus = 'not-attempted'
+        VerificationStatus = 'unverified'
+        InstallationStatus = 'not-started'
+        ExitCode = $null
+        FailureReason = 'trust-module-unavailable'
+        CleanupStatus = 'not-required'
+        TempDirectory = $null
+    }
+    $release = $null
+
     try {
-        $remoteScriptUrl = "https://raw.githubusercontent.com/mytech-today-now/OO/main/Install-OOShutUp10.ps1"
-        $tempScriptPath = Join-Path $env:TEMP "Install-OOShutUp10.ps1"
-
-        Write-Log "Downloading O&O ShutUp10 script from GitHub..." -Level INFO
-        Write-Output "  [DOWNLOAD] Downloading installation script from GitHub..." -Color ([System.Drawing.Color]::Orange)
-
-        # Update status
-        if ($script:StatusLabel) {
-            $script:StatusLabel.Text = "[DOWNLOAD] Downloading O&O ShutUp10 script from GitHub..."
-            $script:StatusLabel.ForeColor = [System.Drawing.Color]::Orange
-            [System.Windows.Forms.Application]::DoEvents()
+        if (-not (Test-Path -LiteralPath $script:OOShutUp10TrustModulePath -PathType Leaf)) {
+            throw 'trust-module-unavailable'
         }
 
-        # Download the script
-        Invoke-WebRequest -Uri $remoteScriptUrl -OutFile $tempScriptPath -UseBasicParsing -ErrorAction Stop
-
-        Write-Log "Downloaded O&O ShutUp10 script to: $tempScriptPath" -Level INFO
-        Write-Output "  [EXECUTE] Running installation script..." -Color ([System.Drawing.Color]::Yellow)
-
-        # Update status
-        if ($script:StatusLabel) {
-            $script:StatusLabel.Text = "[INSTALL] Running O&O ShutUp10 installation script..."
-            $script:StatusLabel.ForeColor = [System.Drawing.Color]::Yellow
-            [System.Windows.Forms.Application]::DoEvents()
+        $loadedModule = Get-Module -Name OOShutUp10Trust |
+            Where-Object { $_.Path -eq $script:OOShutUp10TrustModulePath } |
+            Select-Object -First 1
+        if (-not $loadedModule) {
+            Import-Module -Name $script:OOShutUp10TrustModulePath -DisableNameChecking -ErrorAction Stop | Out-Null
         }
 
-        # Execute the script with -NonInteractive to prevent Read-Host blocking the GUI
-        & $tempScriptPath -NonInteractive
-        $exitCode = $LASTEXITCODE
-
-        # Clean up
-        if (Safe-TestPath $tempScriptPath) {
-            Remove-Item -Path $tempScriptPath -Force -ErrorAction SilentlyContinue
-        }
-
-        # Exit code 0 = success, exit code 30 = success (settings applied/changes made)
-        if ($exitCode -eq 0 -or $exitCode -eq 30) {
-            Write-Log "O&O ShutUp10 installed successfully via remote script (exit code: $exitCode)" -Level SUCCESS
-            Write-Output "  [OK] Installation complete!" -Color ([System.Drawing.Color]::Green)
-            return $true
-        }
-        else {
-            Write-Log "O&O ShutUp10 remote script failed with exit code: $exitCode" -Level ERROR
-            Write-Output "  [FAIL] Installation failed with exit code: $exitCode" -Color ([System.Drawing.Color]::Red)
-            return $false
-        }
+        $release = Get-OOShutUp10PinnedRelease
+        $result = Invoke-VerifiedOOShutUp10Script `
+            -Uri $release.Uri `
+            -ExpectedSha256 $release.Sha256 `
+            -ExpectedSignerThumbprint $release.SignerThumbprint
     }
     catch {
-        Write-Log "Failed to download or execute O&O ShutUp10 remote script: $_" -Level ERROR
-        Write-Output "  [FAIL] Failed to download or execute remote script: $_" -Color ([System.Drawing.Color]::Red)
-        return $false
+        # Keep diagnostics sanitized and installation status separate from transfer status.
+        $result.FailureReason = 'trust-check-unavailable'
     }
+
+    $releaseVersion = if ($release -and $release.Version) { $release.Version } else { 'unconfigured' }
+    Write-Log ("O&O release={0}; download={1}; verification={2}; installation={3}; exit={4}; reason={5}" -f `
+        $releaseVersion, $result.DownloadStatus, $result.VerificationStatus, $result.InstallationStatus, $result.ExitCode, $result.FailureReason) -Level INFO
+
+    if ($result.Success) {
+        Write-Output "  [OK] O&O ShutUp10 installation completed." -Color ([System.Drawing.Color]::Green)
+    }
+    elseif ($result.FailureReason -eq 'cancelled') {
+        Write-Output 'O&O installer verification was cancelled. No O&O changes were made.' -Color ([System.Drawing.Color]::Orange)
+    }
+    elseif ($result.InstallationStatus -eq 'not-started') {
+        Write-Output 'The O&O installer could not be verified. No O&O changes were made. Review the local installer or retry after the release source is verified.' -Color ([System.Drawing.Color]::Orange)
+    }
+    else {
+        Write-Output 'O&O installation failed or its result is unknown. Review O&O status before retrying.' -Color ([System.Drawing.Color]::Red)
+    }
+
+    return $result
 }
 
 function Install-Application {
@@ -2902,15 +3175,15 @@ function Install-Application {
     }
 
     try {
-        # Special handling for O&O ShutUp10: Try remote script first
+        # Special handling for O&O ShutUp10 uses only the pinned-release trust gate.
         if ($App.Name -eq "O&O ShutUp10") {
             Write-Log "Using special installation method for O&O ShutUp10" -Level INFO
-            Write-Output "  [i] Using remote installation script from GitHub..." -Color ([System.Drawing.Color]::Cyan)
+            Write-Output "  [i] Checking the approved O&O installer release..." -Color ([System.Drawing.Color]::Cyan)
 
-            # Try remote script first
-            $remoteSuccess = Install-OOShutUp10FromRemote
+            # A missing or rejected pin fails this selected item without using another source.
+            $remoteResult = Install-OOShutUp10FromRemote
 
-            if ($remoteSuccess) {
+            if ($remoteResult.Success) {
                 # Register O&O ShutUp10 as installed
                 $ooShutUpPath = "C:\Program Files\OOShutUp10\OOSU10.exe"
                 if (Safe-TestPath $ooShutUpPath) {
@@ -2945,9 +3218,24 @@ function Install-Application {
                 return $true
             }
 
-            # If remote failed, try local script as fallback
-            Write-Log "Remote script failed, trying local script fallback..." -Level WARNING
-            Write-Output "  [WARN] Remote script failed, trying local script..." -Color ([System.Drawing.Color]::Yellow)
+            # Do not run the local script or any other source without its own approved trust pin.
+            if ($script:AppProgressBar) {
+                $script:AppProgressBar.Visible = $false
+            }
+            if ($script:StatusLabel) {
+                if ($remoteResult.FailureReason -eq 'cancelled') {
+                    $script:StatusLabel.Text = 'O&O installer verification was cancelled. No O&O changes were made.'
+                }
+                elseif ($remoteResult.InstallationStatus -eq 'not-started') {
+                    $script:StatusLabel.Text = 'The O&O installer could not be verified. No O&O changes were made. Review the local installer or retry after the release source is verified.'
+                }
+                else {
+                    $script:StatusLabel.Text = 'O&O installation failed or its result is unknown. Review O&O status before retrying.'
+                }
+                $script:StatusLabel.ForeColor = [System.Drawing.Color]::Red
+                [System.Windows.Forms.Application]::DoEvents()
+            }
+            return $false
         }
 
         # Check if custom script exists
@@ -3021,12 +3309,12 @@ function Install-Application {
                 Write-Log "Installing via winget: $($App.WingetId)" -Level INFO
                 Write-Output "  Installing via winget..." -Color ([System.Drawing.Color]::Gray)
 
-                # Check and install dependencies first
-                $dependencies = Get-PackageDependencies -PackageId $App.WingetId
-                if ($dependencies.Count -gt 0) {
-                    Write-Log "Package $($App.Name) has $($dependencies.Count) dependencies" -Level INFO
-                    Install-PackageDependencies -Dependencies $dependencies -PackageName $App.Name | Out-Null
+                $dependencyDiscovery = Get-PackageDependencies -PackageId $App.WingetId
+                $dependencyResult = $null
+                if ($dependencyDiscovery.Status -eq 'succeeded') {
+                    $dependencyResult = Install-PackageDependencies -Dependencies $dependencyDiscovery.Dependencies -PackageName $App.Name
                 }
+                Write-PackageDependencyFallbackNotice -PackageName $App.Name -DiscoveryResult $dependencyDiscovery -InstallResult $dependencyResult
 
                 # Update status - downloading
                 if ($script:StatusLabel) {
@@ -3313,12 +3601,11 @@ function Uninstall-Application {
 function Get-DPIScaleFactor {
     <#
     .SYNOPSIS
-        Wrapper function that uses the responsive GUI helper for DPI scaling.
+        Calculates the GUI DPI and resolution scaling factor.
 
     .DESCRIPTION
-        This function calls the responsive GUI helper's Get-ResponsiveDPIScale function
-        to calculate DPI scaling factor. If the responsive helper is not loaded,
-        it falls back to a basic implementation.
+        Uses the release-owned Windows Forms screen information to calculate the
+        sizing factor used by the GUI and its dialog windows.
 
     .OUTPUTS
         PSCustomObject with scaling information including:
@@ -3335,14 +3622,7 @@ function Get-DPIScaleFactor {
     [CmdletBinding()]
     param()
 
-    # Use responsive helper if available
-    if ($script:ResponsiveHelperLoaded -and (Get-Command -Name Get-ResponsiveDPIScale -ErrorAction SilentlyContinue)) {
-        $scaleInfo = Get-ResponsiveDPIScale
-        Write-Log "Screen: $($scaleInfo.ScreenWidth)x$($scaleInfo.ScreenHeight), Resolution: $($scaleInfo.ResolutionName), Base DPI: $($scaleInfo.BaseFactor), Additional: $($scaleInfo.AdditionalScale), Total Scale: $($scaleInfo.TotalScale)" -Level INFO
-        return $scaleInfo
-    }
-
-    # Fallback implementation if responsive helper is not available
+    # DPI and resolution sizing are implemented in this release-owned entrypoint.
     Add-Type -AssemblyName System.Windows.Forms
     $screen = [System.Windows.Forms.Screen]::PrimaryScreen
 
@@ -3431,6 +3711,101 @@ function Get-DPIScaleFactor {
     }
 }
 
+function New-BuiltInResponsiveForm {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Title,
+
+        [Parameter(Mandatory = $true)]
+        [int]$Width,
+
+        [Parameter(Mandatory = $true)]
+        [int]$Height,
+
+        [int]$MinWidth = 0,
+        [int]$MinHeight = 0,
+        [string]$StartPosition = 'CenterScreen',
+        [bool]$Resizable = $true,
+        [Parameter(Mandatory = $true)]
+        [PSObject]$ScaleInfo
+    )
+
+    $form = New-Object System.Windows.Forms.Form
+    $form.Text = $Title
+    $form.Size = New-Object System.Drawing.Size($Width, $Height)
+    $form.StartPosition = [System.Enum]::Parse([System.Windows.Forms.FormStartPosition], $StartPosition, $true)
+    $form.FormBorderStyle = if ($Resizable) {
+        [System.Windows.Forms.FormBorderStyle]::Sizable
+    }
+    else {
+        [System.Windows.Forms.FormBorderStyle]::FixedDialog
+    }
+    $form.MaximizeBox = $Resizable
+    $form.MinimizeBox = $true
+
+    if ($MinWidth -gt 0 -or $MinHeight -gt 0) {
+        $form.MinimumSize = New-Object System.Drawing.Size($MinWidth, $MinHeight)
+    }
+
+    $scaleFactor = 1.0
+    if ($ScaleInfo -and $ScaleInfo.TotalScale -gt 0) {
+        $scaleFactor = [double]$ScaleInfo.TotalScale
+    }
+
+    $form.Tag = @{
+        ScaleInfo      = $ScaleInfo
+        ScaleFactor    = $scaleFactor
+        BaseDimensions = @{
+            MinFormWidth  = $MinWidth
+            MinFormHeight = $MinHeight
+            Margin        = [Math]::Max(1, [int](20 * $scaleFactor))
+        }
+        FormWidth      = $form.ClientSize.Width
+        FormHeight     = $form.ClientSize.Height
+    }
+
+    return $form
+}
+
+function New-InstallerResponsiveForm {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Title,
+
+        [Parameter(Mandatory = $true)]
+        [int]$Width,
+
+        [Parameter(Mandatory = $true)]
+        [int]$Height,
+
+        [int]$MinWidth = 0,
+        [int]$MinHeight = 0,
+        [string]$StartPosition = 'CenterScreen',
+        [bool]$Resizable = $true,
+        [Parameter(Mandatory = $true)]
+        [PSObject]$ScaleInfo
+    )
+
+    $formParameters = @{} + $PSBoundParameters
+    $verifiedFormCommand = Get-Command -Name New-ResponsiveForm -Module $script:ResponsiveHelperModuleName -ErrorAction SilentlyContinue
+
+    if ($script:ResponsiveHelperLoaded -and $verifiedFormCommand) {
+        try {
+            return & $verifiedFormCommand @formParameters
+        }
+        catch {
+            $script:ResponsiveHelperLoaded = $false
+            $script:StartupHelperFallbackRequired = $true
+            Write-Warning $script:StartupHelperFallbackMessage
+            Write-Verbose '[STARTUP] Verified responsive helper failed at use; using built-in form behavior.'
+        }
+    }
+
+    return New-BuiltInResponsiveForm @formParameters
+}
+
 function Create-MainForm {
     # Get DPI scaling factor using standardized function
     $scaleInfo = Get-DPIScaleFactor
@@ -3507,14 +3882,15 @@ function Create-MainForm {
     Write-Log "Responsive GUI - Resolution: $resolutionName ($screenWidth x $screenHeight), Scale Factor: $scaleFactor" -Level INFO
     Write-Log "Form Size: ${formWidth}x${formHeight}, Fonts - Title: $titleFontSize, Normal: $normalFontSize, Table: $tableFontSize, Console: $consoleFontSize" -Level INFO
 
-    # Create main form with responsive settings using New-ResponsiveForm
-    $form = New-ResponsiveForm -Title "myTech.Today Application Installer v$script:ScriptVersion" `
+    # Use the verified bundled helper when available, otherwise create the form with built-in behavior.
+    $form = New-InstallerResponsiveForm -Title "myTech.Today Application Installer v$script:ScriptVersion" `
         -Width $formWidth `
         -Height $formHeight `
         -MinWidth $baseDimensions.MinFormWidth `
         -MinHeight $baseDimensions.MinFormHeight `
         -StartPosition 'CenterScreen' `
-        -Resizable $true
+        -Resizable $true `
+        -ScaleInfo $scaleInfo
 
     # Enable visual styles for modern appearance
     [System.Windows.Forms.Application]::EnableVisualStyles()
@@ -5044,11 +5420,12 @@ function Show-QueueManagementDialog {
     $formHeight = $margin + $listViewHeight + $margin + $buttonHeight + $margin
 
     # Create dialog form with responsive sizing using New-ResponsiveForm
-    $queueForm = New-ResponsiveForm -Title "Manage Installation Queue" `
+    $queueForm = New-InstallerResponsiveForm -Title "Manage Installation Queue" `
         -Width $formWidth `
         -Height $formHeight `
         -StartPosition 'CenterParent' `
-        -Resizable $true
+        -Resizable $true `
+        -ScaleInfo $scaleInfo
 
     # Create ListView for queue with scaled dimensions
     $queueListView = New-Object System.Windows.Forms.ListView
@@ -5378,11 +5755,12 @@ function Show-UpdatesDialog {
     $formHeight = $margin + $titleHeight + $margin + $listViewHeight + $margin + $buttonHeight + $margin + [int](60 * $scaleFactor)
 
     # Create form with responsive sizing using New-ResponsiveForm
-    $updatesForm = New-ResponsiveForm -Title "Available Updates" `
+    $updatesForm = New-InstallerResponsiveForm -Title "Available Updates" `
         -Width $formWidth `
         -Height $formHeight `
         -StartPosition 'CenterScreen' `
-        -Resizable $true
+        -Resizable $true `
+        -ScaleInfo $scaleInfo
 
     # Title label with scaled font
     $titleLabel = New-Object System.Windows.Forms.Label
@@ -5529,16 +5907,34 @@ function Check-ForUpdates {
     Write-Output "[CHECK] Checking for available updates..." -Color ([System.Drawing.Color]::Cyan)
 
     # Get available updates
-    $updates = Get-AvailableUpdates
+    $scanResult = Get-AvailableUpdates
+    $validStatuses = @('CompletedWithUpdates', 'CompletedNoUpdates', 'Failed', 'Unknown', 'Cancelled')
+    if ($null -eq $scanResult -or $scanResult.Status -notin $validStatuses -or $null -eq $scanResult.PSObject.Properties['Updates']) {
+        Write-Log 'Update discovery status=Unknown; reason=invalid-result; exitCode=unknown' -Level ERROR
+        $scanResult = New-UpdateScanResult -Status Unknown -Reason 'invalid-result'
+    }
 
-    if ($updates.Count -eq 0) {
-        Write-Log "No updates available" -Level INFO
-        [System.Windows.Forms.MessageBox]::Show(
-            "All applications are up to date!",
-            "No Updates Available",
-            [System.Windows.Forms.MessageBoxButtons]::OK,
-            [System.Windows.Forms.MessageBoxIcon]::Information
-        )
+    $updates = [object[]]@($scanResult.Updates)
+    if (($scanResult.Status -eq 'CompletedNoUpdates' -and $updates.Count -ne 0) -or
+        ($scanResult.Status -eq 'CompletedWithUpdates' -and $updates.Count -eq 0)) {
+        Write-Log 'Update discovery status=Unknown; reason=status-count-mismatch; exitCode=unknown' -Level ERROR
+        $scanResult = New-UpdateScanResult -Status Unknown -Reason 'status-count-mismatch'
+    }
+
+    if ($scanResult.Status -in @('Failed', 'Unknown', 'Cancelled')) {
+        Show-UpdateScanNotice `
+            -Message 'Update check could not be confirmed. Review the log and retry.' `
+            -Title 'Update Check Incomplete' `
+            -Warning $true
+        return
+    }
+
+    if ($scanResult.Status -eq 'CompletedNoUpdates') {
+        Write-Log 'No updates available' -Level INFO
+        Show-UpdateScanNotice `
+            -Message 'All applications are up to date!' `
+            -Title 'No Updates Available' `
+            -Warning $false
         return
     }
 
@@ -6542,6 +6938,17 @@ try {
     # Now we can use Write-Output since WebBrowser exists
     Write-Output "=== myTech.Today Application Installer GUI v$script:ScriptVersion ===" -Color ([System.Drawing.Color]::Blue)
     Write-Output "Initializing..." -Color ([System.Drawing.Color]::Gray)
+
+    if ($script:StartupHelperFallbackRequired) {
+        Write-Output $script:StartupHelperFallbackMessage -Color ([System.Drawing.Color]::Yellow)
+        Write-Log $script:StartupHelperFallbackMessage -Level WARNING
+        [System.Windows.Forms.MessageBox]::Show(
+            "$($script:StartupHelperFallbackMessage)`n`nResponsive window sizing remains available through the built-in layout.",
+            'Startup helper verification',
+            [System.Windows.Forms.MessageBoxButtons]::OK,
+            [System.Windows.Forms.MessageBoxIcon]::Warning
+        ) | Out-Null
+    }
 
     # Ensure winget is available (install on Windows 10 if needed)
     Write-Host "`n[i] Checking for winget availability..." -ForegroundColor Cyan

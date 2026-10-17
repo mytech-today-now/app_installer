@@ -15,6 +15,11 @@ echo ""
 # Get script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+if [[ ! -f "$SCRIPT_DIR/app-installer-cli.ps1" ]]; then
+    echo "[ERROR] App Installer CLI script was not found: $SCRIPT_DIR/app-installer-cli.ps1" >&2
+    exit 2
+fi
+
 # Function to check if command exists
 command_exists() {
     command -v "$1" >/dev/null 2>&1
@@ -90,7 +95,30 @@ echo "[INFO] Running App Installer..."
 echo ""
 
 # Run the PowerShell installer script
-pwsh -NoProfile -ExecutionPolicy Bypass -File "$SCRIPT_DIR/app-installer-cli.ps1" "$@"
+policy_error_file="$(mktemp "${TMPDIR:-/tmp}/app-installer-launch.XXXXXX")" || {
+    echo "[ERROR] Could not prepare temporary launch diagnostics." >&2
+    exit 2
+}
+trap 'rm -f "$policy_error_file"' EXIT
+
+if pwsh -NoProfile -File "$SCRIPT_DIR/app-installer-cli.ps1" "$@" 2>"$policy_error_file"; then
+    installer_rc=0
+else
+    installer_rc=$?
+fi
+
+if [[ -s "$policy_error_file" ]]; then
+    cat "$policy_error_file" >&2
+    if grep -Eiq 'execution policy|running scripts is disabled|not digitally signed' "$policy_error_file"; then
+        echo "PowerShell policy prevented this script from starting. No policy setting was changed. Use the signed release or contact your administrator." >&2
+        echo "Signature guidance: https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_signing?view=powershell-7.5" >&2
+    fi
+fi
+
+if [[ "$installer_rc" -ne 0 ]]; then
+    echo "[ERROR] Installer exited with code: $installer_rc" >&2
+    exit "$installer_rc"
+fi
 
 echo ""
 echo "[INFO] Setup complete."

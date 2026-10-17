@@ -168,68 +168,223 @@ function Assert-Platform {
 function Get-PackageManagerCommand {
     [CmdletBinding()]
     param(
-        [string]$WingetId,
-        [string]$BrewCask,
-        [string]$BrewFormula,
-        [string]$AptPackage,
-        [string]$DnfPackage,
-        [string]$PacmanPackage,
-        [string]$SnapPackage
+        [object]$WingetId,
+        [object]$BrewCask,
+        [object]$BrewFormula,
+        [object]$AptPackage,
+        [object]$DnfPackage,
+        [object]$PacmanPackage,
+        [object]$SnapPackage
     )
 
-    $result = @{
-        Command   = $null
-        Available = $false
+    $packageValues = [ordered]@{
+        WingetId      = $WingetId
+        BrewCask      = $BrewCask
+        BrewFormula   = $BrewFormula
+        AptPackage    = $AptPackage
+        DnfPackage    = $DnfPackage
+        PacmanPackage = $PacmanPackage
+        SnapPackage   = $SnapPackage
     }
+
+    # These manager-specific token grammars accept the package IDs in the
+    # manifest while excluding whitespace and shell/option metacharacters.
+    $packagePatterns = @{
+        WingetId      = '\A[A-Za-z0-9][A-Za-z0-9._+-]*\z'
+        BrewCask      = '\A[A-Za-z0-9][A-Za-z0-9._+@-]*\z'
+        BrewFormula   = '\A[A-Za-z0-9][A-Za-z0-9._+@-]*\z'
+        AptPackage    = '\A[a-z0-9][a-z0-9+.:~-]*\z'
+        DnfPackage    = '\A[A-Za-z0-9][A-Za-z0-9._+-]*\z'
+        PacmanPackage = '\A[A-Za-z0-9][A-Za-z0-9._+-]*\z'
+        SnapPackage   = '\A[a-z0-9][a-z0-9.-]*\z'
+    }
+
+    foreach ($fieldName in $packageValues.Keys) {
+        $value = $packageValues[$fieldName]
+        if ($null -eq $value) {
+            continue
+        }
+
+        if (($value -isnot [string]) -or
+            (($value.Length -gt 0) -and -not [regex]::IsMatch(
+                    $value,
+                    $packagePatterns[$fieldName],
+                    [System.Text.RegularExpressions.RegexOptions]::CultureInvariant
+                ))) {
+            return [pscustomobject]@{
+                Status       = 'InvalidMapping'
+                Available    = $false
+                IsValid      = $false
+                Executable   = $null
+                Arguments    = [string[]]@()
+                ExitCode     = $null
+                Output       = [object[]]@()
+                Diagnostic   = "Package field $fieldName does not match its package identifier format."
+                UserMessage  = 'This package entry is invalid. No package command was run.'
+            }
+        }
+    }
+
+    $executable = $null
+    $arguments = @()
 
     switch ($script:PackageManager) {
         "winget" {
             if ($WingetId) {
-                $result.Command = "winget install --id $WingetId --silent --accept-source-agreements --accept-package-agreements --force"
-                $result.Available = $true
+                $executable = 'winget'
+                $arguments = @('install', '--id', $WingetId, '--silent', '--accept-source-agreements', '--accept-package-agreements', '--force')
             }
         }
         "brew" {
             if ($BrewCask) {
-                $result.Command = "brew install --cask $BrewCask"
-                $result.Available = $true
+                $executable = 'brew'
+                $arguments = @('install', '--cask', $BrewCask)
             }
             elseif ($BrewFormula) {
-                $result.Command = "brew install $BrewFormula"
-                $result.Available = $true
+                $executable = 'brew'
+                $arguments = @('install', $BrewFormula)
             }
         }
         "apt" {
             if ($AptPackage) {
-                $result.Command = "sudo apt install -y $AptPackage"
-                $result.Available = $true
+                $executable = 'sudo'
+                $arguments = @('apt', 'install', '-y', $AptPackage)
             }
         }
         "dnf" {
             if ($DnfPackage) {
-                $result.Command = "sudo dnf install -y $DnfPackage"
-                $result.Available = $true
+                $executable = 'sudo'
+                $arguments = @('dnf', 'install', '-y', $DnfPackage)
             }
         }
         "pacman" {
             if ($PacmanPackage) {
-                $result.Command = "sudo pacman -S --noconfirm $PacmanPackage"
-                $result.Available = $true
+                $executable = 'sudo'
+                $arguments = @('pacman', '-S', '--noconfirm', $PacmanPackage)
             }
         }
         "snap" {
             if ($SnapPackage) {
-                $result.Command = "sudo snap install $SnapPackage"
-                $result.Available = $true
+                $executable = 'sudo'
+                $arguments = @('snap', 'install', $SnapPackage)
             }
         }
     }
 
-    if (-not $result.Available) {
-        return $null
+    if (-not $executable) {
+        return [pscustomobject]@{
+            Status       = 'Unavailable'
+            Available    = $false
+            IsValid      = $true
+            Executable   = $null
+            Arguments    = [string[]]@()
+            ExitCode     = $null
+            Output       = [object[]]@()
+            Diagnostic   = 'No package mapping is available for the selected package manager.'
+            UserMessage  = $null
+        }
     }
 
-    return $result
+    return [pscustomobject]@{
+        Status       = 'Ready'
+        Available    = $true
+        IsValid      = $true
+        Executable   = $executable
+        Arguments    = [string[]]$arguments
+        ExitCode     = $null
+        Output       = [object[]]@()
+        Diagnostic   = $null
+        UserMessage  = $null
+    }
+}
+
+function Invoke-PackageManagerProcess {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Executable,
+
+        [Parameter(Mandatory = $true)]
+        [string[]]$Arguments
+    )
+
+    $application = Get-Command -Name $Executable -CommandType Application -ErrorAction SilentlyContinue |
+        Select-Object -First 1
+
+    if (-not $application) {
+        return [pscustomobject]@{
+            Status         = 'Unavailable'
+            Available      = $false
+            ExecutablePath = $null
+            Arguments      = [string[]]$Arguments
+            ExitCode       = $null
+            Output         = [object[]]@()
+            Diagnostic     = 'The package manager executable is unavailable.'
+        }
+    }
+
+    $executablePath = if ($application.Path) { $application.Path } else { $application.Source }
+    if (-not $executablePath) {
+        return [pscustomobject]@{
+            Status         = 'Unavailable'
+            Available      = $false
+            ExecutablePath = $null
+            Arguments      = [string[]]$Arguments
+            ExitCode       = $null
+            Output         = [object[]]@()
+            Diagnostic     = 'The package manager executable is unavailable.'
+        }
+    }
+
+    try {
+        # Preserve native exit codes even when the caller opts into treating
+        # nonzero native statuses as PowerShell errors.
+        if (Get-Variable -Name PSNativeCommandUseErrorActionPreference -ErrorAction SilentlyContinue) {
+            $PSNativeCommandUseErrorActionPreference = $false
+        }
+
+        $processOutput = @(& $executablePath @Arguments 2>&1)
+        $processExitCode = $LASTEXITCODE
+
+        if ($null -eq $processExitCode) {
+            return [pscustomobject]@{
+                Status         = 'Failed'
+                Available      = $true
+                ExecutablePath = $executablePath
+                Arguments      = [string[]]$Arguments
+                ExitCode       = $null
+                Output         = [object[]]$processOutput
+                Diagnostic     = 'The package manager did not return a process exit code.'
+            }
+        }
+
+        return [pscustomobject]@{
+            Status         = if ($processExitCode -eq 0) { 'Succeeded' } else { 'Failed' }
+            Available      = $true
+            ExecutablePath = $executablePath
+            Arguments      = [string[]]$Arguments
+            ExitCode       = [int]$processExitCode
+            Output         = [object[]]$processOutput
+            Diagnostic     = if ($processExitCode -eq 0) { $null } else { 'The package manager returned a nonzero process exit code.' }
+        }
+    }
+    catch [System.Management.Automation.PipelineStoppedException] {
+        throw
+    }
+    catch [System.OperationCanceledException] {
+        throw
+    }
+    catch {
+        return [pscustomobject]@{
+            Status         = 'Failed'
+            Available      = $true
+            ExecutablePath = $executablePath
+            Arguments      = [string[]]$Arguments
+            ExitCode       = $null
+            Output         = [object[]]@()
+            Diagnostic     = 'The package manager process could not be started or completed.'
+        }
+    }
 }
 
 function Install-CrossPlatformApp {
@@ -238,20 +393,14 @@ function Install-CrossPlatformApp {
         [Parameter(Mandatory)]
         [string]$AppName,
 
-        [string]$WingetId,
-        [string]$BrewCask,
-        [string]$BrewFormula,
-        [string]$AptPackage,
-        [string]$DnfPackage,
-        [string]$PacmanPackage,
-        [string]$SnapPackage
+        [object]$WingetId,
+        [object]$BrewCask,
+        [object]$BrewFormula,
+        [object]$AptPackage,
+        [object]$DnfPackage,
+        [object]$PacmanPackage,
+        [object]$SnapPackage
     )
-
-    # Check if any package manager is available
-    if (-not $script:PackageManager) {
-        Write-Host "[ERROR] No supported package manager found on this system." -ForegroundColor Red
-        return 1
-    }
 
     # Get the install command for current platform
     $pkgInfo = Get-PackageManagerCommand `
@@ -263,7 +412,19 @@ function Install-CrossPlatformApp {
         -PacmanPackage $PacmanPackage `
         -SnapPackage $SnapPackage
 
-    if (-not $pkgInfo) {
+    if ($pkgInfo.Status -eq 'InvalidMapping') {
+        Write-Host $pkgInfo.UserMessage -ForegroundColor Red
+        Write-Host "[ERROR] $($pkgInfo.Diagnostic)" -ForegroundColor Red
+        return 1
+    }
+
+    # Check if any package manager is available after validating supplied data.
+    if (-not $script:PackageManager) {
+        Write-Host "[ERROR] No supported package manager found on this system." -ForegroundColor Red
+        return 1
+    }
+
+    if ($pkgInfo.Status -eq 'Unavailable') {
         Write-Host "[INFO] $AppName is not available for $script:Platform via $script:PackageManager." -ForegroundColor Yellow
         return 0
     }
@@ -271,21 +432,30 @@ function Install-CrossPlatformApp {
     Write-Host "[INFO] Installing $AppName via $script:PackageManager..." -ForegroundColor Cyan
 
     try {
-        # Execute the install command
-        if ($script:Platform -eq "Windows") {
-            $output = Invoke-Expression $pkgInfo.Command 2>&1
+        $processResult = Invoke-PackageManagerProcess `
+            -Executable $pkgInfo.Executable `
+            -Arguments $pkgInfo.Arguments
+        $installExitCode = $processResult.ExitCode
+        $outputStr = if ($processResult.Output.Count -gt 0) {
+            $processResult.Output | Out-String
         }
         else {
-            # For macOS/Linux, use bash to run the command
-            $output = & bash -c $pkgInfo.Command 2>&1
+            ''
         }
-
-        $installExitCode = $LASTEXITCODE
-        $outputStr = if ($output) { $output | Out-String } else { "" }
 
         # Log output for diagnostics
         if ($outputStr) {
             Write-Host "[DEBUG] Installer output: $outputStr" -ForegroundColor Gray
+        }
+
+        if ($processResult.Status -eq 'Unavailable') {
+            Write-Host "[ERROR] $($processResult.Diagnostic) No success was reported." -ForegroundColor Red
+            return 1
+        }
+
+        if ($null -eq $installExitCode) {
+            Write-Host "[ERROR] $($processResult.Diagnostic) No success was reported." -ForegroundColor Red
+            return 1
         }
 
         if ($installExitCode -eq 0) {
@@ -319,7 +489,7 @@ function Install-CrossPlatformApp {
         }
     }
     catch {
-        Write-Host "[ERROR] Exception during installation: $_" -ForegroundColor Red
+        Write-Host "[ERROR] Package manager execution failed. No success was reported." -ForegroundColor Red
         return 1
     }
 }

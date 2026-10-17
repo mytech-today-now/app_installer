@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Cross-platform CLI application installer with multi-select capabilities.
 
@@ -29,7 +29,8 @@
     Supports 271+ applications with cross-platform package mappings
 
 .PARAMETER Action
-    The action to perform. Valid values: Menu, InstallAll, InstallMissing, Status, InstallProfile
+    The action to perform. Valid values: Menu, InstallAll, InstallMissing, Status,
+    InstallProfile, EnableMonthlyUpdates, DisableMonthlyUpdates
     Default: Menu (interactive mode)
 
 .PARAMETER AppName
@@ -49,6 +50,14 @@
 .EXAMPLE
     .\install.ps1 -Action InstallMissing
     Installs only applications that are not currently installed
+
+.EXAMPLE
+    .\install.ps1 -Action EnableMonthlyUpdates
+    Selects package IDs and asks before enabling monthly updates.
+
+.EXAMPLE
+    .\install.ps1 -Action DisableMonthlyUpdates
+    Removes only the application-owned monthly update task after confirmation.
 
 .EXAMPLE
     .\install.ps1 -AppName "Chrome"
@@ -105,7 +114,7 @@
 [CmdletBinding(SupportsShouldProcess = $true)]
 param(
     [Parameter(Mandatory = $false)]
-    [ValidateSet('Menu', 'InstallAll', 'InstallMissing', 'Status', 'InstallProfile')]
+    [ValidateSet('Menu', 'InstallAll', 'InstallMissing', 'Status', 'InstallProfile', 'EnableMonthlyUpdates', 'DisableMonthlyUpdates')]
     [string]$Action = 'Menu',
 
     [Parameter(Mandatory = $false)]
@@ -141,6 +150,58 @@ function Safe-TestPath {
         return (Test-Path $Path -ErrorAction SilentlyContinue)
     }
     catch {
+        return $false
+    }
+}
+
+function New-InstallerActionResult {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateSet('Preview', 'Skipped')]
+        [string]$Status,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Message
+    )
+
+    return [PSCustomObject]@{
+        Status  = $Status
+        Success = $false
+        Message = $Message
+    }
+}
+
+function Get-InstallerActionStatus {
+    [CmdletBinding()]
+    param([AllowNull()]$Result)
+
+    if ($null -ne $Result -and $Result.PSObject.Properties['Status']) {
+        return [string]$Result.Status
+    }
+
+    if ($Result) {
+        return 'Completed'
+    }
+
+    return 'Failed'
+}
+
+function Test-InstallerShouldProcess {
+    [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Medium')]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Target,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Action
+    )
+
+    try {
+        return $PSCmdlet.ShouldProcess($Target, $Action)
+    }
+    catch {
+        Write-Host "[SKIPPED] Could not obtain confirmation. $Action was not performed." -ForegroundColor Yellow
         return $false
     }
 }
@@ -212,33 +273,10 @@ if ($script:_RepoRoot -and (Safe-TestPath (Join-Path $script:_RepoRoot 'scripts\
 
 #region Load Generic Logging Module
 
-# Import generic logging module from GitHub for centralized logging
-$loggingUrl = 'https://raw.githubusercontent.com/mytech-today-now/scripts/main/logging.ps1'
+# Logging is implemented in this entrypoint and does not require a startup download.
 $script:LoggingModuleLoaded = $false
-
-try {
-    Write-Host "Loading generic logging module..." -ForegroundColor Cyan
-    Invoke-Expression (Invoke-WebRequest -Uri $loggingUrl -UseBasicParsing).Content
-    $script:LoggingModuleLoaded = $true
-    Write-Host "[OK] Generic logging module loaded successfully" -ForegroundColor Green
-}
-catch {
-    Write-Host "[ERROR] Failed to load generic logging module: $_" -ForegroundColor Red
-    Write-Host "[INFO] Falling back to local logging implementation" -ForegroundColor Yellow
-
-    # Try to load from local path as fallback
-    $localLoggingPath = Join-Path $PSScriptRoot "..\scripts\logging.ps1"
-    if (Safe-TestPath $localLoggingPath) {
-        try {
-            . $localLoggingPath
-            $script:LoggingModuleLoaded = $true
-            Write-Host "[OK] Loaded logging module from local path" -ForegroundColor Green
-        }
-        catch {
-            Write-Host "[ERROR] Failed to load local logging module: $_" -ForegroundColor Red
-        }
-    }
-}
+$script:StartupHelperFallbackRequired = $true
+$script:StartupHelperFallbackMessage = 'A required optional helper could not be verified. Installation remains available with built-in behavior.'
 
 #endregion
 
@@ -269,6 +307,7 @@ $script:ScriptPath = $script:SystemInstallPath  # Will be updated after copy
 $script:LogPath = $null
 $script:AppsPath = Join-Path $script:ScriptPath "apps"
 $script:ProfilesPath = Join-Path $script:ScriptPath "profiles"
+$script:OOShutUp10TrustModulePath = Join-Path $PSScriptRoot 'modules\OOShutUp10Trust.psm1'
 
 Write-Verbose "Install Path: $script:SystemInstallPath"
 Write-Verbose "Log Path: $script:CentralLogPath"
@@ -438,8 +477,18 @@ function Copy-ScriptToSystemLocation {
     }
 }
 
-# Copy script to system location (first thing the script does)
-$copiedToSystem = Copy-ScriptToSystemLocation
+# Copy script to system location before ordinary runs. A dry run leaves the
+# user's installed copy and supporting files untouched.
+if ($WhatIfPreference) {
+    $copiedToSystem = $false
+    $script:ScriptPath = $script:OriginalScriptPath
+    $script:AppsPath = Join-Path $script:ScriptPath 'apps'
+    $script:ProfilesPath = Join-Path $script:ScriptPath 'profiles'
+    Write-Host '[PREVIEW] Skipping installer self-copy; no files were changed.' -ForegroundColor Cyan
+}
+else {
+    $copiedToSystem = Copy-ScriptToSystemLocation
+}
 
 # Update script paths to use system location
 if ($copiedToSystem) {
@@ -865,7 +914,7 @@ function Write-Log {
         $logEntry = "| $timestamp | $icon **$Level** | $Message |"
 
         # Write to log file in markdown table format
-        if ($script:LogPath -and (Safe-TestPath $script:LogPath)) {
+        if (-not $WhatIfPreference -and $script:LogPath -and (Safe-TestPath $script:LogPath)) {
             Add-Content -Path $script:LogPath -Value $logEntry -ErrorAction SilentlyContinue
         }
 
@@ -1088,7 +1137,7 @@ function Get-InstalledApplications {
 
     try {
         # Try using winget list first (faster and more accurate)
-        if (Test-WingetAvailable) {
+        if (-not $WhatIfPreference -and (Test-WingetAvailable)) {
             $wingetList = winget list --accept-source-agreements 2>$null | Out-String
 
             foreach ($app in $script:Applications) {
@@ -1180,17 +1229,22 @@ function Get-InstalledApplications {
         if ($installedApps.ContainsKey("Chrome Remote Desktop")) {
             $shortcutPath = "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Chrome Remote Desktop.lnk"
             if (-not (Safe-TestPath $shortcutPath)) {
-                Write-Log "Chrome Remote Desktop is installed but shortcut is missing - will create it" -Level INFO
-                $shortcutCreated = New-WebApplicationShortcut `
-                    -ShortcutName "Chrome Remote Desktop" `
-                    -Url "https://remotedesktop.google.com/access" `
-                    -Description "Configure and access Chrome Remote Desktop"
+                if ($WhatIfPreference) {
+                    Write-Host '[PREVIEW] Chrome Remote Desktop shortcut repair was skipped.' -ForegroundColor Cyan
+                }
+                else {
+                    Write-Log "Chrome Remote Desktop is installed but shortcut is missing - will create it" -Level INFO
+                    $shortcutCreated = New-WebApplicationShortcut `
+                        -ShortcutName "Chrome Remote Desktop" `
+                        -Url "https://remotedesktop.google.com/access" `
+                        -Description "Configure and access Chrome Remote Desktop"
 
-                if ($shortcutCreated) {
-                    Write-Log "Created missing shortcut for Chrome Remote Desktop" -Level SUCCESS
+                    if ($shortcutCreated) {
+                        Write-Log "Created missing shortcut for Chrome Remote Desktop" -Level SUCCESS
+                    }
                 }
             }
-            else {
+            elseif (-not $WhatIfPreference) {
                 Write-Log "Chrome Remote Desktop shortcut already exists" -Level INFO
             }
         }
@@ -1453,6 +1507,8 @@ function Show-Menu {
     Write-Host "    X. Uninstall/Remove Selected Applications" -ForegroundColor Yellow
     Write-Host "    S. Show Status Only" -ForegroundColor Yellow
     Write-Host "    R. Refresh Status" -ForegroundColor Yellow
+    Write-Host "    T. Set up monthly updates (explicit opt-in)" -ForegroundColor Yellow
+    Write-Host "    D. Disable monthly updates (removes this app's task only)" -ForegroundColor Yellow
     Write-Host "    Q. Quit" -ForegroundColor Yellow
     Write-Host ""
 
@@ -1468,7 +1524,7 @@ function Parse-SelectionInput {
     .SYNOPSIS
         Parses user input for multi-select, range select, or category selection.
 
-    .PARAMETER Input
+    .PARAMETER SelectionText
         The user's input string.
 
     .PARAMETER MenuItems
@@ -1483,7 +1539,8 @@ function Parse-SelectionInput {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]
-        [string]$Input,
+        [Alias('Input')]
+        [string]$SelectionText,
 
         [Parameter(Mandatory = $true)]
         [hashtable]$MenuItems,
@@ -1495,7 +1552,7 @@ function Parse-SelectionInput {
     $selectedApps = @()
 
     # Check for category selection (C:CategoryName)
-    if ($Input -match '^C:(.+)$') {
+    if ($SelectionText -match '^C:(.+)$') {
         $categoryName = $matches[1].Trim()
         $category = $Categories | Where-Object { $_.Name -like "*$categoryName*" } | Select-Object -First 1
 
@@ -1512,8 +1569,8 @@ function Parse-SelectionInput {
     }
 
     # Parse comma or space-separated numbers and ranges
-    $Input = $Input -replace '\s+', ',' # Replace spaces with commas
-    $parts = $Input -split ',' | Where-Object { $_ -ne '' }
+    $SelectionText = $SelectionText -replace '\s+', ',' # Replace spaces with commas
+    $parts = $SelectionText -split ',' | Where-Object { $_ -ne '' }
 
     foreach ($part in $parts) {
         $part = $part.Trim()
@@ -1564,7 +1621,7 @@ function Install-SelectedApplications {
     .PARAMETER Apps
         Array of application objects to install.
     #>
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess = $true)]
     param(
         [Parameter(Mandatory = $true)]
         [array]$Apps
@@ -1573,20 +1630,6 @@ function Install-SelectedApplications {
     if ($Apps.Count -eq 0) {
         Write-Host "`nNo applications selected." -ForegroundColor Yellow
         return
-    }
-
-    # Check which apps are already installed
-    $installedApps = Get-InstalledApplications
-    $alreadyInstalled = @()
-    $notInstalled = @()
-
-    foreach ($app in $Apps) {
-        if ($installedApps.ContainsKey($app.Name)) {
-            $alreadyInstalled += $app
-        }
-        else {
-            $notInstalled += $app
-        }
     }
 
     # Reorder applications to install O&O ShutUp10 first if present
@@ -1608,40 +1651,63 @@ function Install-SelectedApplications {
     }
     Write-Host ""
 
-    # Show installation status
-    if ($notInstalled.Count -gt 0) {
-        Write-Host "New installations ($($notInstalled.Count)):" -ForegroundColor Green
-        foreach ($app in $notInstalled) {
-            Write-Host "  - $($app.Name)" -ForegroundColor White
+    if ($WhatIfPreference) {
+        Write-Host '[PREVIEW] Installed-package state was not queried; selected packages are shown as installation candidates.' -ForegroundColor Cyan
+    }
+    elseif ($ConfirmPreference -ne 'None') {
+        Write-Host "Proceed with installation? (Y/N): " -NoNewline -ForegroundColor Yellow
+        $confirm = Read-Host
+
+        if ($confirm -ne 'Y' -and $confirm -ne 'y') {
+            Write-Host '[SKIPPED] Installation was declined. No package commands were run.' -ForegroundColor Yellow
+            return (New-InstallerActionResult -Status Skipped -Message 'Selected installation was declined.')
         }
-        Write-Host ""
+    }
+    else {
+        Write-Host '[INFO] Confirmation prompts were disabled; continuing with the selected package list.' -ForegroundColor Cyan
     }
 
-    if ($alreadyInstalled.Count -gt 0) {
-        Write-Host "Already installed - will reinstall ($($alreadyInstalled.Count)):" -ForegroundColor Yellow
-        foreach ($app in $alreadyInstalled) {
-            $version = $installedApps[$app.Name]
-            if ($app.Name -eq "O&O ShutUp10") {
-                Write-Host "  - $($app.Name) ($version) [Will re-run configuration]" -ForegroundColor Cyan
-            }
-            else {
-                Write-Host "  - $($app.Name) ($version)" -ForegroundColor Yellow
-            }
+    $installedApps = if ($WhatIfPreference) { @{} } else { Get-InstalledApplications }
+    $alreadyInstalled = @()
+    $notInstalled = @()
+    foreach ($app in $appsToInstall) {
+        if ($installedApps.ContainsKey($app.Name)) {
+            $alreadyInstalled += $app
         }
-        Write-Host ""
+        else {
+            $notInstalled += $app
+        }
     }
 
-    Write-Host "Proceed with installation? (Y/N): " -NoNewline -ForegroundColor Yellow
-    $confirm = Read-Host
+    if (-not $WhatIfPreference) {
+        if ($notInstalled.Count -gt 0) {
+            Write-Host "New installations ($($notInstalled.Count)):" -ForegroundColor Green
+            foreach ($app in $notInstalled) {
+                Write-Host "  - $($app.Name)" -ForegroundColor White
+            }
+            Write-Host ""
+        }
 
-    if ($confirm -ne 'Y' -and $confirm -ne 'y') {
-        Write-Host "Installation cancelled." -ForegroundColor Yellow
-        return
+        if ($alreadyInstalled.Count -gt 0) {
+            Write-Host "Already installed - will reinstall ($($alreadyInstalled.Count)):" -ForegroundColor Yellow
+            foreach ($app in $alreadyInstalled) {
+                $version = $installedApps[$app.Name]
+                if ($app.Name -eq "O&O ShutUp10") {
+                    Write-Host "  - $($app.Name) ($version) [Will re-run configuration]" -ForegroundColor Cyan
+                }
+                else {
+                    Write-Host "  - $($app.Name) ($version)" -ForegroundColor Yellow
+                }
+            }
+            Write-Host ""
+        }
     }
 
     $currentIndex = 0
     $successCount = 0
     $failCount = 0
+    $previewCount = 0
+    $skippedCount = 0
 
     foreach ($app in $appsToInstall) {
         $currentIndex++
@@ -1651,11 +1717,11 @@ function Install-SelectedApplications {
         Write-Host "+-------------------------------------------------------------------+" -ForegroundColor Cyan
 
         $result = Install-Application -App $app
-        if ($result) {
-            $successCount++
-        }
-        else {
-            $failCount++
+        switch (Get-InstallerActionStatus -Result $result) {
+            'Completed' { $successCount++ }
+            'Preview' { $previewCount++ }
+            'Skipped' { $skippedCount++ }
+            default { $failCount++ }
         }
     }
 
@@ -1667,6 +1733,12 @@ function Install-SelectedApplications {
     Write-Host "  Total:     $($appsToInstall.Count)" -ForegroundColor White
     Write-Host "  Success:   $successCount" -ForegroundColor Green
     Write-Host "  Failed:    $failCount" -ForegroundColor $(if ($failCount -gt 0) { "Red" } else { "Gray" })
+    if ($previewCount -gt 0) {
+        Write-Host "  Preview:   $previewCount (not run)" -ForegroundColor Cyan
+    }
+    if ($skippedCount -gt 0) {
+        Write-Host "  Skipped:   $skippedCount (not run)" -ForegroundColor Yellow
+    }
     Write-Host ""
 }
 
@@ -1800,121 +1872,272 @@ function Get-WingetErrorMessage {
     }
 }
 
+function New-UpdateScanResult {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateSet('CompletedWithUpdates', 'CompletedNoUpdates', 'Failed', 'Unknown', 'Cancelled')]
+        [string]$Status,
+
+        [AllowEmptyCollection()]
+        [object[]]$Updates = @(),
+
+        [AllowNull()]
+        [Nullable[int]]$ExitCode = $null,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Reason
+    )
+
+    return [PSCustomObject]@{
+        Status   = $Status
+        Updates  = [object[]]@($Updates)
+        ExitCode = if ($null -eq $ExitCode) { $null } else { [int]$ExitCode }
+        Reason   = $Reason
+    }
+}
+
+function ConvertFrom-WingetUpgradeTable {
+    [CmdletBinding()]
+    param([AllowNull()][string]$Text)
+
+    if ([string]::IsNullOrWhiteSpace($Text)) {
+        return New-UpdateScanResult -Status Unknown -Reason 'empty-output'
+    }
+
+    $cleanText = [regex]::Replace($Text, '\x1B\[[0-?]*[ -/]*[@-~]', '')
+    $lines = @($cleanText -split '\r?\n')
+    $nonEmptyLines = @($lines | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    if ($nonEmptyLines.Count -eq 1 -and $nonEmptyLines[0].Trim() -match '^(?i:No applicable upgrade found)\.?$') {
+        return New-UpdateScanResult -Status CompletedNoUpdates -Reason 'no-updates-marker'
+    }
+
+    $headerIndexes = @()
+    $headerFieldsByIndex = @{}
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        $fields = @($lines[$i].Trim() -split '\s{2,}' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+        $normalizedHeader = ($fields -join '|').ToLowerInvariant()
+        if ($normalizedHeader -eq 'name|id|version|available' -or $normalizedHeader -eq 'name|id|version|available|source') {
+            $headerIndexes += $i
+            $headerFieldsByIndex[$i] = $fields
+        }
+    }
+
+    if ($headerIndexes.Count -eq 0) {
+        return New-UpdateScanResult -Status Unknown -Reason 'missing-header'
+    }
+    if ($headerIndexes.Count -ne 1) {
+        return New-UpdateScanResult -Status Unknown -Reason 'ambiguous-header'
+    }
+
+    $headerIndex = [int]$headerIndexes[0]
+    $separatorIndex = $headerIndex + 1
+    if ($separatorIndex -ge $lines.Count -or $lines[$separatorIndex].Trim() -notmatch '^-{3,}$') {
+        return New-UpdateScanResult -Status Unknown -Reason 'missing-separator'
+    }
+
+    $expectedFieldCount = $headerFieldsByIndex[$headerIndex].Count
+    $updates = @()
+    $summaryCount = $null
+    for ($i = $separatorIndex + 1; $i -lt $lines.Count; $i++) {
+        $line = $lines[$i].Trim()
+        if ([string]::IsNullOrWhiteSpace($line)) {
+            continue
+        }
+
+        if ($line -match '^([0-9]+)\s+upgrades?\s+available\.?$') {
+            if ($null -ne $summaryCount) {
+                return New-UpdateScanResult -Status Unknown -Reason 'duplicate-summary'
+            }
+            $summaryCount = [int]$matches[1]
+            continue
+        }
+
+        if ($null -ne $summaryCount) {
+            return New-UpdateScanResult -Status Unknown -Reason 'malformed-row'
+        }
+
+        $parts = @($line -split '\s{2,}' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | ForEach-Object { $_.Trim() })
+        if ($parts.Count -ne $expectedFieldCount -or $parts.Count -lt 4 -or $parts[1] -match '\s' -or
+            @($parts | Where-Object { [string]::IsNullOrWhiteSpace($_) }).Count -gt 0) {
+            return New-UpdateScanResult -Status Unknown -Reason 'malformed-row'
+        }
+
+        $updates += [PSCustomObject]@{
+            Name             = $parts[0]
+            Id               = $parts[1]
+            CurrentVersion   = $parts[2]
+            AvailableVersion = $parts[3]
+            Source           = if ($parts.Count -ge 5) { $parts[4] } else { 'winget' }
+        }
+    }
+
+    if ($null -eq $summaryCount) {
+        return New-UpdateScanResult -Status Unknown -Reason 'missing-summary'
+    }
+    if ($summaryCount -ne $updates.Count) {
+        return New-UpdateScanResult -Status Unknown -Reason 'summary-count-mismatch'
+    }
+
+    $status = if ($updates.Count -eq 0) { 'CompletedNoUpdates' } else { 'CompletedWithUpdates' }
+    return New-UpdateScanResult -Status $status -Updates $updates -Reason 'table-validated'
+}
+
 function Get-AvailableUpdates {
-    <#
-    .SYNOPSIS
-        Checks for available updates for installed applications using winget.
-
-    .DESCRIPTION
-        Runs 'winget upgrade' to detect applications with available updates.
-        Parses the output and returns an array of update objects with app details.
-
-    .OUTPUTS
-        Array of PSCustomObject with properties: Name, Id, CurrentVersion, AvailableVersion, Source
-
-    .EXAMPLE
-        $updates = Get-AvailableUpdates
-        Write-Host "Found $($updates.Count) updates available"
-    #>
     [CmdletBinding()]
     param()
 
-    Write-Log "Checking for available updates using winget upgrade" -Level INFO
-    Write-Host "`n[CHECK] Checking for available updates..." -ForegroundColor Cyan
+    Write-Log 'Checking for available updates using winget upgrade' -Level INFO
+    $result = $null
 
     try {
-        # Run winget upgrade to get list of available updates
-        $wingetOutput = winget upgrade 2>&1 | Out-String
-
-        Write-Log "Winget upgrade command completed" -Level INFO
-
-        # Parse the output
-        $updates = @()
-        $lines = $wingetOutput -split "`r?`n"
-
-        # Find the header line (contains "Name", "Id", "Version", "Available")
-        $headerIndex = -1
-        for ($i = 0; $i -lt $lines.Count; $i++) {
-            if ($lines[$i] -match "Name.*Id.*Version.*Available") {
-                $headerIndex = $i
-                break
-            }
+        $commandResult = Invoke-WingetDependencyCommand -Arguments @('upgrade')
+        if ($null -eq $commandResult -or -not $commandResult.PSObject.Properties['Status']) {
+            $result = New-UpdateScanResult -Status Unknown -Reason 'command-result-missing'
         }
-
-        if ($headerIndex -eq -1) {
-            Write-Log "No updates available or unable to parse winget output" -Level INFO
-            Write-Host "[INFO] No updates available" -ForegroundColor Green
-            return @()
+        elseif ($commandResult.Status -eq 'Unavailable') {
+            $result = New-UpdateScanResult -Status Failed -ExitCode $commandResult.ExitCode -Reason 'command-unavailable'
         }
-
-        # Find the separator line (dashes)
-        $separatorIndex = $headerIndex + 1
-        if ($separatorIndex -ge $lines.Count -or $lines[$separatorIndex] -notmatch "^-+") {
-            Write-Log "Unable to find separator line in winget output" -Level WARNING
-            return @()
+        elseif ($commandResult.Status -eq 'Cancelled') {
+            $result = New-UpdateScanResult -Status Cancelled -ExitCode $commandResult.ExitCode -Reason 'command-cancelled'
         }
-
-        # Parse each update line
-        for ($i = $separatorIndex + 1; $i -lt $lines.Count; $i++) {
-            $line = $lines[$i].Trim()
-
-            # Skip empty lines
-            if ([string]::IsNullOrWhiteSpace($line)) {
-                continue
-            }
-
-            # Stop at summary line (e.g., "2 upgrades available")
-            if ($line -match "^\d+\s+upgrade") {
-                break
-            }
-
-            # Parse the line - winget output is space-separated with variable spacing
-            # Format: Name  Id  Version  Available  Source
-            $parts = $line -split '\s{2,}' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
-
-            if ($parts.Count -ge 4) {
-                $updateObj = [PSCustomObject]@{
-                    Name = $parts[0].Trim()
-                    Id = $parts[1].Trim()
-                    CurrentVersion = $parts[2].Trim()
-                    AvailableVersion = $parts[3].Trim()
-                    Source = if ($parts.Count -ge 5) { $parts[4].Trim() } else { "winget" }
-                }
-
-                $updates += $updateObj
-                Write-Log "Found update: $($updateObj.Name) ($($updateObj.CurrentVersion) -> $($updateObj.AvailableVersion))" -Level INFO
-            }
+        elseif ($commandResult.Status -eq 'Failed' -or ($null -ne $commandResult.ExitCode -and [int]$commandResult.ExitCode -ne 0)) {
+            $result = New-UpdateScanResult -Status Failed -ExitCode $commandResult.ExitCode -Reason 'command-failed'
         }
-
-        Write-Log "Found $($updates.Count) application(s) with available updates" -Level INFO
-        Write-Host "[OK] Found $($updates.Count) application(s) with available updates" -ForegroundColor Green
-        return $updates
+        elseif ($commandResult.Status -ne 'Succeeded' -or $null -eq $commandResult.ExitCode) {
+            $result = New-UpdateScanResult -Status Unknown -ExitCode $commandResult.ExitCode -Reason 'command-outcome-unknown'
+        }
+        else {
+            $outputText = (@($commandResult.Output) | ForEach-Object { [string]$_ }) -join [Environment]::NewLine
+            $result = ConvertFrom-WingetUpgradeTable -Text $outputText
+            $result.ExitCode = [int]$commandResult.ExitCode
+        }
+    }
+    catch [System.Management.Automation.PipelineStoppedException] {
+        $result = New-UpdateScanResult -Status Cancelled -Reason 'command-cancelled'
+    }
+    catch [System.OperationCanceledException] {
+        $result = New-UpdateScanResult -Status Cancelled -Reason 'command-cancelled'
     }
     catch {
-        Write-Log "Error checking for updates: $($_.Exception.Message)" -Level ERROR
-        Write-Host "[ERROR] Error checking for updates: $($_.Exception.Message)" -ForegroundColor Red
-        return @()
+        $result = New-UpdateScanResult -Status Unknown -Reason 'command-outcome-unknown'
     }
+
+    $logLevel = switch ($result.Status) {
+        'CompletedWithUpdates' { 'INFO' }
+        'CompletedNoUpdates' { 'INFO' }
+        'Cancelled' { 'WARNING' }
+        default { 'ERROR' }
+    }
+    $exitCodeText = if ($null -eq $result.ExitCode) { 'unknown' } else { [string]$result.ExitCode }
+    Write-Log "Update discovery status=$($result.Status); reason=$($result.Reason); exitCode=$exitCodeText" -Level $logLevel
+    foreach ($update in $result.Updates) {
+        Write-Log "Found update: $($update.Name) ($($update.CurrentVersion) -> $($update.AvailableVersion))" -Level INFO
+    }
+    return $result
+}
+function Invoke-WingetDependencyCommand {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string[]]$Arguments
+    )
+
+    $processHelper = Get-Command -Name 'Invoke-PackageManagerProcess' -CommandType Function -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($processHelper) {
+        return Invoke-PackageManagerProcess -Executable 'winget' -Arguments $Arguments
+    }
+
+    $application = Get-Command -Name 'winget' -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+    if (-not $application) {
+        return [PSCustomObject]@{
+            Status = 'Unavailable'
+            ExitCode = $null
+            Output = [object[]]@()
+            Diagnostic = 'The WinGet executable is unavailable.'
+        }
+    }
+
+    $executablePath = if ($application.Path) { $application.Path } else { $application.Source }
+    try {
+        if (Get-Variable -Name PSNativeCommandUseErrorActionPreference -ErrorAction SilentlyContinue) {
+            $PSNativeCommandUseErrorActionPreference = $false
+        }
+
+        $processOutput = @(& $executablePath @Arguments 2>&1)
+        $processExitCode = $LASTEXITCODE
+        if ($null -eq $processExitCode) {
+            return [PSCustomObject]@{
+                Status = 'Unknown'
+                ExitCode = $null
+                Output = [object[]]$processOutput
+                Diagnostic = 'WinGet did not return a process exit code.'
+            }
+        }
+
+        return [PSCustomObject]@{
+            Status = if ($processExitCode -eq 0) { 'Succeeded' } else { 'Failed' }
+            ExitCode = [int]$processExitCode
+            Output = [object[]]$processOutput
+            Diagnostic = if ($processExitCode -eq 0) { $null } else { 'WinGet returned a nonzero process exit code.' }
+        }
+    }
+    catch [System.Management.Automation.PipelineStoppedException] {
+        throw
+    }
+    catch [System.OperationCanceledException] {
+        throw
+    }
+    catch {
+        return [PSCustomObject]@{
+            Status = 'Unknown'
+            ExitCode = $null
+            Output = [object[]]@()
+            Diagnostic = 'The WinGet process outcome could not be confirmed.'
+        }
+    }
+}
+
+function Write-PackageDependencyMessage {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Message,
+
+        [Parameter(Mandatory = $true)]
+        [ValidateSet('info', 'succeeded', 'skipped', 'warning')]
+        [string]$Status
+    )
+
+    $outputFunction = Get-Command -Name 'Write-Output' -CommandType Function -ErrorAction SilentlyContinue
+    if ($outputFunction) {
+        $color = switch ($Status) {
+            'succeeded' { [System.Drawing.Color]::Green }
+            'skipped' { [System.Drawing.Color]::Green }
+            'warning' { [System.Drawing.Color]::Orange }
+            default { [System.Drawing.Color]::Gray }
+        }
+        Write-Output $Message -Color $color
+        return
+    }
+
+    $hostColor = switch ($Status) {
+        'succeeded' { 'Green' }
+        'skipped' { 'Green' }
+        'warning' { 'Yellow' }
+        default { 'Gray' }
+    }
+    Write-Host $Message -ForegroundColor $hostColor
 }
 
 function Get-PackageDependencies {
     <#
     .SYNOPSIS
-        Retrieves package dependencies from winget.
-
-    .DESCRIPTION
-        Queries winget to get the list of dependencies for a specific package.
-        Parses the output to extract package dependencies.
-
-    .PARAMETER PackageId
-        The winget package ID to check for dependencies.
+        Retrieves WinGet package dependencies with an explicit discovery status.
 
     .OUTPUTS
-        Array of dependency package IDs, or empty array if none found.
-
-    .EXAMPLE
-        $deps = Get-PackageDependencies -PackageId "TheDocumentFoundation.LibreOffice"
-        # Returns: @("Microsoft.VCRedist.2015+.x64")
+        A result with Status, Success, Dependencies, ExitCode, and Message.
+        A failed query is unknown because the dependency list could not be verified.
     #>
     [CmdletBinding()]
     param(
@@ -1924,73 +2147,69 @@ function Get-PackageDependencies {
 
     try {
         Write-Log "Checking dependencies for package: $PackageId" -Level INFO
-
-        # Run winget show to get package details including dependencies
-        $output = & cmd /c "winget show --id `"$PackageId`" 2>&1"
-
-        if ($LASTEXITCODE -ne 0) {
-            Write-Log "Failed to get package info for $PackageId (exit code: $LASTEXITCODE)" -Level WARNING
-            return @()
+        $showResult = Invoke-WingetDependencyCommand -Arguments @('show', '--id', $PackageId, '--exact')
+        if ($null -eq $showResult -or $showResult.Status -ne 'Succeeded' -or $null -eq $showResult.ExitCode -or $showResult.ExitCode -ne 0) {
+            $exitCode = if ($showResult -and $showResult.PSObject.Properties['ExitCode']) { $showResult.ExitCode } else { $null }
+            Write-Log "Dependency discovery is unknown for $PackageId (exit code: $exitCode)" -Level WARNING
+            return [PSCustomObject]@{
+                Status = 'unknown'
+                Success = $false
+                PackageId = $PackageId
+                Dependencies = [string[]]@()
+                ExitCode = $exitCode
+                Message = 'WinGet could not verify the package dependency list.'
+            }
         }
 
-        $outputStr = $output | Out-String
+        $outputText = (@($showResult.Output | ForEach-Object { [string]$_ }) -join [Environment]::NewLine)
         $dependencies = @()
-
-        # Parse dependencies section
-        # Look for "Dependencies:" followed by "Package Dependencies:"
-        if ($outputStr -match "Dependencies:[\s\S]*?Package Dependencies:\s*\n([\s\S]*?)(?:\n\s*\n|\n[A-Z]|\z)") {
-            $depsSection = $matches[1]
-
-            # Extract package IDs (they typically don't have leading spaces or are indented)
-            $lines = $depsSection -split "`r?`n"
-            foreach ($line in $lines) {
-                $line = $line.Trim()
-                if ($line -and $line -notmatch "^\s*-" -and $line -match "^[A-Za-z0-9\.\+]+") {
-                    $dependencies += $line
-                    Write-Log "Found dependency: $line" -Level INFO
+        if ($outputText -match "Dependencies:[\s\S]*?Package Dependencies:\s*\r?\n([\s\S]*?)(?:\r?\n\s*\r?\n|\r?\n[A-Z]|\z)") {
+            $dependencySection = $matches[1]
+            foreach ($line in ($dependencySection -split "\r?\n")) {
+                $dependencyId = $line.Trim()
+                if ($dependencyId -and $dependencyId -notmatch '^\s*-' -and $dependencyId -match '^[A-Za-z0-9.+]+$') {
+                    $dependencies += $dependencyId
+                    Write-Log "Found dependency: $dependencyId" -Level INFO
                 }
             }
         }
 
-        if ($dependencies.Count -gt 0) {
-            Write-Log "Package $PackageId has $($dependencies.Count) package dependencies" -Level INFO
+        Write-Log "Dependency discovery succeeded for $PackageId with $($dependencies.Count) package dependency(ies)" -Level INFO
+        return [PSCustomObject]@{
+            Status = 'succeeded'
+            Success = $true
+            PackageId = $PackageId
+            Dependencies = [string[]]$dependencies
+            ExitCode = [int]$showResult.ExitCode
+            Message = $null
         }
-        else {
-            Write-Log "Package $PackageId has no package dependencies" -Level INFO
-        }
-
-        return $dependencies
     }
     catch {
-        Write-Log "Error checking dependencies for $PackageId : $($_.Exception.Message)" -Level ERROR
-        return @()
+        Write-Log "Dependency discovery is unknown for $PackageId" -Level WARNING
+        return [PSCustomObject]@{
+            Status = 'unknown'
+            Success = $false
+            PackageId = $PackageId
+            Dependencies = [string[]]@()
+            ExitCode = $null
+            Message = 'WinGet could not verify the package dependency list.'
+        }
     }
 }
 
 function Install-PackageDependencies {
     <#
     .SYNOPSIS
-        Installs missing package dependencies automatically.
-
-    .DESCRIPTION
-        Checks if dependencies are installed and installs missing ones.
-        Logs all operations and handles errors gracefully.
-
-    .PARAMETER Dependencies
-        Array of dependency package IDs to install.
-
-    .PARAMETER PackageName
-        Name of the main package (for logging purposes).
+        Checks and installs package dependencies, returning one outcome per dependency.
 
     .OUTPUTS
-        Boolean - True if all dependencies are satisfied, False otherwise.
-
-    .EXAMPLE
-        $success = Install-PackageDependencies -Dependencies @("Microsoft.VCRedist.2015+.x64") -PackageName "LibreOffice"
+        A result with Status, Success, and ordered per-dependency Outcomes.
+        Per-dependency states are succeeded, failed, skipped, or unknown.
     #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
         [array]$Dependencies,
 
         [Parameter(Mandatory = $true)]
@@ -1998,54 +2217,144 @@ function Install-PackageDependencies {
     )
 
     if ($Dependencies.Count -eq 0) {
-        return $true
+        return [PSCustomObject]@{
+            Status = 'succeeded'
+            Success = $true
+            PackageName = $PackageName
+            Outcomes = [object[]]@()
+        }
     }
 
-    Write-Log "Installing dependencies for $PackageName..." -Level INFO
-    Write-Host "  [DEPS] Checking $($Dependencies.Count) dependencies..." -ForegroundColor Gray
+    Write-Log "Installing dependencies for $PackageName" -Level INFO
+    Write-PackageDependencyMessage -Message "  [DEPS] Checking $($Dependencies.Count) dependencies for $PackageName..." -Status info
+    $outcomes = @()
 
-    $allSuccess = $true
+    foreach ($dependency in $Dependencies) {
+        $dependencyId = [string]$dependency
+        $status = 'unknown'
+        $message = 'The dependency state could not be confirmed.'
+        $checkExitCode = $null
+        $installExitCode = $null
 
-    foreach ($depId in $Dependencies) {
         try {
-            Write-Log "Checking dependency: $depId" -Level INFO
-
-            # Check if dependency is already installed
-            $checkOutput = & cmd /c "winget list --id `"$depId`" --exact 2>&1"
-            $isInstalled = $LASTEXITCODE -eq 0 -and ($checkOutput | Out-String) -match $depId
-
-            if ($isInstalled) {
-                Write-Log "Dependency $depId is already installed" -Level INFO
-                Write-Host "  [OK] $depId (already installed)" -ForegroundColor Green
-                continue
+            Write-Log "Checking dependency: $dependencyId" -Level INFO
+            $checkResult = Invoke-WingetDependencyCommand -Arguments @('list', '--id', $dependencyId, '--exact')
+            if ($checkResult -and $checkResult.PSObject.Properties['ExitCode']) {
+                $checkExitCode = $checkResult.ExitCode
             }
 
-            # Install the dependency
-            Write-Log "Installing dependency: $depId" -Level INFO
-            Write-Host "  [INSTALL] Installing $depId..." -ForegroundColor Cyan
-
-            $installCmd = "winget install --id `"$depId`" --silent --accept-source-agreements --accept-package-agreements"
-            $installOutput = & cmd /c "$installCmd 2>&1"
-            $exitCode = $LASTEXITCODE
-
-            if ($exitCode -eq 0 -or ($installOutput | Out-String) -match "Successfully installed") {
-                Write-Log "Successfully installed dependency: $depId" -Level SUCCESS
-                Write-Host "  [OK] $depId installed successfully" -ForegroundColor Green
+            if ($null -eq $checkResult -or $checkResult.Status -ne 'Succeeded' -or $null -eq $checkExitCode -or $checkExitCode -ne 0) {
+                $status = 'unknown'
+                $message = 'WinGet could not confirm whether the dependency is installed.'
             }
             else {
-                Write-Log "Failed to install dependency $depId (exit code: $exitCode)" -Level WARNING
-                Write-Host "  [WARN] $depId installation failed (continuing anyway)" -ForegroundColor Yellow
-                # Don't fail the whole process - winget will try to install it again with the main package
+                $checkText = (@($checkResult.Output | ForEach-Object { [string]$_ }) -join [Environment]::NewLine)
+                if ($checkText -match [regex]::Escape($dependencyId)) {
+                    $status = 'skipped'
+                    $message = 'Already installed.'
+                }
+                else {
+                    Write-Log "Installing dependency: $dependencyId" -Level INFO
+                    $installResult = Invoke-WingetDependencyCommand -Arguments @(
+                        'install', '--id', $dependencyId, '--exact', '--silent',
+                        '--accept-source-agreements', '--accept-package-agreements'
+                    )
+                    if ($installResult -and $installResult.PSObject.Properties['ExitCode']) {
+                        $installExitCode = $installResult.ExitCode
+                    }
+
+                    if ($installResult -and $installResult.Status -eq 'Succeeded' -and $installExitCode -eq 0) {
+                        $status = 'succeeded'
+                        $message = 'WinGet reported the dependency install succeeded.'
+                    }
+                    elseif ($null -ne $installExitCode) {
+                        $status = 'failed'
+                        $message = "WinGet returned exit code $installExitCode."
+                    }
+                    else {
+                        $status = 'unknown'
+                        $message = 'The dependency install outcome could not be confirmed.'
+                    }
+                }
             }
         }
         catch {
-            Write-Log "Exception installing dependency $depId : $($_.Exception.Message)" -Level WARNING
-            Write-Host "  [WARN] $depId error (continuing anyway)" -ForegroundColor Yellow
-            # Don't fail - let winget handle it
+            $status = 'unknown'
+            $message = 'The dependency command outcome could not be confirmed.'
+        }
+
+        $outcomes += [PSCustomObject]@{
+            PackageId = $dependencyId
+            Status = $status
+            CheckExitCode = $checkExitCode
+            InstallExitCode = $installExitCode
+            Message = $message
+        }
+
+        $logLevel = if ($status -eq 'succeeded' -or $status -eq 'skipped') { 'INFO' } elseif ($status -eq 'failed') { 'WARNING' } else { 'ERROR' }
+        Write-Log "Dependency outcome: $dependencyId is $status" -Level $logLevel
+        switch ($status) {
+            'succeeded' {
+                Write-PackageDependencyMessage -Message "  [OK] $dependencyId installed successfully" -Status succeeded
+            }
+            'skipped' {
+                Write-PackageDependencyMessage -Message "  [OK] $dependencyId is already installed" -Status skipped
+            }
+            'failed' {
+                Write-PackageDependencyMessage -Message "  [WARN] $dependencyId did not install (exit code $installExitCode). WinGet will process manifest dependencies during the main operation." -Status warning
+            }
+            default {
+                Write-PackageDependencyMessage -Message "  [WARN] $dependencyId has an unknown preflight result. WinGet will process manifest dependencies during the main operation." -Status warning
+            }
         }
     }
 
-    return $allSuccess
+    $failedCount = @($outcomes | Where-Object { $_.Status -eq 'failed' }).Count
+    $unknownCount = @($outcomes | Where-Object { $_.Status -eq 'unknown' }).Count
+    $aggregateStatus = if ($failedCount -gt 0) { 'failed' } elseif ($unknownCount -gt 0) { 'unknown' } else { 'succeeded' }
+
+    return [PSCustomObject]@{
+        Status = $aggregateStatus
+        Success = $aggregateStatus -eq 'succeeded'
+        PackageName = $PackageName
+        Outcomes = [object[]]$outcomes
+    }
+}
+
+function Write-PackageDependencyFallbackNotice {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$PackageName,
+
+        [AllowNull()]
+        [object]$DiscoveryResult,
+
+        [AllowNull()]
+        [object]$InstallResult
+    )
+
+    if ($null -eq $DiscoveryResult -or $DiscoveryResult.Status -ne 'succeeded') {
+        $message = "Could not verify dependencies for $PackageName. Continuing to WinGet, which processes manifest dependencies by default. If it fails, check WinGet and retry."
+        Write-Log $message -Level WARNING
+        Write-PackageDependencyMessage -Message "  [WARN] $message" -Status warning
+        return
+    }
+
+    if ($null -eq $InstallResult -or $InstallResult.Success) {
+        return
+    }
+
+    $unresolved = @($InstallResult.Outcomes | Where-Object { $_.Status -eq 'failed' -or $_.Status -eq 'unknown' })
+    if ($unresolved.Count -eq 0) {
+        return
+    }
+
+    $dependencySummary = ($unresolved | ForEach-Object { "$($_.PackageId) ($($_.Status))" }) -join ', '
+    $firstDependencyId = [string]$unresolved[0].PackageId
+    $message = "Dependency preflight for $PackageName was incomplete: $dependencySummary. Continuing to WinGet, which processes manifest dependencies by default. If it fails, run: winget install --id $firstDependencyId --exact, then retry."
+    Write-Log $message -Level WARNING
+    Write-PackageDependencyMessage -Message "  [WARN] $message" -Status warning
 }
 
 function Update-Applications {
@@ -2067,7 +2376,7 @@ function Update-Applications {
         $updates = Get-AvailableUpdates
         $result = Update-Applications -Updates $updates[0..2]
     #>
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess = $true)]
     param(
         [Parameter(Mandatory = $true)]
         [array]$Updates
@@ -2078,21 +2387,44 @@ function Update-Applications {
 
     $successCount = 0
     $failCount = 0
+    $previewCount = 0
+    $skippedCount = 0
     $results = @()
 
     foreach ($update in $Updates) {
+        $updateTarget = if ($update.Id) { "{0} [{1}]" -f $update.Name, $update.Id } else { [string]$update.Name }
+        $updateAction = "Upgrade $($update.Name) from $($update.CurrentVersion) to $($update.AvailableVersion)"
+        if (-not (Test-InstallerShouldProcess -Target $updateTarget -Action $updateAction)) {
+            $status = if ($WhatIfPreference) { 'Preview' } else { 'Skipped' }
+            $message = if ($WhatIfPreference) {
+                "Would $($updateAction.ToLowerInvariant()) for $updateTarget. No package-manager or dependency commands were run."
+            }
+            else {
+                "Update confirmation was declined. $($update.Name) was not changed."
+            }
+            Write-Host "[$($status.ToUpperInvariant())] $message" -ForegroundColor $(if ($status -eq 'Preview') { 'Cyan' } else { 'Yellow' })
+            if ($status -eq 'Preview') { $previewCount++ } else { $skippedCount++ }
+            $results += [PSCustomObject]@{
+                Name = $update.Name
+                Success = $false
+                Status = $status
+                Message = $message
+            }
+            continue
+        }
+
         Write-Log "Updating $($update.Name) from $($update.CurrentVersion) to $($update.AvailableVersion)" -Level INFO
         Write-Host "`n[UPDATE] Updating $($update.Name)..." -ForegroundColor Blue
         Write-Host "  Current Version: $($update.CurrentVersion)" -ForegroundColor Gray
         Write-Host "  New Version: $($update.AvailableVersion)" -ForegroundColor Gray
 
         try {
-            # Check and install dependencies first
-            $dependencies = Get-PackageDependencies -PackageId $update.Id
-            if ($dependencies.Count -gt 0) {
-                Write-Log "Package $($update.Name) has $($dependencies.Count) dependencies" -Level INFO
-                Install-PackageDependencies -Dependencies $dependencies -PackageName $update.Name | Out-Null
+            $dependencyDiscovery = Get-PackageDependencies -PackageId $update.Id
+            $dependencyResult = $null
+            if ($dependencyDiscovery.Status -eq 'succeeded') {
+                $dependencyResult = Install-PackageDependencies -Dependencies $dependencyDiscovery.Dependencies -PackageName $update.Name
             }
+            Write-PackageDependencyFallbackNotice -PackageName $update.Name -DiscoveryResult $dependencyDiscovery -InstallResult $dependencyResult
 
             # Run winget upgrade for this specific app with retry logic
             $maxRetries = 3
@@ -2166,6 +2498,7 @@ function Update-Applications {
                 $results += [PSCustomObject]@{
                     Name = $update.Name
                     Success = $true
+                    Status = 'Completed'
                     Message = "Updated to version $($update.AvailableVersion)"
                 }
             }
@@ -2189,6 +2522,7 @@ function Update-Applications {
                 $results += [PSCustomObject]@{
                     Name = $update.Name
                     Success = $false
+                    Status = 'Failed'
                     Message = $lastError
                 }
             }
@@ -2201,6 +2535,7 @@ function Update-Applications {
             $results += [PSCustomObject]@{
                 Name = $update.Name
                 Success = $false
+                Status = 'Failed'
                 Message = $_.Exception.Message
             }
         }
@@ -2210,10 +2545,18 @@ function Update-Applications {
     Write-Host "`n=== Updates Complete ===" -ForegroundColor Cyan
     Write-Host "Successful: $successCount" -ForegroundColor Green
     Write-Host "Failed: $failCount" -ForegroundColor Red
+    if ($previewCount -gt 0) {
+        Write-Host "Preview: $previewCount (not run)" -ForegroundColor Cyan
+    }
+    if ($skippedCount -gt 0) {
+        Write-Host "Skipped: $skippedCount (not run)" -ForegroundColor Yellow
+    }
 
     return @{
         SuccessCount = $successCount
         FailCount = $failCount
+        PreviewCount = $previewCount
+        SkippedCount = $skippedCount
         Results = $results
     }
 }
@@ -2227,15 +2570,41 @@ function Check-ForUpdates {
         Checks for available updates, displays them in a table, prompts for selection,
         and processes selected updates.
     #>
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess = $true)]
     param()
+
+    if ($WhatIfPreference) {
+        $target = 'all installed applications managed by winget'
+        $action = 'Check for available upgrades and apply selected updates'
+        [void](Test-InstallerShouldProcess -Target $target -Action $action)
+        $message = "Would check for and apply available updates to $target. No winget query, network request, or package command was run."
+        Write-Host "[PREVIEW] $message" -ForegroundColor Cyan
+        return [PSCustomObject]@{ Status = 'Preview'; Success = $false; Message = $message }
+    }
 
     Write-Log "User initiated update check (CLI mode)" -Level INFO
 
     # Get available updates
-    $updates = Get-AvailableUpdates
+    $scanResult = Get-AvailableUpdates
+    $validStatuses = @('CompletedWithUpdates', 'CompletedNoUpdates', 'Failed', 'Unknown', 'Cancelled')
+    if ($null -eq $scanResult -or $scanResult.Status -notin $validStatuses -or $null -eq $scanResult.PSObject.Properties['Updates']) {
+        Write-Log 'Update discovery status=Unknown; reason=invalid-result; exitCode=unknown' -Level ERROR
+        $scanResult = New-UpdateScanResult -Status Unknown -Reason 'invalid-result'
+    }
 
-    if ($updates.Count -eq 0) {
+    $updates = [object[]]@($scanResult.Updates)
+    if (($scanResult.Status -eq 'CompletedNoUpdates' -and $updates.Count -ne 0) -or
+        ($scanResult.Status -eq 'CompletedWithUpdates' -and $updates.Count -eq 0)) {
+        Write-Log 'Update discovery status=Unknown; reason=status-count-mismatch; exitCode=unknown' -Level ERROR
+        $scanResult = New-UpdateScanResult -Status Unknown -Reason 'status-count-mismatch'
+    }
+
+    if ($scanResult.Status -in @('Failed', 'Unknown', 'Cancelled')) {
+        Write-Host '[WARN] Update check could not be confirmed. Review the log and retry.' -ForegroundColor Yellow
+        return
+    }
+
+    if ($scanResult.Status -eq 'CompletedNoUpdates') {
         Write-Host "`n[INFO] All applications are up to date!" -ForegroundColor Green
         return
     }
@@ -2350,8 +2719,8 @@ function Check-ForUpdates {
 
     if ($confirm -ne 'Y' -and $confirm -ne 'y') {
         Write-Log "User cancelled update confirmation" -Level INFO
-        Write-Host "[INFO] Update cancelled" -ForegroundColor Yellow
-        return
+        Write-Host "[SKIPPED] Update was declined. No package update command was run." -ForegroundColor Yellow
+        return [PSCustomObject]@{ Status = 'Skipped'; Success = $false; Message = 'Update was declined.' }
     }
 
     # Perform updates
@@ -2362,6 +2731,12 @@ function Check-ForUpdates {
     Write-Host "Total: $($selectedUpdates.Count)" -ForegroundColor White
     Write-Host "Successful: $($result.SuccessCount)" -ForegroundColor Green
     Write-Host "Failed: $($result.FailCount)" -ForegroundColor Red
+    if ($result.PreviewCount -gt 0) {
+        Write-Host "Preview: $($result.PreviewCount) (not run)" -ForegroundColor Cyan
+    }
+    if ($result.SkippedCount -gt 0) {
+        Write-Host "Skipped: $($result.SkippedCount) (not run)" -ForegroundColor Yellow
+    }
 
     if ($result.FailCount -gt 0) {
         Write-Host "`nFailed Updates:" -ForegroundColor Red
@@ -2481,57 +2856,71 @@ function New-WebApplicationShortcut {
 function Install-OOShutUp10FromRemote {
     <#
     .SYNOPSIS
-        Downloads and executes the O&O ShutUp10 installation script from GitHub.
+        Executes the O&O ShutUp10 installation script only when its release is pinned and verified.
 
     .DESCRIPTION
-        Downloads the Install-OOShutUp10.ps1 script from the mytech-today-now/OO repository
-        and executes it. This is the preferred installation method for O&O ShutUp10.
+        The current external helper is disabled until an immutable source and reviewed digest
+        or signer are configured in OOShutUp10Trust.psm1.
 
     .OUTPUTS
-        Returns $true if successful, $false otherwise.
+        Returns separate download, verification, installation, and cleanup statuses.
     #>
     [CmdletBinding()]
     param()
 
+    $result = [PSCustomObject]@{
+        Success = $false
+        DownloadStatus = 'not-attempted'
+        VerificationStatus = 'unverified'
+        InstallationStatus = 'not-started'
+        ExitCode = $null
+        FailureReason = 'trust-module-unavailable'
+        CleanupStatus = 'not-required'
+        TempDirectory = $null
+    }
+    $release = $null
+
     try {
-        $remoteScriptUrl = "https://raw.githubusercontent.com/mytech-today-now/OO/main/Install-OOShutUp10.ps1"
-        $tempScriptPath = Join-Path $env:TEMP "Install-OOShutUp10.ps1"
-
-        Write-Log "Downloading O&O ShutUp10 script from GitHub..." -Level INFO
-        Write-Host "  [1/3] [DOWNLOAD] Downloading installation script from GitHub..." -ForegroundColor Yellow
-
-        # Download the script
-        Invoke-WebRequest -Uri $remoteScriptUrl -OutFile $tempScriptPath -UseBasicParsing -ErrorAction Stop
-
-        Write-Log "Downloaded O&O ShutUp10 script to: $tempScriptPath" -Level INFO
-        Write-Host "  [2/3] [EXECUTE] Running installation script..." -ForegroundColor Yellow
-
-        # Execute the script
-        & $tempScriptPath
-        $exitCode = $LASTEXITCODE
-
-        # Clean up
-        if (Safe-TestPath $tempScriptPath) {
-            Remove-Item -Path $tempScriptPath -Force -ErrorAction SilentlyContinue
+        if (-not (Test-Path -LiteralPath $script:OOShutUp10TrustModulePath -PathType Leaf)) {
+            throw 'trust-module-unavailable'
         }
 
-        # Exit code 0 = success, exit code 30 = success (settings applied/changes made)
-        if ($exitCode -eq 0 -or $exitCode -eq 30) {
-            Write-Log "O&O ShutUp10 installed successfully via remote script (exit code: $exitCode)" -Level SUCCESS
-            Write-Host "  [3/3] [OK] Installation complete!" -ForegroundColor Green
-            return $true
+        $loadedModule = Get-Module -Name OOShutUp10Trust |
+            Where-Object { $_.Path -eq $script:OOShutUp10TrustModulePath } |
+            Select-Object -First 1
+        if (-not $loadedModule) {
+            Import-Module -Name $script:OOShutUp10TrustModulePath -DisableNameChecking -ErrorAction Stop | Out-Null
         }
-        else {
-            Write-Log "O&O ShutUp10 remote script failed with exit code: $exitCode" -Level ERROR
-            Write-Host "  [3/3] [FAIL] Installation failed with exit code: $exitCode" -ForegroundColor Red
-            return $false
-        }
+
+        $release = Get-OOShutUp10PinnedRelease
+        $result = Invoke-VerifiedOOShutUp10Script `
+            -Uri $release.Uri `
+            -ExpectedSha256 $release.Sha256 `
+            -ExpectedSignerThumbprint $release.SignerThumbprint
     }
     catch {
-        Write-Log "Failed to download or execute O&O ShutUp10 remote script: $_" -Level ERROR
-        Write-Host "  [FAIL] Failed to download or execute remote script: $_" -ForegroundColor Red
-        return $false
+        # Keep diagnostics sanitized and installation status separate from transfer status.
+        $result.FailureReason = 'trust-check-unavailable'
     }
+
+    $releaseVersion = if ($release -and $release.Version) { $release.Version } else { 'unconfigured' }
+    Write-Log ("O&O release={0}; download={1}; verification={2}; installation={3}; exit={4}; reason={5}" -f `
+        $releaseVersion, $result.DownloadStatus, $result.VerificationStatus, $result.InstallationStatus, $result.ExitCode, $result.FailureReason) -Level INFO
+
+    if ($result.Success) {
+        Write-Host "  [OK] O&O ShutUp10 installation completed." -ForegroundColor Green
+    }
+    elseif ($result.FailureReason -eq 'cancelled') {
+        Write-Host 'O&O installer verification was cancelled. No O&O changes were made.' -ForegroundColor Yellow
+    }
+    elseif ($result.InstallationStatus -eq 'not-started') {
+        Write-Host 'The O&O installer could not be verified. No O&O changes were made. Review the local installer or retry after the release source is verified.' -ForegroundColor Yellow
+    }
+    else {
+        Write-Host 'O&O installation failed or its result is unknown. Review O&O status before retrying.' -ForegroundColor Red
+    }
+
+    return $result
 }
 
 function Install-Application {
@@ -2539,10 +2928,10 @@ function Install-Application {
     .SYNOPSIS
         Installs a specific application.
     #>
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess = $true)]
     param(
         [Parameter(Mandatory = $true)]
-        [hashtable]$App,
+        [object]$App,
 
         [Parameter(Mandatory = $false)]
         [int]$CurrentIndex = 0,
@@ -2550,6 +2939,32 @@ function Install-Application {
         [Parameter(Mandatory = $false)]
         [int]$TotalCount = 0
     )
+
+    $installTarget = if ($App.WingetId) {
+        "{0} [{1}]" -f $App.Name, $App.WingetId
+    }
+    elseif ($App.ScriptName) {
+        "{0} (script {1})" -f $App.Name, $App.ScriptName
+    }
+    else {
+        [string]$App.Name
+    }
+    $installAction = switch -CaseSensitive -Exact ($App.Name) {
+        'O&O ShutUp10' { 'Download and install the approved O&O release' }
+        default { 'Install or configure the selected application' }
+    }
+
+    if (-not (Test-InstallerShouldProcess -Target $installTarget -Action $installAction)) {
+        if ($WhatIfPreference) {
+            $message = "Would $($installAction.ToLowerInvariant()) for $installTarget. No package, network, or local installer action was performed."
+            Write-Host "[PREVIEW] $message" -ForegroundColor Cyan
+            return (New-InstallerActionResult -Status Preview -Message $message)
+        }
+
+        $message = "$installAction was declined for $installTarget. No installation was performed."
+        Write-Host "[SKIPPED] $message" -ForegroundColor Yellow
+        return (New-InstallerActionResult -Status Skipped -Message $message)
+    }
 
     Write-Log "Installing $($App.Name)..." -Level INFO
 
@@ -2570,15 +2985,15 @@ function Install-Application {
     Write-Host "+====================================================================+" -ForegroundColor Cyan
 
     try {
-        # Special handling for O&O ShutUp10: Try remote script first
+        # Special handling for O&O ShutUp10 uses only the pinned-release trust gate.
         if ($App.Name -eq "O&O ShutUp10") {
             Write-Log "Using special installation method for O&O ShutUp10" -Level INFO
-            Write-Host "  [i] Using remote installation script from GitHub..." -ForegroundColor Cyan
+            Write-Host "  [i] Checking the approved O&O installer release..." -ForegroundColor Cyan
 
-            # Try remote script first
-            $remoteSuccess = Install-OOShutUp10FromRemote
+            # A missing or rejected pin fails this selected item without using another source.
+            $remoteResult = Install-OOShutUp10FromRemote
 
-            if ($remoteSuccess) {
+            if ($remoteResult.Success) {
                 # Register O&O ShutUp10 as installed
                 $ooShutUpPath = "C:\Program Files\OOShutUp10\OOSU10.exe"
                 if (Safe-TestPath $ooShutUpPath) {
@@ -2600,9 +3015,8 @@ function Install-Application {
                 return $true
             }
 
-            # If remote failed, try local script as fallback
-            Write-Log "Remote script failed, trying local script fallback..." -Level WARNING
-            Write-Host "  [WARN] Remote script failed, trying local script..." -ForegroundColor Yellow
+            # Do not run the local script or any other source without its own approved trust pin.
+            return $false
         }
 
         # Check if custom script exists
@@ -2675,12 +3089,12 @@ function Install-Application {
                 Write-Log "Installing via winget: $($App.WingetId)" -Level INFO
                 Write-Verbose "Installing $($App.Name) using winget ID: $($App.WingetId)"
 
-                # Check and install dependencies first
-                $dependencies = Get-PackageDependencies -PackageId $App.WingetId
-                if ($dependencies.Count -gt 0) {
-                    Write-Log "Package $($App.Name) has $($dependencies.Count) dependencies" -Level INFO
-                    Install-PackageDependencies -Dependencies $dependencies -PackageName $App.Name | Out-Null
+                $dependencyDiscovery = Get-PackageDependencies -PackageId $App.WingetId
+                $dependencyResult = $null
+                if ($dependencyDiscovery.Status -eq 'succeeded') {
+                    $dependencyResult = Install-PackageDependencies -Dependencies $dependencyDiscovery.Dependencies -PackageName $App.Name
                 }
+                Write-PackageDependencyFallbackNotice -PackageName $App.Name -DiscoveryResult $dependencyDiscovery -InstallResult $dependencyResult
 
                 # Phase 1: Checking
                 if ($TotalCount -gt 0) {
@@ -2819,10 +3233,10 @@ function Uninstall-Application {
         $app = $script:Applications | Where-Object { $_.Name -eq "Google Chrome" }
         Uninstall-Application -App $app
     #>
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess = $true)]
     param(
         [Parameter(Mandatory = $true)]
-        [hashtable]$App,
+        [object]$App,
 
         [Parameter(Mandatory = $false)]
         [int]$CurrentIndex = 0,
@@ -2830,6 +3244,25 @@ function Uninstall-Application {
         [Parameter(Mandatory = $false)]
         [int]$TotalCount = 0
     )
+
+    $uninstallTarget = if ($App.WingetId) { "{0} [{1}]" -f $App.Name, $App.WingetId } else { [string]$App.Name }
+    if (-not $App.WingetId) {
+        Write-Host "[SKIPPED] Cannot uninstall $($App.Name): no winget package ID is configured." -ForegroundColor Yellow
+        return (New-InstallerActionResult -Status Skipped -Message 'No winget package ID is configured.')
+    }
+
+    $uninstallAction = "Uninstall $($App.Name)"
+    if (-not (Test-InstallerShouldProcess -Target $uninstallTarget -Action $uninstallAction)) {
+        if ($WhatIfPreference) {
+            $message = "Would uninstall $uninstallTarget. No installed-state query or package command was run."
+            Write-Host "[PREVIEW] $message" -ForegroundColor Cyan
+            return (New-InstallerActionResult -Status Preview -Message $message)
+        }
+
+        $message = "$uninstallTarget was not uninstalled because confirmation was declined."
+        Write-Host "[SKIPPED] $message" -ForegroundColor Yellow
+        return (New-InstallerActionResult -Status Skipped -Message $message)
+    }
 
     Write-Log "Uninstalling $($App.Name)..." -Level INFO
 
@@ -2850,18 +3283,17 @@ function Uninstall-Application {
     Write-Host "+====================================================================+" -ForegroundColor Cyan
 
     try {
-        # Check if app has WingetId
-        if (-not $App.WingetId) {
-            Write-Log "Cannot uninstall $($App.Name): No WingetId defined" -Level WARNING
-            Write-Host "  [WARN] Cannot uninstall: No WingetId defined for this application" -ForegroundColor Yellow
-            return $false
-        }
-
         # Check if app is actually installed
         if (-not $script:InstalledApps.ContainsKey($App.Name)) {
-            Write-Log "$($App.Name) is not installed - skipping uninstall" -Level INFO
-            Write-Host "  [INFO] $($App.Name) is not installed" -ForegroundColor Cyan
-            return $true  # Not an error - just not installed
+            $detectedApps = Get-InstalledApplications
+            if ($detectedApps.ContainsKey($App.Name)) {
+                $script:InstalledApps[$App.Name] = $detectedApps[$App.Name]
+            }
+            else {
+                Write-Log "$($App.Name) is not installed - skipping uninstall" -Level INFO
+                Write-Host "[SKIPPED] $($App.Name) is not installed." -ForegroundColor Cyan
+                return (New-InstallerActionResult -Status Skipped -Message 'Application is not installed.')
+            }
         }
 
         # Update progress for individual app
@@ -2932,7 +3364,7 @@ function Install-AllApplications {
     .SYNOPSIS
         Installs all applications.
     #>
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess = $true)]
     param()
 
     Write-Log "Installing all applications..." -Level INFO
@@ -2943,6 +3375,8 @@ function Install-AllApplications {
 
     $successCount = 0
     $failCount = 0
+    $previewCount = 0
+    $skippedCount = 0
     $totalCount = $script:Applications.Count
     $currentIndex = 0
     $startTime = Get-Date
@@ -2985,13 +3419,15 @@ function Install-AllApplications {
             }
         }
 
-        if ($result) {
-            $successCount++
+        switch (Get-InstallerActionStatus -Result $result) {
+            'Completed' { $successCount++ }
+            'Preview' { $previewCount++ }
+            'Skipped' { $skippedCount++ }
+            default { $failCount++ }
         }
-        else {
-            $failCount++
+        if (-not $WhatIfPreference) {
+            Start-Sleep -Seconds 1
         }
-        Start-Sleep -Seconds 1
     }
 
     # Complete the overall progress
@@ -3011,6 +3447,12 @@ function Install-AllApplications {
     Write-Host "|  Total Applications: $totalCount" -ForegroundColor White
     Write-Host "|  [OK] Successful: $successCount" -ForegroundColor Green
     Write-Host "|  [FAIL] Failed: $failCount" -ForegroundColor Red
+    if ($previewCount -gt 0) {
+        Write-Host "|  [PREVIEW] Not run: $previewCount" -ForegroundColor Cyan
+    }
+    if ($skippedCount -gt 0) {
+        Write-Host "|  [SKIP] Not run: $skippedCount" -ForegroundColor Yellow
+    }
     Write-Host "|  [TIME] Total Time: $totalMinutes minutes" -ForegroundColor White
     Write-Host "+====================================================================+" -ForegroundColor Cyan
 
@@ -3023,7 +3465,7 @@ function Install-MissingApplications {
     .SYNOPSIS
         Installs only applications that are not currently installed.
     #>
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess = $true)]
     param()
 
     Write-Log "Installing missing applications..." -Level INFO
@@ -3031,10 +3473,10 @@ function Install-MissingApplications {
     Write-Host "|                Installing Missing Applications Only               |" -ForegroundColor Cyan
     Write-Host "+===================================================================+" -ForegroundColor Cyan
 
-    $installedApps = Get-InstalledApplications
     $successCount = 0
     $failCount = 0
     $skippedCount = 0
+    $previewCount = 0
     $totalCount = $script:Applications.Count
     $currentIndex = 0
     $startTime = Get-Date
@@ -3049,6 +3491,20 @@ function Install-MissingApplications {
         $otherApps = $appsToInstall | Where-Object { $_.Name -ne "O&O ShutUp10" }
         $appsToInstall = @($ooShutUp) + $otherApps
     }
+
+    if ($WhatIfPreference) {
+        Write-Host '[PREVIEW] Installed-package state was not queried. Each configured package is a candidate that would be installed only if still missing.' -ForegroundColor Cyan
+        foreach ($app in $appsToInstall) {
+            $result = Install-Application -App $app -CurrentIndex 0 -TotalCount $totalCount
+            if ((Get-InstallerActionStatus -Result $result) -eq 'Preview') {
+                $previewCount++
+            }
+        }
+        Write-Host "[PREVIEW] $previewCount package action(s) shown; no installation or status query was performed." -ForegroundColor Cyan
+        return
+    }
+
+    $installedApps = Get-InstalledApplications
 
     foreach ($app in $appsToInstall) {
         $currentIndex++
@@ -3068,17 +3524,23 @@ function Install-MissingApplications {
                 $appDuration = ($appEndTime - $appStartTime).TotalSeconds
                 $installationTimes += $appDuration
 
-                if ($result) {
-                    $successCount++
-                }
-                else {
-                    $failCount++
+                switch (Get-InstallerActionStatus -Result $result) {
+                    'Completed' { $successCount++ }
+                    'Preview' { $previewCount++ }
+                    'Skipped' { $skippedCount++ }
+                    default { $failCount++ }
                 }
             }
             else {
                 # For other applications, prompt user for re-installation
                 Write-Host "`n[INFO] $($app.Name) is already installed ($($installedApps[$app.Name]))" -ForegroundColor Yellow
-                $response = Read-Host "Would you like to reinstall $($app.Name)? (Y/N)"
+                if ($ConfirmPreference -eq 'None') {
+                    $response = 'N'
+                    Write-Host "[SKIPPED] $($app.Name) is already installed; noninteractive mode will not reinstall it." -ForegroundColor Gray
+                }
+                else {
+                    $response = Read-Host "Would you like to reinstall $($app.Name)? (Y/N)"
+                }
 
                 if ($response -match '^[Yy]') {
                     Write-Log "User chose to reinstall $($app.Name)" -Level INFO
@@ -3092,11 +3554,11 @@ function Install-MissingApplications {
                     $appDuration = ($appEndTime - $appStartTime).TotalSeconds
                     $installationTimes += $appDuration
 
-                    if ($result) {
-                        $successCount++
-                    }
-                    else {
-                        $failCount++
+                    switch (Get-InstallerActionStatus -Result $result) {
+                        'Completed' { $successCount++ }
+                        'Preview' { $previewCount++ }
+                        'Skipped' { $skippedCount++ }
+                        default { $failCount++ }
                     }
                 }
                 else {
@@ -3135,14 +3597,16 @@ function Install-MissingApplications {
                 }
             }
 
-            if ($result) {
-                $successCount++
-            }
-            else {
-                $failCount++
+            switch (Get-InstallerActionStatus -Result $result) {
+                'Completed' { $successCount++ }
+                'Preview' { $previewCount++ }
+                'Skipped' { $skippedCount++ }
+                default { $failCount++ }
             }
         }
-        Start-Sleep -Seconds 1
+        if (-not $WhatIfPreference) {
+            Start-Sleep -Seconds 1
+        }
     }
 
     # Complete the overall progress
@@ -3163,6 +3627,9 @@ function Install-MissingApplications {
     Write-Host "|  [OK] Installed: $successCount" -ForegroundColor Green
     Write-Host "|  [SKIP] Skipped: $skippedCount" -ForegroundColor Gray
     Write-Host "|  [FAIL] Failed: $failCount" -ForegroundColor Red
+    if ($previewCount -gt 0) {
+        Write-Host "|  [PREVIEW] Not run: $previewCount" -ForegroundColor Cyan
+    }
     Write-Host "|  [TIME] Total Time: $totalMinutes minutes" -ForegroundColor White
     Write-Host "+====================================================================+" -ForegroundColor Cyan
 
@@ -3171,94 +3638,526 @@ function Install-MissingApplications {
 }
 
 function Install-MonthlyUpdateTask {
-    <#
-    .SYNOPSIS
-        Creates a scheduled task for monthly winget updates
+    [CmdletBinding(SupportsShouldProcess = $true)]
+    param(
+        [Parameter(Mandatory = $true)]
+        [hashtable]$MenuData
+    )
 
-    .DESCRIPTION
-        Creates a Windows scheduled task that runs winget-update.ps1 monthly on the 15th at 1 PM.
-        The task is created in a "myTech.Today" folder in Task Scheduler.
-        Uses schtasks.exe for maximum compatibility across PowerShell versions.
-    #>
-    [CmdletBinding()]
-    param()
+    if (-not ($env:OS -match 'Windows')) {
+        Write-Host 'Monthly scheduled updates are available only on Windows. No task was created.' -ForegroundColor Yellow
+        return $false
+    }
+
+    $taskFullPath = '\myTech.Today\Monthly Application Updates'
+    Write-Host ''
+    Write-Host 'Select the applications to include in monthly updates.' -ForegroundColor Cyan
+    Write-Host 'Enter app numbers, ranges, or C:CategoryName. Press Enter or Q to cancel.' -ForegroundColor Gray
+    Write-Host 'Selection: ' -NoNewline -ForegroundColor White
+    $selection = Read-Host
+    if ([string]::IsNullOrWhiteSpace($selection) -or $selection -eq 'Q') {
+        if ($WhatIfPreference) {
+            $action = 'Enable the monthly update task after package selection'
+            [void](Test-InstallerShouldProcess -Target $taskFullPath -Action $action)
+            $message = "Would enable the monthly update task at $taskFullPath after package selection. No package scope or scheduler changes were applied."
+            Write-Host "[PREVIEW] $message" -ForegroundColor Cyan
+            return (New-InstallerActionResult -Status Preview -Message $message)
+        }
+        if ($ConfirmPreference -eq 'None') {
+            Write-Host '[SKIPPED] Monthly task setup needs a package selection in noninteractive mode. No task changes were made.' -ForegroundColor Yellow
+            return (New-InstallerActionResult -Status Skipped -Message 'Package selection was unavailable in noninteractive mode.')
+        }
+        Write-Host 'Monthly update setup cancelled. No task changes were made.' -ForegroundColor Yellow
+        return $false
+    }
+
+    $selectedApps = @(Parse-SelectionInput -SelectionText $selection -MenuItems $MenuData.MenuItems -Categories $MenuData.Categories)
+    if ($selectedApps.Count -eq 0) {
+        Write-Host ("No valid applications were selected from the {0} displayed entries. No task changes were made." -f $MenuData.MenuItems.Count) -ForegroundColor Yellow
+        return $false
+    }
+
+    $unsupportedApps = @($selectedApps | Where-Object { [string]::IsNullOrWhiteSpace($_.WingetId) })
+    if ($unsupportedApps.Count -gt 0) {
+        $unsupportedNames = ($unsupportedApps | ForEach-Object { $_.Name }) -join ', '
+        Write-Host "These selections do not have a winget package ID and cannot be scheduled: $unsupportedNames" -ForegroundColor Red
+        Write-Host 'No task changes were made.' -ForegroundColor Yellow
+        return $false
+    }
+
+    $packageIds = @($selectedApps | ForEach-Object { ([string]$_.WingetId).Trim() } | Select-Object -Unique)
+    $invalidIds = @($packageIds | Where-Object { $_ -notmatch '^[A-Za-z0-9][A-Za-z0-9._ +()\-]*$' })
+    if ($invalidIds.Count -gt 0) {
+        Write-Host 'A selected package ID contains unsupported characters. No task changes were made.' -ForegroundColor Red
+        return $false
+    }
+
+    $taskFullPath = '\myTech.Today\Monthly Application Updates'
+    $packageIdList = ($packageIds | ForEach-Object { "  - $_" }) -join [Environment]::NewLine
+    if ($WhatIfPreference) {
+        $scope = $packageIds -join ', '
+        $action = "Enable monthly updates for package IDs: $scope"
+        [void](Test-InstallerShouldProcess -Target $taskFullPath -Action $action)
+        $message = "Would enable monthly updates for package IDs $scope at $taskFullPath. No updater validation, file writes, or scheduler commands were run."
+        Write-Host "[PREVIEW] $message" -ForegroundColor Cyan
+        return (New-InstallerActionResult -Status Preview -Message $message)
+    }
+
+    $systemAppsPath = Join-Path $script:SystemInstallPath 'apps'
+    $updateScriptPath = Join-Path $systemAppsPath 'winget-update.ps1'
+    if (-not (Test-Path -LiteralPath $updateScriptPath -PathType Leaf)) {
+        Write-Host "Monthly update script is missing: $updateScriptPath. No task changes were made." -ForegroundColor Red
+        Write-Log 'Monthly update script missing at the selected path.' -Level ERROR
+        return $false
+    }
+
+    $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+    Write-Host ''
+    Write-Host 'Monthly update task details:' -ForegroundColor Cyan
+    Write-Host '  Cadence: 15th of each month at 1:00 PM (local time)' -ForegroundColor White
+    Write-Host ("  Package scope: {0} selected winget package(s)" -f $packageIds.Count) -ForegroundColor White
+    Write-Host $packageIdList -ForegroundColor Gray
+    Write-Host "  Account: $identity; run only while this user is logged in" -ForegroundColor White
+    Write-Host '  Requested privilege: Highest available for this account' -ForegroundColor White
+    Write-Host "  Updater script: $updateScriptPath" -ForegroundColor White
+    Write-Host "  Task path: $taskFullPath" -ForegroundColor White
+    Write-Host ('  Remove later: schtasks.exe /Delete /TN "{0}" /F' -f $taskFullPath) -ForegroundColor Gray
+
+    if ($ConfirmPreference -ne 'None') {
+        Write-Host 'Enable or replace the application-owned monthly task for these packages? (Y/N): ' -NoNewline -ForegroundColor Yellow
+        $confirmation = Read-Host
+        if ($confirmation -notmatch '^[Yy]$') {
+            Write-Host '[SKIPPED] Monthly update setup declined. No scheduler commands were run.' -ForegroundColor Yellow
+            return (New-InstallerActionResult -Status Skipped -Message 'Monthly task setup was declined.')
+        }
+    }
+
+    $taskAction = "Enable monthly updates for package IDs: $($packageIds -join ', ')"
+    if (-not (Test-InstallerShouldProcess -Target $taskFullPath -Action $taskAction)) {
+        Write-Host "[SKIPPED] Monthly task setup was not approved. No scheduler commands were run." -ForegroundColor Yellow
+        return (New-InstallerActionResult -Status Skipped -Message 'ShouldProcess confirmation was declined.')
+    }
+
+    $taskQuery = Get-MonthlyUpdateTaskQuery -TaskPath $taskFullPath
+    if (-not $taskQuery.Success) {
+        Write-Host "Could not safely inspect the scheduled task. Scheduler error: $($taskQuery.Output)" -ForegroundColor Red
+        Write-Log 'Could not safely inspect the monthly update task.' -Level ERROR
+        return $false
+    }
+
+    if ($taskQuery.Exists -and -not (Test-MonthlyUpdateTaskOwnership -XmlText $taskQuery.XmlText -UpdateScriptPath $updateScriptPath)) {
+        Write-Host "A task already exists at $taskFullPath, but it is not recognized as owned by this installer. It was left unchanged." -ForegroundColor Red
+        return $false
+    }
+
+    $taskXmlPath = $null
+    $stagingTaskPath = '\Monthly Application Updates.pending-' + [guid]::NewGuid().ToString('N')
+    $stagingCreated = $false
+    $previousXmlPath = $null
+    $temporaryFiles = @()
+    $taskChanged = $false
+    $failureMessage = $null
 
     try {
-        Write-Log "Creating monthly update scheduled task..." -Level INFO
-        Write-Host "`n[i] Setting up monthly application updates..." -ForegroundColor Cyan
-
-        # Path to the update script - ALWAYS use system location for scheduled tasks
-        $systemAppsPath = Join-Path $script:SystemInstallPath "apps"
-        $updateScriptPath = Join-Path $systemAppsPath "winget-update.ps1"
-
-        Write-Host "    [i] Task will use: $updateScriptPath" -ForegroundColor Gray
-
-        # Verify the script exists
-        if (-not (Safe-TestPath $updateScriptPath)) {
-            Write-Log "Update script not found: $updateScriptPath" -Level ERROR
-            Write-Host "  [X] Update script not found. Skipping task creation." -ForegroundColor Red
-            return $false
+        $taskXmlPath = New-MonthlyUpdateTaskXmlFile -UpdateScriptPath $updateScriptPath -PackageIds $packageIds -Identity $identity -Enabled $true
+        $temporaryFiles += $taskXmlPath
+        if ($taskQuery.Exists) {
+            $previousXmlPath = Join-Path ([System.IO.Path]::GetTempPath()) ('monthly-update-previous-' + [guid]::NewGuid().ToString('N') + '.xml')
+            [System.IO.File]::WriteAllText($previousXmlPath, $taskQuery.XmlText, [System.Text.Encoding]::UTF8)
+            $temporaryFiles += $previousXmlPath
         }
 
-        # Task configuration
-        $taskName = "Monthly Application Updates"
-        $taskFolder = "myTech.Today"
-        $taskFullPath = "\$taskFolder\$taskName"
+        $stagingXmlPath = New-MonthlyUpdateTaskXmlFile -UpdateScriptPath $updateScriptPath -PackageIds $packageIds -Identity $identity -Enabled $false
+        $temporaryFiles += $stagingXmlPath
+        $stagePreflight = Get-MonthlyUpdateTaskQuery -TaskPath $stagingTaskPath
+        if (-not $stagePreflight.Success -or $stagePreflight.Exists) {
+            $failureMessage = "Could not reserve an unused disabled staging task path. Scheduler output: $($stagePreflight.Output)"
+            throw 'stage-path-unavailable'
+        }
+        $stageCreate = Invoke-TaskSchedulerCommand -Arguments @('/Create', '/TN', $stagingTaskPath, '/XML', $stagingXmlPath)
+        if ($stageCreate.ExitCode -ne 0) {
+            $failureMessage = "Scheduler error while validating a disabled staging task: $($stageCreate.Output)"
+            $stageAfterFailure = Get-MonthlyUpdateTaskQuery -TaskPath $stagingTaskPath
+            $stagingCreated = (-not $stageAfterFailure.Success) -or $stageAfterFailure.Exists
+            throw 'stage-create-failed'
+        }
+        $stagingCreated = $true
 
-        # Check if task already exists and delete it
-        $existingTask = schtasks.exe /Query /TN $taskFullPath 2>&1
-        if ($LASTEXITCODE -eq 0) {
-            Write-Log "Scheduled task already exists. Deleting old task..." -Level INFO
-            Write-Host "  [i] Task already exists. Updating configuration..." -ForegroundColor Yellow
+        $stageQuery = Get-MonthlyUpdateTaskQuery -TaskPath $stagingTaskPath
+        if (-not $stageQuery.Success -or -not (Test-MonthlyUpdateTaskDefinition -XmlText $stageQuery.XmlText -UpdateScriptPath $updateScriptPath -PackageIds $packageIds -Identity $identity -Enabled $false)) {
+            $failureMessage = "The disabled staging task did not match the confirmed schedule. Scheduler output: $($stageQuery.Output)"
+            throw 'stage-validation-failed'
+        }
 
-            $deleteResult = schtasks.exe /Delete /TN $taskFullPath /F 2>&1
-            if ($LASTEXITCODE -ne 0) {
-                Write-Log "Warning: Could not delete existing task: $deleteResult" -Level WARNING
+        $stageDelete = Invoke-TaskSchedulerCommand -Arguments @('/Delete', '/TN', $stagingTaskPath, '/F')
+        if ($stageDelete.ExitCode -ne 0) {
+            $failureMessage = "Scheduler error removing the disabled staging task: $($stageDelete.Output)"
+            throw 'stage-cleanup-failed'
+        }
+        $stagingCreated = $false
+
+        $targetPreflight = Get-MonthlyUpdateTaskQuery -TaskPath $taskFullPath
+        if (-not $targetPreflight.Success) {
+            $failureMessage = "Could not revalidate the existing task before replacement. Scheduler output: $($targetPreflight.Output)"
+            throw 'target-revalidation-failed'
+        }
+        if ($taskQuery.Exists) {
+            if (-not $targetPreflight.Exists -or -not (Test-MonthlyUpdateTaskDefinitionEqual -ExpectedXml $taskQuery.XmlText -ActualXml $targetPreflight.XmlText)) {
+                $failureMessage = 'The existing task changed while setup was in progress. It was left untouched; review it before retrying.'
+                throw 'target-changed-before-replacement'
+            }
+        }
+        elseif ($targetPreflight.Exists) {
+            $failureMessage = 'A task appeared at the application task path while setup was in progress. It was left untouched.'
+            throw 'target-appeared-before-replacement'
+        }
+
+        $finalCreateArguments = @('/Create', '/TN', $taskFullPath, '/XML', $taskXmlPath)
+        if ($taskQuery.Exists) {
+            $finalCreateArguments += '/F'
+        }
+        $finalCreate = Invoke-TaskSchedulerCommand -Arguments $finalCreateArguments
+        if ($finalCreate.ExitCode -ne 0) {
+            $failureMessage = "Scheduler error creating the monthly update task: $($finalCreate.Output)"
+            throw 'final-create-failed'
+        }
+        $taskChanged = $true
+
+        $finalQuery = Get-MonthlyUpdateTaskQuery -TaskPath $taskFullPath
+        if (-not $finalQuery.Success -or -not (Test-MonthlyUpdateTaskDefinition -XmlText $finalQuery.XmlText -UpdateScriptPath $updateScriptPath -PackageIds $packageIds -Identity $identity -Enabled $true)) {
+            $failureMessage = "The registered task did not match the confirmed schedule. Scheduler output: $($finalQuery.Output)"
+            throw 'final-validation-failed'
+        }
+
+        $script:MonthlyUpdateTaskEnabled = $true
+        Write-Log "Validated monthly update task at $taskFullPath for $($packageIds.Count) selected package(s)." -Level SUCCESS
+        Write-Host "Monthly updates are enabled for the selected packages at $taskFullPath." -ForegroundColor Green
+        return $true
+    }
+    catch {
+        if ($taskChanged -or $_.Exception.Message -eq 'final-create-failed') {
+            if ($taskQuery.Exists -and $previousXmlPath -and (Test-Path -LiteralPath $previousXmlPath -PathType Leaf)) {
+                $restore = Invoke-TaskSchedulerCommand -Arguments @('/Create', '/TN', $taskFullPath, '/XML', $previousXmlPath, '/F')
+                if ($restore.ExitCode -eq 0) {
+                    $restoredQuery = Get-MonthlyUpdateTaskQuery -TaskPath $taskFullPath
+                    if ($restoredQuery.Success -and (Test-MonthlyUpdateTaskDefinitionEqual -ExpectedXml $taskQuery.XmlText -ActualXml $restoredQuery.XmlText)) {
+                        Write-Host 'The previous application-owned task was restored and verified.' -ForegroundColor Yellow
+                    }
+                    else {
+                        $failureMessage += " Previous task restoration could not be verified. Scheduler output: $($restoredQuery.Output)"
+                    }
+                }
+                else {
+                    $failureMessage += " Previous task restoration failed. Scheduler output: $($restore.Output)"
+                }
+            }
+            elseif (-not $taskQuery.Exists) {
+                $removeNewTask = Invoke-TaskSchedulerCommand -Arguments @('/Delete', '/TN', $taskFullPath, '/F')
+                if ($removeNewTask.ExitCode -ne 0) {
+                    $failureMessage += " Cleanup of the unvalidated new task failed. Scheduler output: $($removeNewTask.Output)"
+                }
             }
         }
 
-        # Build the PowerShell command
-        $psCommand = "powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Normal -File `"$updateScriptPath`""
-
-        # Create the scheduled task using schtasks.exe
-        # /SC MONTHLY = Monthly schedule
-        # /D 15 = Day 15 of the month
-        # /ST 13:00 = Start time 1:00 PM
-        # /RL HIGHEST = Run with highest privileges
-        # /RU = Run as current user
-        $createResult = schtasks.exe /Create `
-            /TN $taskFullPath `
-            /TR $psCommand `
-            /SC MONTHLY `
-            /D 15 `
-            /ST 13:00 `
-            /RL HIGHEST `
-            /RU "$env:USERDOMAIN\$env:USERNAME" `
-            /F 2>&1
-
-        if ($LASTEXITCODE -ne 0) {
-            Write-Log "Error creating scheduled task via schtasks: $createResult" -Level ERROR
-            Write-Host "  [X] Failed to create scheduled task" -ForegroundColor Red
-            Write-Host "      Error: $createResult" -ForegroundColor Red
-            return $false
+        if ([string]::IsNullOrWhiteSpace($failureMessage)) {
+            $failureMessage = "Unexpected scheduler error ($($_.Exception.GetType().Name)). No success is claimed."
         }
+        Write-Log 'Monthly update task setup failed; no success was reported.' -Level ERROR
+        Write-Host "Monthly update task setup failed. $failureMessage" -ForegroundColor Red
+        return $false
+    }
+    finally {
+        if ($stagingCreated) {
+            $cleanupStage = Invoke-TaskSchedulerCommand -Arguments @('/Delete', '/TN', $stagingTaskPath, '/F')
+            if ($cleanupStage.ExitCode -ne 0) {
+                Write-Host "The disabled staging task may remain at $stagingTaskPath. Scheduler error: $($cleanupStage.Output)" -ForegroundColor Red
+            }
+        }
+        foreach ($temporaryFile in $temporaryFiles) {
+            if ($temporaryFile -and (Test-Path -LiteralPath $temporaryFile -PathType Leaf)) {
+                Remove-Item -LiteralPath $temporaryFile -Force -ErrorAction SilentlyContinue
+            }
+        }
+    }
+}
 
-        Write-Log "Scheduled task created successfully: $taskFullPath" -Level SUCCESS
-        Write-Host "  [OK] Monthly update task created successfully!" -ForegroundColor Green
-        Write-Host "      Schedule: 15th of every month at 1:00 PM" -ForegroundColor Gray
-        Write-Host "      Location: Task Scheduler > $taskFolder > $taskName" -ForegroundColor Gray
+function Disable-MonthlyUpdateTask {
+    [CmdletBinding(SupportsShouldProcess = $true)]
+    param()
 
+    if (-not ($env:OS -match 'Windows')) {
+        Write-Host 'Monthly scheduled updates are available only on Windows. No task was changed.' -ForegroundColor Yellow
+        return $false
+    }
+
+    $taskFullPath = '\myTech.Today\Monthly Application Updates'
+    $updateScriptPath = Join-Path (Join-Path $script:SystemInstallPath 'apps') 'winget-update.ps1'
+
+    if ($WhatIfPreference) {
+        $action = 'Remove the application-owned monthly update task'
+        [void](Test-InstallerShouldProcess -Target $taskFullPath -Action $action)
+        $message = "Would remove the application-owned task at $taskFullPath after ownership validation. No scheduler command was run."
+        Write-Host "[PREVIEW] $message" -ForegroundColor Cyan
+        return (New-InstallerActionResult -Status Preview -Message $message)
+    }
+
+    if ($ConfirmPreference -ne 'None') {
+        Write-Host "This removes only the application-owned task at $taskFullPath." -ForegroundColor Yellow
+        Write-Host 'Remove monthly updates? (Y/N): ' -NoNewline -ForegroundColor Yellow
+        if ((Read-Host) -notmatch '^[Yy]$') {
+            Write-Host '[SKIPPED] Removal was declined. No scheduler commands were run.' -ForegroundColor Yellow
+            return (New-InstallerActionResult -Status Skipped -Message 'Monthly task removal was declined.')
+        }
+    }
+
+    if (-not (Test-InstallerShouldProcess -Target $taskFullPath -Action 'Remove the application-owned monthly update task after ownership validation')) {
+        Write-Host "[SKIPPED] Removal was not approved. No scheduler commands were run." -ForegroundColor Yellow
+        return (New-InstallerActionResult -Status Skipped -Message 'ShouldProcess confirmation was declined.')
+    }
+
+    $taskQuery = Get-MonthlyUpdateTaskQuery -TaskPath $taskFullPath
+    if (-not $taskQuery.Success) {
+        Write-Host "Could not safely inspect the scheduled task. Scheduler error: $($taskQuery.Output)" -ForegroundColor Red
+        return $false
+    }
+    if (-not $taskQuery.Exists) {
+        Write-Host "No task exists at $taskFullPath." -ForegroundColor Yellow
         return $true
+    }
+    if (-not (Test-MonthlyUpdateTaskOwnership -XmlText $taskQuery.XmlText -UpdateScriptPath $updateScriptPath)) {
+        Write-Host "The task at $taskFullPath is not recognized as owned by this installer. It was left unchanged." -ForegroundColor Red
+        return $false
+    }
 
+    $deleteResult = Invoke-TaskSchedulerCommand -Arguments @('/Delete', '/TN', $taskFullPath, '/F')
+    if ($deleteResult.ExitCode -ne 0) {
+        Write-Host "Could not remove $taskFullPath. Scheduler error: $($deleteResult.Output)" -ForegroundColor Red
+        return $false
+    }
 
+    Write-Host "Removed the application-owned task at $taskFullPath." -ForegroundColor Green
+    return $true
+}
+
+function Invoke-TaskSchedulerCommand {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string[]]$Arguments
+    )
+
+    try {
+        if (-not (Get-Command schtasks.exe -ErrorAction SilentlyContinue)) {
+            return [PSCustomObject]@{ ExitCode = 9009; Output = 'schtasks.exe was not found.' }
+        }
+        $outputLines = @(& schtasks.exe @Arguments 2>&1 | ForEach-Object { [string]$_ })
+        $exitCode = $LASTEXITCODE
+        if ($null -eq $exitCode) {
+            $exitCode = 0
+        }
+        return [PSCustomObject]@{
+            ExitCode = [int]$exitCode
+            Output = ($outputLines -join [Environment]::NewLine).Trim()
+        }
     }
     catch {
-        Write-Log "Error creating scheduled task: $_" -Level ERROR
-        Write-Host "  [X] Failed to create scheduled task: $_" -ForegroundColor Red
+        return [PSCustomObject]@{
+            ExitCode = 1
+            Output = "Scheduler command failed unexpectedly ($($_.Exception.GetType().Name))."
+        }
+    }
+}
+
+function Get-MonthlyUpdateTaskQuery {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$TaskPath
+    )
+
+    $result = Invoke-TaskSchedulerCommand -Arguments @('/Query', '/TN', $TaskPath, '/XML')
+    if ($result.ExitCode -eq 0) {
+        try {
+            $document = New-Object System.Xml.XmlDocument
+            $document.LoadXml($result.Output)
+            return [PSCustomObject]@{ Success = $true; Exists = $true; XmlText = $result.Output; Output = $result.Output }
+        }
+        catch {
+            return [PSCustomObject]@{ Success = $false; Exists = $false; XmlText = $null; Output = 'Task Scheduler returned invalid XML.' }
+        }
+    }
+
+    if ($result.Output -match '(?i)(cannot find|could not be found|does not exist|task not found)') {
+        return [PSCustomObject]@{ Success = $true; Exists = $false; XmlText = $null; Output = $result.Output }
+    }
+
+    return [PSCustomObject]@{ Success = $false; Exists = $false; XmlText = $null; Output = $result.Output }
+}
+
+function Test-MonthlyUpdateTaskOwnership {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$XmlText,
+        [Parameter(Mandatory = $true)]
+        [string]$UpdateScriptPath
+    )
+
+    try {
+        $document = New-Object System.Xml.XmlDocument
+        $document.LoadXml($XmlText)
+        $descriptionNode = $document.SelectSingleNode("//*[local-name()='Description']")
+        $commandNode = $document.SelectSingleNode("//*[local-name()='Exec']/*[local-name()='Command']")
+        $argumentsNode = $document.SelectSingleNode("//*[local-name()='Exec']/*[local-name()='Arguments']")
+        if (-not $commandNode -or -not $argumentsNode) {
+            return $false
+        }
+        $isPowerShell = $commandNode.InnerText -match '(?i)(^|[\\/])powershell(?:\.exe)?$|^powershell(?:\.exe)?$'
+        $targetsUpdater = $argumentsNode.InnerText.IndexOf($UpdateScriptPath, [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+        $hasFileArgument = $argumentsNode.InnerText -match '(?i)(^|\s)-File(\s|$)'
+        $hasOwnerMarker = $descriptionNode -and $descriptionNode.InnerText.Contains('myTech.Today App Installer monthly update task; ownership=v1')
+        return ($isPowerShell -and $targetsUpdater -and $hasFileArgument -and ($hasOwnerMarker -or $targetsUpdater))
+    }
+    catch {
         return $false
     }
 }
 
+function Test-MonthlyUpdateTaskDefinition {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$XmlText,
+        [Parameter(Mandatory = $true)]
+        [string]$UpdateScriptPath,
+        [Parameter(Mandatory = $true)]
+        [string[]]$PackageIds,
+        [Parameter(Mandatory = $true)]
+        [string]$Identity,
+        [Parameter(Mandatory = $true)]
+        [bool]$Enabled
+    )
+
+    try {
+        $document = New-Object System.Xml.XmlDocument
+        $document.LoadXml($XmlText)
+        $description = $document.SelectSingleNode("//*[local-name()='Description']").InnerText
+        $command = $document.SelectSingleNode("//*[local-name()='Exec']/*[local-name()='Command']").InnerText
+        $arguments = $document.SelectSingleNode("//*[local-name()='Exec']/*[local-name()='Arguments']").InnerText
+        $runLevel = $document.SelectSingleNode("//*[local-name()='RunLevel']").InnerText
+        $userId = $document.SelectSingleNode("//*[local-name()='UserId']").InnerText
+        $logonType = $document.SelectSingleNode("//*[local-name()='LogonType']").InnerText
+        $taskEnabledText = $document.SelectSingleNode("//*[local-name()='Settings']/*[local-name()='Enabled']").InnerText
+        $day = $document.SelectSingleNode("//*[local-name()='ScheduleByMonth']/*[local-name()='DaysOfMonth']/*[local-name()='Day']").InnerText
+        $scope = ($PackageIds -join ',')
+        $hasExpectedAction = $arguments.IndexOf($UpdateScriptPath, [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -and
+            $arguments.IndexOf(('-PackageIds "{0}"' -f $scope), [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+        return (
+            $description.Contains('myTech.Today App Installer monthly update task; ownership=v1') -and
+            $command -match '(?i)(^|[\\/])powershell(?:\.exe)?$|^powershell(?:\.exe)?$' -and
+            $hasExpectedAction -and
+            $runLevel -eq 'HighestAvailable' -and
+            $userId -eq $Identity -and
+            $logonType -eq 'InteractiveToken' -and
+            $taskEnabledText -eq ([string]$Enabled).ToLowerInvariant() -and
+            $day -eq '15'
+        )
+    }
+    catch {
+        return $false
+    }
+}
+
+function Test-MonthlyUpdateTaskDefinitionEqual {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)][string]$ExpectedXml,
+        [Parameter(Mandatory = $true)][string]$ActualXml
+    )
+    try {
+        $expectedDocument = New-Object System.Xml.XmlDocument
+        $actualDocument = New-Object System.Xml.XmlDocument
+        $expectedDocument.LoadXml($ExpectedXml)
+        $actualDocument.LoadXml($ActualXml)
+        return $expectedDocument.OuterXml -ceq $actualDocument.OuterXml
+    }
+    catch {
+        return $false
+    }
+}
+
+function New-MonthlyUpdateTaskXmlFile {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$UpdateScriptPath,
+        [Parameter(Mandatory = $true)]
+        [string[]]$PackageIds,
+        [Parameter(Mandatory = $true)]
+        [string]$Identity,
+        [Parameter(Mandatory = $true)]
+        [bool]$Enabled
+    )
+
+    $enabledText = if ($Enabled) { 'true' } else { 'false' }
+    $packageScope = ($PackageIds -join ',')
+    $descriptionText = "myTech.Today App Installer monthly update task; ownership=v1. Runs monthly on day 15 at 1:00 PM for selected winget package IDs: $packageScope"
+    $actionArguments = '-NoProfile -File "{0}" -PackageIds "{1}"' -f $UpdateScriptPath, $packageScope
+    $escapedDescription = [System.Security.SecurityElement]::Escape($descriptionText)
+    $escapedIdentity = [System.Security.SecurityElement]::Escape($Identity)
+    $escapedArguments = [System.Security.SecurityElement]::Escape($actionArguments)
+    $escapedScriptDirectory = [System.Security.SecurityElement]::Escape((Split-Path -Parent $UpdateScriptPath))
+    $startBoundary = (Get-Date).Date.AddHours(13).ToString("yyyy-MM-dd'T'HH:mm:ss")
+
+    $xmlText = @"
+<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <RegistrationInfo>
+    <Author>$escapedIdentity</Author>
+    <Description>$escapedDescription</Description>
+  </RegistrationInfo>
+  <Triggers>
+    <CalendarTrigger>
+      <StartBoundary>$startBoundary</StartBoundary>
+      <Enabled>true</Enabled>
+      <ScheduleByMonth>
+        <DaysOfMonth><Day>15</Day></DaysOfMonth>
+        <Months><January/><February/><March/><April/><May/><June/><July/><August/><September/><October/><November/><December/></Months>
+      </ScheduleByMonth>
+    </CalendarTrigger>
+  </Triggers>
+  <Principals>
+    <Principal id="Author">
+      <UserId>$escapedIdentity</UserId>
+      <LogonType>InteractiveToken</LogonType>
+      <RunLevel>HighestAvailable</RunLevel>
+    </Principal>
+  </Principals>
+  <Settings>
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <StartWhenAvailable>true</StartWhenAvailable>
+    <Enabled>$enabledText</Enabled>
+    <AllowStartOnDemand>true</AllowStartOnDemand>
+    <AllowHardTerminate>true</AllowHardTerminate>
+    <ExecutionTimeLimit>PT2H</ExecutionTimeLimit>
+  </Settings>
+  <Actions Context="Author">
+    <Exec>
+      <Command>powershell.exe</Command>
+      <Arguments>$escapedArguments</Arguments>
+      <WorkingDirectory>$escapedScriptDirectory</WorkingDirectory>
+    </Exec>
+  </Actions>
+</Task>
+"@
+
+    $xmlPath = Join-Path ([System.IO.Path]::GetTempPath()) ('monthly-update-' + [guid]::NewGuid().ToString('N') + '.xml')
+    [System.IO.File]::WriteAllText($xmlPath, $xmlText, [System.Text.Encoding]::UTF8)
+    return $xmlPath
+}
+
+$script:MonthlyUpdateTaskEnabled = $false
+
+#endregion
 #endregion
 
 # If -Profile is supplied (and -Action is not explicitly set), use InstallProfile mode
@@ -3272,8 +4171,12 @@ if ($PSBoundParameters.ContainsKey('Profile') -and -not $PSBoundParameters.Conta
 $script:OriginalProgressPreference = $ProgressPreference
 $ProgressPreference = 'SilentlyContinue'
 
-# Initialize logging
-if ($script:LoggingModuleLoaded) {
+# Initialize logging. Preview runs write no log files.
+if ($WhatIfPreference) {
+    $script:LogPath = $null
+    Write-Host '[PREVIEW] File logging is disabled for this dry run.' -ForegroundColor Cyan
+}
+elseif ($script:LoggingModuleLoaded) {
     # Use generic logging module
     $logPath = Initialize-Log -ScriptName "AppInstaller-CLI" -ScriptVersion $script:ScriptVersion
     if ($logPath) {
@@ -3299,13 +4202,23 @@ else {
     Write-Host "[OK] Logging initialized with fallback method" -ForegroundColor Green
 }
 
+if ($script:StartupHelperFallbackRequired) {
+    Write-Log $script:StartupHelperFallbackMessage -Level WARNING
+}
+
 # Check for package manager availability
 Write-Host "`n[i] Checking for package manager availability..." -ForegroundColor Cyan
 
-# On Windows, check for winget (install on Windows 10 if needed)
+# On Windows, check for winget (install on Windows 10 if needed).
+# WhatIf may inspect command availability, but it must never bootstrap winget.
 # On other platforms, platform-detect.ps1 already set $PackageManager
 if ($null -eq $IsWindows -or $IsWindows) {
-    $wingetAvailable = Assert-WingetAvailable
+    if ($WhatIfPreference) {
+        $wingetAvailable = Test-WingetAvailable
+    }
+    else {
+        $wingetAvailable = Assert-WingetAvailable
+    }
 }
 else {
     # On non-Windows, we rely on platform-detect.ps1
@@ -3324,10 +4237,15 @@ if (-not $wingetAvailable -and ($null -eq $IsWindows -or $IsWindows)) {
     Write-Host "   Many applications require winget for installation." -ForegroundColor Yellow
     Write-Host ""
 
-    $continue = Read-Host "Continue anyway? (Y/N)"
-    if ($continue -ne 'Y') {
-        Write-Log "User cancelled due to missing winget" -Level INFO
-        exit 0
+    if ($WhatIfPreference) {
+        Write-Host '[PREVIEW] winget bootstrap was not attempted. The selected package action can still be previewed.' -ForegroundColor Cyan
+    }
+    else {
+        $continue = Read-Host "Continue anyway? (Y/N)"
+        if ($continue -ne 'Y') {
+            Write-Log "User cancelled due to missing winget" -Level INFO
+            exit 0
+        }
     }
 }
 else {
@@ -3336,6 +4254,15 @@ else {
 
 # Main execution
 try {
+    if ($Action -eq 'Menu' -and [Console]::IsInputRedirected -and ($WhatIfPreference -or $ConfirmPreference -eq 'None')) {
+        if ($WhatIfPreference) {
+            Write-Host '[PREVIEW] The interactive menu needs an application selection. No package, file, network, or scheduler action was performed.' -ForegroundColor Cyan
+        }
+        else {
+            Write-Host '[SKIPPED] The interactive menu needs an explicit action in noninteractive mode. No operation was performed.' -ForegroundColor Yellow
+        }
+    }
+    else {
     switch ($Action) {
         'Menu' {
             # Interactive menu mode
@@ -3356,6 +4283,12 @@ try {
                 elseif ($choice -eq 'U') {
                     Check-ForUpdates
                     Read-KeySafe
+                }
+                elseif ($choice -eq 'T') {
+                    Install-MonthlyUpdateTask -MenuData $menuData
+                }
+                elseif ($choice -eq 'D') {
+                    Disable-MonthlyUpdateTask
                 }
                 elseif ($choice -eq 'E') {
                     # Export Selection
@@ -3552,52 +4485,59 @@ try {
                         continue
                     }
 
-                    # Filter to only installed apps
-                    $installedApps = Get-InstalledApplications
-                    $appsToUninstall = @()
+                    $appsToUninstall = @($selectedApps)
                     $notInstalledApps = @()
 
-                    foreach ($app in $selectedApps) {
-                        if ($installedApps.ContainsKey($app.Name)) {
-                            $appsToUninstall += $app
-                        }
-                        else {
-                            $notInstalledApps += $app
-                        }
-                    }
-
-                    if ($appsToUninstall.Count -eq 0) {
-                        Write-Host ""
-                        Write-Host "[INFO] None of the selected applications are installed" -ForegroundColor Cyan
-                        Read-KeySafe
-                        continue
-                    }
-
-                    # Show confirmation
+                    # Confirm the selected targets before querying the package manager.
                     Write-Host ""
-                    Write-Host "You are about to uninstall $($appsToUninstall.Count) application(s):" -ForegroundColor Yellow
+                    Write-Host "You selected $($appsToUninstall.Count) application(s) to uninstall if installed:" -ForegroundColor Yellow
                     Write-Host ""
                     foreach ($app in $appsToUninstall) {
-                        $version = $installedApps[$app.Name]
-                        Write-Host "  - $($app.Name) ($version)" -ForegroundColor White
+                        Write-Host "  - $($app.Name)" -ForegroundColor White
                     }
 
-                    if ($notInstalledApps.Count -gt 0) {
+                    $confirmUninstall = 'Y'
+                    if ($WhatIfPreference) {
+                        Write-Host '[PREVIEW] Installed-package state was not queried.' -ForegroundColor Cyan
+                    }
+                    elseif ($ConfirmPreference -ne 'None') {
                         Write-Host ""
-                        Write-Host "Not installed - will skip ($($notInstalledApps.Count)):" -ForegroundColor Gray
-                        foreach ($app in $notInstalledApps) {
-                            Write-Host "  - $($app.Name)" -ForegroundColor DarkGray
-                        }
+                        Write-Host "This action cannot be undone. Proceed with uninstall? (Y/N): " -NoNewline -ForegroundColor Yellow
+                        $confirmUninstall = Read-Host
                     }
-
-                    Write-Host ""
-                    Write-Host "This action cannot be undone. Proceed with uninstall? (Y/N): " -NoNewline -ForegroundColor Yellow
-                    $confirmUninstall = Read-Host
 
                     if ($confirmUninstall -match '^[Yy]') {
+                        if (-not $WhatIfPreference) {
+                            $installedApps = Get-InstalledApplications
+                            $script:InstalledApps = $installedApps
+                            $appsToUninstall = @()
+                            foreach ($app in $selectedApps) {
+                                if ($installedApps.ContainsKey($app.Name)) {
+                                    $appsToUninstall += $app
+                                }
+                                else {
+                                    $notInstalledApps += $app
+                                }
+                            }
+                            if ($notInstalledApps.Count -gt 0) {
+                                Write-Host "Not installed - will skip ($($notInstalledApps.Count)):" -ForegroundColor Gray
+                                foreach ($app in $notInstalledApps) {
+                                    Write-Host "  - $($app.Name)" -ForegroundColor DarkGray
+                                }
+                            }
+                        }
+
+                        if ($appsToUninstall.Count -eq 0) {
+                            Write-Host '[SKIPPED] None of the selected applications are installed.' -ForegroundColor Cyan
+                            Read-KeySafe
+                            continue
+                        }
+
                         # Uninstall applications
                         $successCount = 0
                         $failCount = 0
+                        $previewCount = 0
+                        $skippedCount = 0
                         $currentIndex = 0
 
                         Write-Host ""
@@ -3609,11 +4549,11 @@ try {
                         foreach ($app in $appsToUninstall) {
                             $currentIndex++
                             $result = Uninstall-Application -App $app -CurrentIndex $currentIndex -TotalCount $appsToUninstall.Count
-                            if ($result) {
-                                $successCount++
-                            }
-                            else {
-                                $failCount++
+                            switch (Get-InstallerActionStatus -Result $result) {
+                                'Completed' { $successCount++ }
+                                'Preview' { $previewCount++ }
+                                'Skipped' { $skippedCount++ }
+                                default { $failCount++ }
                             }
                         }
 
@@ -3624,10 +4564,16 @@ try {
                         Write-Host ""
                         Write-Host "Successful: $successCount" -ForegroundColor Green
                         Write-Host "Failed: $failCount" -ForegroundColor $(if ($failCount -eq 0) { "Green" } else { "Red" })
+                        if ($previewCount -gt 0) {
+                            Write-Host "Preview: $previewCount (not run)" -ForegroundColor Cyan
+                        }
+                        if ($skippedCount -gt 0) {
+                            Write-Host "Skipped: $skippedCount (not run)" -ForegroundColor Yellow
+                        }
                         Write-Host ""
                     }
                     else {
-                        Write-Host "[INFO] Uninstall cancelled" -ForegroundColor Cyan
+                        Write-Host "[SKIPPED] Uninstall was declined. No package-manager command was run." -ForegroundColor Cyan
                     }
 
                     Read-KeySafe
@@ -3678,6 +4624,15 @@ try {
 
         'InstallMissing' {
             Install-MissingApplications
+        }
+
+        'EnableMonthlyUpdates' {
+            $menuData = Show-Menu
+            Install-MonthlyUpdateTask -MenuData $menuData
+        }
+
+        'DisableMonthlyUpdates' {
+            Disable-MonthlyUpdateTask
         }
 
         'InstallProfile' {
@@ -3731,6 +4686,7 @@ try {
             Write-Host "`nStatus display complete." -ForegroundColor Green
         }
     }
+    }
 }
 catch {
     Write-Log "Fatal error: $_" -Level ERROR
@@ -3740,8 +4696,9 @@ catch {
 finally {
     Write-Log "=== App Installer Completed ===" -Level INFO
 
-    # Create monthly update scheduled task (if not already created)
-    Install-MonthlyUpdateTask
+    if (-not $script:MonthlyUpdateTaskEnabled) {
+        Write-Host 'Automatic monthly updates are not enabled. You can run updates manually from the installer.' -ForegroundColor Gray
+    }
 }
 
 # Display marketing/contact information

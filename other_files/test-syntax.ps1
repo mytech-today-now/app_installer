@@ -1,26 +1,54 @@
-# Test syntax of install-gui.ps1
-$scriptPath = Join-Path $PSScriptRoot "install-gui.ps1"
+# Focused syntax smoke check for the current App Installer entry points and helpers.
+$scriptPaths = @(
+    (Join-Path $PSScriptRoot '..\app-installer.ps1'),
+    (Join-Path $PSScriptRoot '..\app-installer-cli.ps1'),
+    (Join-Path $PSScriptRoot '..\modules\StartupHelperTrust.psm1'),
+    (Join-Path $PSScriptRoot '..\modules\OOShutUp10Trust.psm1'),
+    (Join-Path $PSScriptRoot '..\modules\ResponsiveGuiHelper.psm1'),
+    (Join-Path $PSScriptRoot '..\apps\winget-update.ps1'),
+    (Join-Path $PSScriptRoot '..\tests\test-startup-helper-trust.ps1'),
+    (Join-Path $PSScriptRoot '..\tests\test-startup-entrypoints-offline.ps1'),
+    (Join-Path $PSScriptRoot '..\tests\test-ooshutup10-trust.ps1'),
+    (Join-Path $PSScriptRoot '..\tests\test-monthly-update-scheduling.ps1'),
+    (Join-Path $PSScriptRoot '..\tests\test-monthly-update-results.ps1'),
+    (Join-Path $PSScriptRoot '..\tests\test-package-dependency-outcomes.ps1'),
+    (Join-Path $PSScriptRoot '..\tests\test-cli-whatif.ps1'),
+    (Join-Path $PSScriptRoot '..\invoke-elevated-install.ps1'),
+    (Join-Path $PSScriptRoot '..\tests\test-install-bat-elevation.ps1')
+)
 
-Write-Host "Checking syntax of: $scriptPath" -ForegroundColor Cyan
+$hasErrors = $false
+foreach ($scriptPath in $scriptPaths) {
+    $resolvedPath = [System.IO.Path]::GetFullPath($scriptPath)
+    Write-Host "Checking syntax of: $resolvedPath" -ForegroundColor Cyan
 
-try {
-    $errors = $null
-    $ast = [System.Management.Automation.Language.Parser]::ParseFile($scriptPath, [ref]$null, [ref]$errors)
-    
-    if ($errors) {
-        Write-Host "`n[ERROR] Syntax errors found:" -ForegroundColor Red
-        foreach ($error in $errors) {
-            Write-Host "  Line $($error.Extent.StartLineNumber): $($error.Message)" -ForegroundColor Red
+    if (-not (Test-Path -LiteralPath $resolvedPath -PathType Leaf)) {
+        Write-Host "[ERROR] File not found: $resolvedPath" -ForegroundColor Red
+        $hasErrors = $true
+        continue
+    }
+
+    $parseErrors = $null
+    [void][System.Management.Automation.Language.Parser]::ParseFile(
+        $resolvedPath,
+        [ref]$null,
+        [ref]$parseErrors
+    )
+
+    if ($parseErrors) {
+        foreach ($parseError in $parseErrors) {
+            Write-Host "[ERROR] Line $($parseError.Extent.StartLineNumber): $($parseError.Message)" -ForegroundColor Red
         }
-        exit 1
+        $hasErrors = $true
     }
     else {
-        Write-Host "`n[OK] No syntax errors found" -ForegroundColor Green
-        exit 0
+        Write-Host '[OK] No syntax errors found' -ForegroundColor Green
     }
 }
-catch {
-    Write-Host "`n[ERROR] Failed to parse file: $_" -ForegroundColor Red
+
+if ($hasErrors) {
     exit 1
 }
 
+Write-Host '[OK] All App Installer startup files parse cleanly' -ForegroundColor Green
+exit 0

@@ -77,6 +77,17 @@ See [REFACTORING-SUMMARY.md](other_files/REFACTORING-SUMMARY.md) for complete de
 ✅ **Silent Installation** - Most apps install silently without user interaction
 ✅ **Administrator Privileges** - Automatic elevation and privilege checking (platform-dependent)
 ✅ **Automatic Shortcuts** - Creates Start Menu shortcuts for web-based apps (Windows only)
+✅ **Monthly Update Scheduling** - Optional Windows task for explicitly selected winget package IDs
+
+#### Optional monthly update scheduling (Windows)
+
+Monthly updates are disabled until you enable them. Run the CLI action to choose package IDs and review the task details:
+
+```powershell
+pwsh -NoProfile -File .\app-installer-cli.ps1 -Action EnableMonthlyUpdates
+```
+
+The CLI asks for confirmation before creating or replacing its task. The task runs with the current user's highest available privileges and updates only the selected package IDs. Manual all-application updates remain separate. Use `-Action DisableMonthlyUpdates` to remove the application-owned task after confirmation.
 
 ## Supported Applications (271+)
 
@@ -199,13 +210,38 @@ See [REFACTORING-SUMMARY.md](other_files/REFACTORING-SUMMARY.md) for complete de
   - Some installers and winget operations will fail or behave unpredictably without elevation.
 - **Antivirus / SmartScreen behavior:**
   - Because the EXE is a **custom IEXPRESS self-extracting package**, many antivirus products and/or Windows SmartScreen may **flag, warn about, or quarantine** the EXE on first run.
-  - If you trust the source (this repository and your own build), you may need to:
-    - Unblock the EXE in the file properties dialog.
-    - Mark it as **allowed** in your antivirus / endpoint protection.
-    - Choose **"More info" → "Run anyway"** if SmartScreen shows a warning.
+  - If a security product flags or quarantines a package, stop and verify its source and any published signature or digest. If you cannot verify it, or an organization policy blocks it, contact your administrator rather than overriding the warning.
 - **Recommendation:**
   - Prefer running the **raw PowerShell script (`app-installer.ps1`) from an elevated PowerShell session** when testing or developing.
   - Use the **EXE** for deployment/hand-off scenarios, with the expectation that security software may require manual approval.
+
+## PowerShell execution policy and script signatures
+
+The recommended direct launches use the current PowerShell host and do not alter persistent execution-policy scopes. Launch scripts with your normal host and leave its configured policy in place:
+
+```powershell
+pwsh -NoProfile -File .\app-installer.ps1
+pwsh -NoProfile -File .\app-installer-cli.ps1
+```
+
+Windows PowerShell 5.1 can launch the GUI entry point with `powershell.exe -NoProfile -File .\app-installer.ps1`. The `install.bat` and `install.sh` helpers use the same direct `-File` launch and do not alter policy settings. Check the effective scopes with `Get-ExecutionPolicy -List`; this installer does not write them. Execution policy is a PowerShell safety feature, not a code-integrity check. See Microsoft's [execution policy guidance](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_execution_policies?view=powershell-7.5).
+
+For a signed Windows script, inspect its Authenticode result before launch:
+
+```powershell
+Get-AuthenticodeSignature -LiteralPath .\app-installer.ps1 | Format-List Status, SignerCertificate
+```
+
+Run a downloaded script only when the signature status is `Valid` and the signer matches the publisher identity published for that release. A valid signature from an unexpected signer is not sufficient. This checkout does not identify a project signing certificate or signer thumbprint, so do not assume source scripts or locally built packages are signed. Microsoft's [PowerShell signing guidance](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_signing?view=powershell-7.5) and [`Get-AuthenticodeSignature` reference](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.security/get-authenticodesignature) explain signature verification.
+
+Do not use `Unblock-File` or a policy change as a substitute for checking a signature or independently verifying a digest.
+
+If a launcher detects that PowerShell policy prevented the script from starting, it reports:
+
+> PowerShell policy prevented this script from starting. No policy setting was changed. Use the signed release or contact your administrator.
+
+See the [PowerShell signing guidance](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_signing?view=powershell-7.5) for signature verification. Do not change user, machine, or organization policy to work around a blocked launch.
+
 ## Installation
 
 ### Windows Installation
@@ -457,8 +493,6 @@ app_installer/
 │   └── ... (89 more scripts)
 ├── README.md                        # This file
 ├── CHANGELOG.md                     # Version history
-└── ai_prompts/
-    └── prompt.01.md                 # Original requirements
 ```
 
 ## Uninstall Applications
@@ -662,6 +696,7 @@ Edit the `Category` property in the application registry to organize apps differ
 - No credentials or sensitive data stored
 - All installations run with user consent
 - Logs contain no sensitive information
+- The O&O ShutUp10 custom installer is disabled until an immutable source and reviewed SHA-256 pin are configured. The current configuration fails closed without downloading or running its helper.
 
 ## Recent Updates
 
@@ -705,12 +740,12 @@ Contributions are welcome! Please:
 
 For issues, questions, or contributions:
 - **GitHub Issues:** https://github.com/mytech-today-now/PowerShellScripts/issues
-- **Documentation:** See `.augment/` folder for development guidelines
+- **Documentation:** See this README and [CHANGELOG.md](CHANGELOG.md)
 - **Company Website:** https://mytech.today
 
 ## Version History
 
-See [CHANGELOG.md](other_files/CHANGELOG.md) for detailed version history.
+See [CHANGELOG.md](CHANGELOG.md) for detailed version history.
 
 **Recent Versions:**
 - **v2.0.6 (GUI) / v2.0.2 (CLI)** - Access Denied fix (Safe-TestPath), security warning fix (Unblock-File)
@@ -721,7 +756,7 @@ See [CHANGELOG.md](other_files/CHANGELOG.md) for detailed version history.
 
 ## License
 
-Copyright (c) 2025 myTech.Today. All rights reserved.
+Copyright (c) 2026 myTech.Today. All rights reserved.
 
 This software is proprietary and confidential. Unauthorized copying, distribution, or use is strictly prohibited.
 
@@ -732,10 +767,7 @@ Professional IT Services - Serving the Midwest
 https://github.com/mytech-today-now/PowerShellScripts
 
 **Service Area:**
-- Chicagoland, IL
-- Southern Wisconsin
-- Northern Indiana
-- Southern Michigan
+- Omaha, NE
 
 **Expertise:**
 - 20+ years of IT experience
@@ -745,6 +777,6 @@ https://github.com/mytech-today-now/PowerShellScripts
 
 ---
 
-**Last Updated:** 2026-03-17
+**Last Updated:** 2026-10-16
 **Version:** 2.0.6 (GUI) / 2.0.2 (CLI)
-**Maintained by:** myTech.Today
+**Maintained by:** [myTech.Today](https://mytech.today)
