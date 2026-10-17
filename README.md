@@ -182,7 +182,8 @@ The CLI asks for confirmation before creating or replacing its task. The task ru
 - **Operating System:** Windows 10 (1809+), Windows 11, Windows Server 2016+
 - **PowerShell:** 5.1 or later (PowerShell 7.2+ recommended for best experience)
 - **Privileges:** Administrator rights recommended (see **Administrator & Antivirus Notes** below)
-- **Package Manager:** winget (Windows Package Manager) - installed by default on Windows 11
+- **Package Manager:** WinGet (Windows Package Manager) - included by default on Windows 11
+- **Windows 10 WinGet setup:** On supported Windows 10 x64 client systems, the installer checks package names, Microsoft Publisher fields, architectures, signatures, and the WinGet release bundle's SHA-256 digest before installation. If setup or verification does not complete, install App Installer manually from Microsoft Store where available and review any reported partial changes before retrying.
 - **.NET Framework:** 4.7.2 or later (for GUI version only)
   - **Note:** The GUI installer (`app-installer.ps1`) will automatically detect and offer to install .NET Framework 4.8 if not present
 
@@ -236,6 +237,22 @@ Run a downloaded script only when the signature status is `Valid` and the signer
 
 Do not use `Unblock-File` or a policy change as a substitute for checking a signature or independently verifying a digest.
 
+## Optional remote hosts and restore-point helpers
+
+The Hosts File Manager and Manage Restore Points helpers remain unavailable in this checkout because their reviewed immutable source URLs and independent SHA-256 pins are not configured. Selecting either app fails closed before a request, persistent setup, shortcut creation, or helper execution. No live helper source was queried for this decision. Do not launch either helper from a mutable branch URL.
+
+When a reviewed release is configured, the installer verifies the exact downloaded bytes before launch. The installed shortcut targets the local wrapper, which repeats verification each time it runs. Use the direct commands printed by the installer, which follow this form and preserve the current PowerShell policy:
+
+```powershell
+powershell.exe -NoProfile -File "$env:USERPROFILE\myTech.Today\scripts\hosts.ps1" -Force
+powershell.exe -NoProfile -File "C:\myTech.Today\ManageRestorePoints\Manage-RestorePoints.ps1" -Action List
+powershell.exe -NoProfile -File "C:\myTech.Today\ManageRestorePoints\Manage-RestorePoints.ps1" -Action Configure
+powershell.exe -NoProfile -File "C:\myTech.Today\ManageRestorePoints\Manage-RestorePoints.ps1" -Action Create -Description 'My Backup'
+powershell.exe -NoProfile -File "C:\myTech.Today\ManageRestorePoints\Manage-RestorePoints.ps1" -Action Monitor
+```
+
+If source verification fails, inspect the reported status before trying again. A nonzero or unknown helper result does not confirm that hosts or restore-point state changed.
+
 If a launcher detects that PowerShell policy prevented the script from starting, it reports:
 
 > PowerShell policy prevented this script from starting. No policy setting was changed. Use the signed release or contact your administrator.
@@ -252,8 +269,9 @@ See the [PowerShell signing guidance](https://learn.microsoft.com/en-us/powershe
    cd PowerShellScripts\app_installer
    ```
 
-2. **Ensure winget is installed** (Windows 11 has it by default):
-   - For Windows 10: Install "App Installer" from Microsoft Store
+2. **Ensure WinGet is installed** (Windows 11 has it by default):
+   - On supported Windows 10 x64 client systems, the installer attempts verified setup when WinGet is missing.
+   - If setup does not complete, install "App Installer" from Microsoft Store where available.
    - Verify: `winget --version`
 
 3. **Run as Administrator**:
@@ -571,7 +589,9 @@ Both scripts maintain an internal registry of all 212 supported applications wit
    - Otherwise → Display warning
 3. **Execution:** Run installation with silent/automated parameters
 4. **Logging:** Log all activities to centralized log file
-5. **Status:** Display success/failure with color-coded output
+5. **Status:** Display confirmed success, failure, or unknown results with color-coded output
+
+Custom app scripts run in an isolated PowerShell process. If the installer cannot confirm a script's result, it reports the result as unknown and does not mark the app installed. Check the app's current state before retrying.
 
 ### Version Detection
 
@@ -777,6 +797,6 @@ https://github.com/mytech-today-now/PowerShellScripts
 
 ---
 
-**Last Updated:** 2026-10-16
+**Last Updated:** 2026-10-17
 **Version:** 2.0.6 (GUI) / 2.0.2 (CLI)
 **Maintained by:** [myTech.Today](https://mytech.today)

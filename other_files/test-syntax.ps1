@@ -4,14 +4,20 @@ $scriptPaths = @(
     (Join-Path $PSScriptRoot '..\app-installer-cli.ps1'),
     (Join-Path $PSScriptRoot '..\modules\StartupHelperTrust.psm1'),
     (Join-Path $PSScriptRoot '..\modules\OOShutUp10Trust.psm1'),
+    (Join-Path $PSScriptRoot '..\modules\RemotePowerShellTrust.psm1'),
     (Join-Path $PSScriptRoot '..\modules\ResponsiveGuiHelper.psm1'),
+    (Join-Path $PSScriptRoot '..\modules\WingetBootstrap.psm1'),
     (Join-Path $PSScriptRoot '..\apps\winget-update.ps1'),
     (Join-Path $PSScriptRoot '..\tests\test-startup-helper-trust.ps1'),
     (Join-Path $PSScriptRoot '..\tests\test-startup-entrypoints-offline.ps1'),
     (Join-Path $PSScriptRoot '..\tests\test-ooshutup10-trust.ps1'),
+    (Join-Path $PSScriptRoot '..\tests\test-remote-helper-trust.ps1'),
+    (Join-Path $PSScriptRoot '..\apps\hosts.ps1'),
+    (Join-Path $PSScriptRoot '..\apps\managerestorepoints.ps1'),
     (Join-Path $PSScriptRoot '..\tests\test-monthly-update-scheduling.ps1'),
     (Join-Path $PSScriptRoot '..\tests\test-monthly-update-results.ps1'),
     (Join-Path $PSScriptRoot '..\tests\test-package-dependency-outcomes.ps1'),
+    (Join-Path $PSScriptRoot '..\tests\test-winget-bootstrap.ps1'),
     (Join-Path $PSScriptRoot '..\tests\test-cli-whatif.ps1'),
     (Join-Path $PSScriptRoot '..\invoke-elevated-install.ps1'),
     (Join-Path $PSScriptRoot '..\tests\test-install-bat-elevation.ps1')
@@ -50,5 +56,5 @@ if ($hasErrors) {
     exit 1
 }
 
-Write-Host '[OK] All App Installer startup files parse cleanly' -ForegroundColor Green
+Write-Host '[OK] All listed App Installer PowerShell files parse cleanly' -ForegroundColor Green
 exit 0

@@ -42,3 +42,10 @@ ai-prompts/
 .augment/
 tools/
 
+# Local Beads workspace files
+/.dolt/
+/.beads-credential-key
+/.beads.gate.lock*
+
+# Augment Extensions
+.augment/extensions.json

@@ -93,18 +93,28 @@ exit /b %ERRORLEVEL%
 
 try {
     $readme = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'README.md')
+    $instructions = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'instructions.html')
     $help = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'app-installer.ps1')
     $batch = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'install.bat')
     $shell = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'install.sh')
     $scheduledUpdater = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'app-installer-cli.ps1')
     $ooshutupHelper = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'modules\OOShutUp10Trust.psm1')
+    $hostsHelper = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'apps\hosts.ps1')
+    $restorePointsHelper = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'apps\managerestorepoints.ps1')
+    $remoteHelperTrust = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'modules\RemotePowerShellTrust.psm1')
 
     Assert-Condition -Condition (($readme + $help) -notmatch '(?im)Set-ExecutionPolicy\s+-Scope\s+CurrentUser\s+-ExecutionPolicy\s+Unrestricted') -Message 'README and PowerShell help do not recommend persistent CurrentUser Unrestricted.'
     Assert-Condition -Condition ($readme -match '(?i)Do not use\s+`?Unblock-File`?\s+or a policy change as a substitute' -and $readme -notmatch '(?i)Unblock the EXE|Run anyway') -Message 'README rejects unblocking or policy changes as substitutes for verification.'
     Assert-Condition -Condition ($batch -notmatch '(?i)-ExecutionPolicy\s+Bypass') -Message 'The Windows launcher does not override execution policy.'
     Assert-Condition -Condition ($shell -notmatch '(?i)-ExecutionPolicy\s+Bypass') -Message 'The POSIX launcher does not override execution policy.'
     Assert-Condition -Condition (($scheduledUpdater + $ooshutupHelper) -notmatch '(?i)-ExecutionPolicy\s+Bypass') -Message 'Scheduled and verified child launches do not override execution policy.'
+    Assert-Condition -Condition (($hostsHelper + $restorePointsHelper + $remoteHelperTrust) -notmatch '(?i)-ExecutionPolicy\s+Bypass') -Message 'Hosts and restore-point helper launches do not override execution policy.'
+    Assert-Condition -Condition (($hostsHelper + $restorePointsHelper + $remoteHelperTrust) -notmatch '(?i)-ExecutionPolicy\b') -Message 'Hosts and restore-point production sources contain no process-level policy option.'
+    Assert-Condition -Condition (($hostsHelper + $restorePointsHelper + $remoteHelperTrust) -notmatch 'Invoke-Expression') -Message 'Hosts and restore-point helpers do not evaluate downloaded PowerShell text.'
+    Assert-Condition -Condition ($hostsHelper.Contains('-NoProfile -File') -and $hostsHelper.Contains('Hosts File Manager.lnk')) -Message 'The hosts shortcut uses a direct file launch and keeps its existing name.'
+    Assert-Condition -Condition ($restorePointsHelper.Contains('-NoProfile -File') -and $restorePointsHelper.Contains('-Action List') -and $restorePointsHelper.Contains('Manage Restore Points.lnk')) -Message 'The restore-point shortcut uses a direct file launch and keeps List behavior.'
     Assert-Condition -Condition (($batch + $shell + $help) -notmatch '(?im)Set-ExecutionPolicy\b') -Message 'The documented launch path does not write PowerShell policy settings.'
+    Assert-Condition -Condition (($instructions -notmatch '(?im)Set-ExecutionPolicy\b') -and (($readme + $instructions) -notmatch '(?im)(?:powershell|pwsh)(?:\.exe)?\s+[^\r\n]*\s+-ExecutionPolicy\b')) -Message 'User documentation does not recommend writing policy settings or passing a process policy override.'
     Assert-Condition -Condition ($batch -match '(?s)-NoProfile\s+-File[^\r\n]*%\*') -Message 'The Windows launcher still invokes the script directly and forwards arguments.'
     Assert-Condition -Condition ($shell -match '(?s)-NoProfile\s+-File[^\r\n]*"\$@"') -Message 'The POSIX launcher still invokes the script directly and forwards arguments.'
     Assert-Condition -Condition ($batch -match '(?i)if not exist "%~dp0app-installer\.ps1"' -and $shell -match '(?i)\[\[ ! -f "\$SCRIPT_DIR/app-installer-cli\.ps1" \]\]') -Message 'Both wrappers fail clearly when their target script is missing.'

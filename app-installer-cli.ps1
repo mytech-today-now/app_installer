@@ -983,83 +983,48 @@ function Install-WingetOnWindows10 {
     [CmdletBinding()]
     param()
 
-    try {
-        # Check if running on Windows 10
-        $osVersion = [System.Environment]::OSVersion.Version
-        $isWindows10 = $osVersion.Major -eq 10 -and $osVersion.Build -lt 22000
+    $osVersion = [System.Environment]::OSVersion.Version
+    $isWindows10 = $osVersion.Major -eq 10 -and $osVersion.Build -lt 22000
 
-        if (-not $isWindows10) {
-            Write-Log "Not running on Windows 10, skipping winget installation" -Level INFO
-            return $false
-        }
-
-        Write-Host "`n[i] Detected Windows 10. Installing winget (Windows Package Manager)..." -ForegroundColor Cyan
-        Write-Log "Installing winget on Windows 10" -Level INFO
-
-        $tempDir = Join-Path $env:TEMP "winget_install"
-        if (-not (Safe-TestPath $tempDir)) {
-            New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
-        }
-
-        # Install VCLibs dependency
-        Write-Host "  [i] Downloading VCLibs dependency..." -ForegroundColor Gray
-        $vcLibsUrl = "https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx"
-        $vcLibsPath = Join-Path $tempDir "Microsoft.VCLibs.x64.14.00.Desktop.appx"
-        Invoke-WebRequest -Uri $vcLibsUrl -OutFile $vcLibsPath -UseBasicParsing
-        Write-Host "  [i] Installing VCLibs..." -ForegroundColor Gray
-        Add-AppxPackage -Path $vcLibsPath -ErrorAction SilentlyContinue
-
-        # Install UI.Xaml dependency
-        Write-Host "  [i] Downloading UI.Xaml dependency..." -ForegroundColor Gray
-        $uiXamlUrl = "https://github.com/microsoft/microsoft-ui-xaml/releases/download/v2.8.6/Microsoft.UI.Xaml.2.8.x64.appx"
-        $uiXamlPath = Join-Path $tempDir "Microsoft.UI.Xaml.2.8.x64.appx"
-        Invoke-WebRequest -Uri $uiXamlUrl -OutFile $uiXamlPath -UseBasicParsing
-        Write-Host "  [i] Installing UI.Xaml..." -ForegroundColor Gray
-        Add-AppxPackage -Path $uiXamlPath -ErrorAction SilentlyContinue
-
-        # Get latest winget release
-        Write-Host "  [i] Fetching latest winget release information..." -ForegroundColor Gray
-        $apiUrl = "https://api.github.com/repos/microsoft/winget-cli/releases/latest"
-        $release = Invoke-RestMethod -Uri $apiUrl -UseBasicParsing
-        $msixBundleUrl = ($release.assets | Where-Object { $_.name -like "*.msixbundle" }).browser_download_url
-
-        if (-not $msixBundleUrl) {
-            Write-Log "Failed to find winget msixbundle in latest release" -Level ERROR
-            Write-Host "  [X] Failed to find winget download URL" -ForegroundColor Red
-            return $false
-        }
-
-        # Download and install winget
-        Write-Host "  [i] Downloading winget..." -ForegroundColor Gray
-        $wingetPath = Join-Path $tempDir "Microsoft.DesktopAppInstaller.msixbundle"
-        Invoke-WebRequest -Uri $msixBundleUrl -OutFile $wingetPath -UseBasicParsing
-
-        Write-Host "  [i] Installing winget..." -ForegroundColor Gray
-        Add-AppxPackage -Path $wingetPath
-
-        # Cleanup
-        Remove-Item -Path $tempDir -Recurse -Force -ErrorAction SilentlyContinue
-
-        # Verify installation
-        Start-Sleep -Seconds 2
-        $wingetInstalled = $null -ne (Get-Command winget -ErrorAction SilentlyContinue)
-
-        if ($wingetInstalled) {
-            Write-Host "  [OK] winget installed successfully!" -ForegroundColor Green
-            Write-Log "winget installed successfully on Windows 10" -Level SUCCESS
-            return $true
-        }
-        else {
-            Write-Host "  [X] winget installation completed but command not found" -ForegroundColor Red
-            Write-Log "winget installation completed but command not available" -Level WARNING
-            return $false
-        }
-    }
-    catch {
-        Write-Log "Failed to install winget: $($_.Exception.Message)" -Level ERROR
-        Write-Host "  [X] Failed to install winget: $($_.Exception.Message)" -ForegroundColor Red
+    if (-not $isWindows10) {
+        Write-Log "Not running on Windows 10, skipping winget installation" -Level INFO
         return $false
     }
+
+    Write-Host "`n[i] Detected Windows 10. Verifying WinGet setup requirements..." -ForegroundColor Cyan
+    Write-Log "Verifying WinGet bootstrap requirements on Windows 10" -Level INFO
+
+    try {
+        $bootstrapModulePath = Join-Path $PSScriptRoot 'modules\WingetBootstrap.psm1'
+        if (-not (Safe-TestPath $bootstrapModulePath)) {
+            throw 'Bootstrap verifier module is unavailable.'
+        }
+        Import-Module -Name $bootstrapModulePath -Force -Verbose:$false -ErrorAction Stop | Out-Null
+        $bootstrapResult = WingetBootstrap\Invoke-WingetBootstrap -ErrorAction Stop
+    }
+    catch {
+        Write-Log "WinGet setup could not be verified (BootstrapVerifierUnavailable)" -Level ERROR
+        Write-Host "  [X] The installer could not verify WinGet setup and made no package changes. Install App Installer manually from Microsoft Store, then retry." -ForegroundColor Red
+        return $false
+    }
+
+    if ($bootstrapResult.Success -eq $true -and $bootstrapResult.Status -eq 'Complete') {
+        Write-Host "  [OK] WinGet installed and detected successfully." -ForegroundColor Green
+        Write-Log "WinGet installed and detected successfully on Windows 10" -Level SUCCESS
+        return $true
+    }
+
+    Write-Log "WinGet setup could not be verified ($($bootstrapResult.ErrorCode)); status $($bootstrapResult.Status)" -Level ERROR
+    if ($bootstrapResult.ChangesStarted -eq $true) {
+        Write-Host "  [X] The installer could not verify WinGet setup. Package changes were attempted and may have partially completed. Review App Installer and its dependencies before retrying; install App Installer manually from Microsoft Store if needed." -ForegroundColor Red
+    }
+    else {
+        Write-Host "  [X] The installer could not verify WinGet setup and made no package changes. Install App Installer manually from Microsoft Store, then retry." -ForegroundColor Red
+    }
+    if ($bootstrapResult.CleanupSucceeded -eq $false) {
+        Write-Host "  [!] Temporary bootstrap files could not be removed." -ForegroundColor Yellow
+    }
+    return $false
 }
 
 function Test-WingetAvailable {
@@ -1115,7 +1080,7 @@ function Assert-WingetAvailable {
             return $true
         }
         else {
-            Write-Host "[X] Failed to install winget automatically. Please install 'App Installer' from Microsoft Store." -ForegroundColor Red
+            Write-Host "Automatic WinGet setup did not complete. Follow the recovery instruction above, or install App Installer manually from Microsoft Store and retry." -ForegroundColor Red
             return $false
         }
     }
@@ -3037,22 +3002,23 @@ function Install-Application {
             }
 
             Write-Host "  [1/2] [CHECK] Using custom installation script..." -ForegroundColor Gray
-            Write-Verbose "Executing script: $scriptPath"
-            & $scriptPath
-            $scriptExitCode = $LASTEXITCODE
-            Write-Verbose "Custom script completed with exit code: $scriptExitCode"
+            Write-Verbose "Executing script in an isolated PowerShell process: $scriptPath"
+            $appScriptResult = AppInstallerCore\Invoke-AppScript -ScriptPath $scriptPath -ScriptArguments @()
+            $scriptExitCode = $appScriptResult.ExitCode
+            Write-Verbose "Custom script result: $($appScriptResult.Status); exit code: $scriptExitCode"
 
             if ($TotalCount -gt 0) {
+                $progressStatus = if ($appScriptResult.Status -in @('PowerShellSuccess', 'NativeProcessSuccess')) { 'Complete' } `
+                    elseif ($appScriptResult.Status -eq 'Unknown') { 'Result unknown' } else { 'Failed' }
                 Write-Progress -Activity "Installing $($App.Name)" `
-                    -Status "Complete" `
+                    -Status $progressStatus `
                     -PercentComplete 100 `
                     -ParentId 1 `
                     -Id 2 `
                     -Completed
             }
 
-            # Check exit code from custom script
-            if ($scriptExitCode -eq 0) {
+            if ($appScriptResult.Status -in @('PowerShellSuccess', 'NativeProcessSuccess')) {
                 Write-Log "$($App.Name) installed successfully via custom script" -Level SUCCESS
                 Write-Host "  [2/2] [OK] Installation complete!" -ForegroundColor Green
 
@@ -3074,6 +3040,12 @@ function Install-Application {
                 }
 
                 return $true
+            }
+            elseif ($appScriptResult.Status -eq 'Unknown') {
+                $unknownMessage = "$($App.Name) custom installer result is unknown. The app was not marked installed. Review its status before retrying."
+                Write-Log $unknownMessage -Level ERROR
+                Write-Host "  [2/2] [UNKNOWN] $unknownMessage" -ForegroundColor Yellow
+                return $false
             }
             else {
                 $errorMessage = Get-WingetErrorMessage -ExitCode $scriptExitCode

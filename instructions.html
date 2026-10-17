@@ -216,12 +216,11 @@
     <pre><code>cd C:\Tools\app_installer</code></pre>
     <p><em>Replace <code>C:\Tools\app_installer</code> with your actual path.</em></p>
 
-    <h3>Step 4: Set Execution Policy (Windows Only, First Time)</h3>
-    <p>If this is your first time running PowerShell scripts, you may need to allow script execution:</p>
-    <pre><code>Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser</code></pre>
+    <h3>Step 4: Keep the Configured Execution Policy</h3>
+    <p>Launch the installer with the current PowerShell policy. For example, use <code>powershell.exe -NoProfile -File .\app-installer.ps1</code>. This installer does not change execution policy settings.</p>
 
     <div class="note">
-        <strong>What does this do?</strong> This command allows you to run locally created scripts while still requiring downloaded scripts to be signed by a trusted publisher. This is a one-time setup.
+        <strong>If policy blocks a script:</strong> Use a signed release or contact your administrator. Do not change a user, machine, or organization policy to work around a blocked launch.
     </div>
 
     <h2>🎯 Using the App Installer</h2>
@@ -339,9 +338,7 @@
     <div class="warning">
         <strong>Problem:</strong> PowerShell's execution policy prevents running scripts.
     </div>
-    <p><strong>Solution:</strong></p>
-    <pre><code>Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser</code></pre>
-    <p>Then try running the script again.</p>
+    <p><strong>Solution:</strong> Keep the configured policy unchanged. Use a signed release or contact your administrator. The installer does not bypass a blocked policy.</p>
 
     <h4>2. "Access Denied" or "Administrator privileges required"</h4>
     <div class="warning">

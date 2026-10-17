@@ -252,6 +252,226 @@ function Select-ApplicationsByPlatform {
 
 #region Installation Functions
 
+function ConvertTo-AppScriptProcessArgument {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyString()]
+        [string]$Argument
+    )
+
+    $builder = New-Object System.Text.StringBuilder
+    [void]$builder.Append('"')
+    $backslashCount = 0
+
+    for ($index = 0; $index -lt $Argument.Length; $index++) {
+        $character = $Argument[$index]
+        if ($character -eq '\') {
+            $backslashCount++
+            continue
+        }
+
+        if ($character -eq '"') {
+            [void]$builder.Append(('\' * (($backslashCount * 2) + 1)))
+            [void]$builder.Append('"')
+            $backslashCount = 0
+            continue
+        }
+
+        if ($backslashCount -gt 0) {
+            [void]$builder.Append(('\' * $backslashCount))
+            $backslashCount = 0
+        }
+        [void]$builder.Append($character)
+    }
+
+    if ($backslashCount -gt 0) {
+        [void]$builder.Append(('\' * ($backslashCount * 2)))
+    }
+    [void]$builder.Append('"')
+    return $builder.ToString()
+}
+
+function New-AppScriptExecutionResult {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateSet('PowerShellSuccess', 'NativeProcessSuccess', 'Failure', 'Unknown')]
+        [string]$Status,
+
+        [AllowNull()]
+        [object]$ExitCode,
+
+        [Parameter(Mandatory = $true)]
+        [string]$ResultKind,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Message
+    )
+
+    return [PSCustomObject]@{
+        Status = $Status
+        ExitCode = if ($null -eq $ExitCode) { $null } else { [int]$ExitCode }
+        ResultKind = $ResultKind
+        Message = $Message
+    }
+}
+
+function Invoke-AppScript {
+    <#
+    .SYNOPSIS
+        Runs a custom app script in a fresh PowerShell process and returns an explicit result.
+
+    .DESCRIPTION
+        The child process isolates the script from the caller's native exit-code state. A zero
+        exit code is successful only when the isolated runner records a result. A script that
+        finishes without setting a PowerShell or native process result is Unknown and must not
+        be reported as completed.
+        The returned object contains Status, ExitCode, ResultKind, and Message. Status is
+        PowerShellSuccess for a declared PowerShell result, NativeProcessSuccess for a declared
+        native result, Failure for a nonzero process result or parse failure, and Unknown when
+        execution or its outcome cannot be confirmed.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ScriptPath,
+
+        [Parameter(Mandatory = $false)]
+        [AllowEmptyCollection()]
+        [string[]]$ScriptArguments = @()
+    )
+
+    if (-not (Test-Path -LiteralPath $ScriptPath -PathType Leaf)) {
+        return New-AppScriptExecutionResult -Status Failure -ExitCode 1 -ResultKind 'None' `
+            -Message "App script not found: $ScriptPath"
+    }
+
+    $resolvedScriptPath = [System.IO.Path]::GetFullPath($ScriptPath)
+    $tokens = $null
+    $parseErrors = $null
+    $scriptAst = [System.Management.Automation.Language.Parser]::ParseFile(
+        $resolvedScriptPath,
+        [ref]$tokens,
+        [ref]$parseErrors
+    )
+    if ($parseErrors.Count -gt 0) {
+        $parseMessage = [string]$parseErrors[0].Message
+        return New-AppScriptExecutionResult -Status Failure -ExitCode 1 -ResultKind 'None' `
+            -Message "App script could not be parsed: $parseMessage"
+    }
+
+    $nativeResultMarker = @($scriptAst.FindAll({
+                param($node)
+                $node -is [System.Management.Automation.Language.VariableExpressionAst] -and
+                $node.VariablePath.UserPath -ieq 'LASTEXITCODE'
+            }, $true)).Count -gt 0
+
+    $nativeHelperNames = @('Install-CrossPlatformApp', 'Invoke-PackageManagerProcess')
+    if (-not $nativeResultMarker) {
+        $nativeResultMarker = @($scriptAst.FindAll({
+                    param($node)
+                    $node -is [System.Management.Automation.Language.CommandAst] -and
+                    $nativeHelperNames -contains $node.GetCommandName()
+                }, $true)).Count -gt 0
+    }
+
+    $powerShellName = if ($PSVersionTable.PSEdition -eq 'Core') {
+        if ($IsWindows -or $env:OS -match 'Windows') { 'pwsh.exe' } else { 'pwsh' }
+    }
+    else {
+        'powershell.exe'
+    }
+    $powerShellPath = Join-Path $PSHOME $powerShellName
+    if (-not (Test-Path -LiteralPath $powerShellPath -PathType Leaf)) {
+        $powerShellCommand = Get-Command -Name $powerShellName -CommandType Application -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+        if ($powerShellCommand) {
+            $powerShellPath = if ($powerShellCommand.Path) { $powerShellCommand.Path } else { $powerShellCommand.Source }
+        }
+        else {
+            return New-AppScriptExecutionResult -Status Unknown -ExitCode $null -ResultKind 'None' `
+                -Message 'A PowerShell executable could not be resolved. The app script was not started.'
+        }
+    }
+
+    $runnerPath = Join-Path $PSScriptRoot 'AppScriptProcessRunner.ps1'
+    if (-not (Test-Path -LiteralPath $runnerPath -PathType Leaf)) {
+        return New-AppScriptExecutionResult -Status Unknown -ExitCode $null -ResultKind 'None' `
+            -Message 'The custom app script runner is missing. The app script was not started.'
+    }
+
+    $process = $null
+    $resultFilePath = $null
+    try {
+        $resultFilePath = [System.IO.Path]::GetTempFileName()
+        $processArguments = @('-NoProfile', '-File', $runnerPath, $resolvedScriptPath, $resultFilePath) + @($ScriptArguments)
+        $processInfo = New-Object System.Diagnostics.ProcessStartInfo
+        $processInfo.FileName = $powerShellPath
+        $processInfo.UseShellExecute = $false
+        $argumentListProperty = $processInfo.GetType().GetProperty('ArgumentList')
+        if ($argumentListProperty) {
+            $argumentList = $argumentListProperty.GetValue($processInfo, $null)
+            foreach ($processArgument in $processArguments) {
+                [void]$argumentList.Add([string]$processArgument)
+            }
+        }
+        else {
+            $processInfo.Arguments = (($processArguments | ForEach-Object {
+                        ConvertTo-AppScriptProcessArgument -Argument ([string]$_)
+                    }) -join ' ')
+        }
+
+        $process = New-Object System.Diagnostics.Process
+        $process.StartInfo = $processInfo
+        if (-not $process.Start()) {
+            return New-AppScriptExecutionResult -Status Unknown -ExitCode $null -ResultKind 'None' `
+                -Message 'The app script process did not start. Its result is unknown.'
+        }
+
+        $process.WaitForExit()
+        $exitCode = [int]$process.ExitCode
+        $resultMarker = if (Test-Path -LiteralPath $resultFilePath -PathType Leaf) {
+            [System.IO.File]::ReadAllText($resultFilePath)
+        }
+        else {
+            $null
+        }
+        $resultKind = if ($nativeResultMarker) { 'NativeProcess' } else { 'PowerShell' }
+
+        if ($exitCode -ne 0) {
+            return New-AppScriptExecutionResult -Status Failure -ExitCode $exitCode -ResultKind $resultKind `
+                -Message "The app script returned exit code $exitCode."
+        }
+
+        if ($resultMarker -eq 'unknown') {
+            return New-AppScriptExecutionResult -Status Unknown -ExitCode $null -ResultKind 'None' `
+                -Message 'The app script completed without declaring an outcome.'
+        }
+
+        if ($resultMarker -ne 'declared') {
+            return New-AppScriptExecutionResult -Status Unknown -ExitCode $null -ResultKind 'None' `
+                -Message 'The app script process exited without a readable result declaration.'
+        }
+
+        $successStatus = if ($nativeResultMarker) { 'NativeProcessSuccess' } else { 'PowerShellSuccess' }
+        return New-AppScriptExecutionResult -Status $successStatus -ExitCode 0 -ResultKind $resultKind `
+            -Message 'The app script completed successfully.'
+    }
+    catch {
+        return New-AppScriptExecutionResult -Status Unknown -ExitCode $null -ResultKind 'None' `
+            -Message "The app script process result could not be confirmed: $($_.Exception.Message)"
+    }
+    finally {
+        if ($process) {
+            $process.Dispose()
+        }
+        if ($resultFilePath -and (Test-Path -LiteralPath $resultFilePath -PathType Leaf)) {
+            Remove-Item -LiteralPath $resultFilePath -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
 function Invoke-AppInstallation {
     <#
     .SYNOPSIS
@@ -264,7 +484,7 @@ function Invoke-AppInstallation {
         Path to the apps directory.
 
     .OUTPUTS
-        Exit code from the installation script.
+        Explicit app script result with Status, ExitCode, ResultKind, and Message properties.
     #>
     [CmdletBinding()]
     param(
@@ -276,21 +496,8 @@ function Invoke-AppInstallation {
     )
 
     $scriptPath = Join-Path $AppsPath $AppScriptName
-
-    if (-not (Test-Path $scriptPath)) {
-        Write-Error "App script not found: $scriptPath"
-        return 1
-    }
-
-    try {
-        Write-Verbose "Executing: $scriptPath"
-        & $scriptPath
-        return $LASTEXITCODE
-    }
-    catch {
-        Write-Error "Failed to execute app script: $_"
-        return 1
-    }
+    Write-Verbose "Executing in an isolated PowerShell process: $scriptPath"
+    return Invoke-AppScript -ScriptPath $scriptPath
 }
 
 #endregion
@@ -389,6 +596,7 @@ Export-ModuleMember -Function @(
     'Initialize-InstallerDirectories',
     'Get-ApplicationRegistry',
     'Select-ApplicationsByPlatform',
+    'Invoke-AppScript',
     'Invoke-AppInstallation',
     'Import-InstallationProfile',
     'Export-InstallationProfile'

@@ -1,4 +1,6 @@
 .git/
+.beads/
+.beads.gate.lock*
 .aws/
 .agents/
 .codex/
