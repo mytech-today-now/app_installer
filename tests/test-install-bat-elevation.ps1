@@ -48,15 +48,18 @@ function Invoke-BatchScenario {
         [Parameter(Mandatory = $true)][AllowEmptyString()][string]$RawArguments,
         [Parameter(Mandatory = $true)][string]$Mode,
         [int]$ExitCode = 0,
-        [switch]$Delayed
+        [switch]$Delayed,
+        [switch]$NoWindowsPowerShell
     )
 
     $runnerPath = Join-Path $TestRoot ($Name + '.bat')
     $testBatchPath = Join-Path $TestRoot 'install.bat'
     $testHelperPath = Join-Path $TestRoot 'invoke-elevated-install.ps1'
+    $testStarterPath = Join-Path $TestRoot 'tools\Start-Installer.ps1'
     $outputPath = Join-Path $TestRoot ($Name + '-output.txt')
     $statusPath = Join-Path $TestRoot ($Name + '-status.txt')
     $argumentLogPath = Join-Path $TestRoot ($Name + '-launcher-arguments.txt')
+    $desktopArgumentLogPath = Join-Path $TestRoot ($Name + '-desktop-arguments.txt')
     $wingetLogPath = Join-Path $TestRoot ($Name + '-winget-invoked.txt')
     $argumentSuffix = if ($RawArguments.Length -gt 0) { ' ' + $RawArguments } else { '' }
     $runner = @"
@@ -71,12 +74,14 @@ exit /b %ERRORLEVEL%
     $processInfo.Arguments = '/d /c ""' + $runnerPath + '""'
     $processInfo.WorkingDirectory = $TestRoot
     $processInfo.UseShellExecute = $false
+    $processInfo.RedirectStandardInput = $true
     $processInfo.EnvironmentVariables['PATH'] = $TestRoot + ';' + $env:SystemRoot + '\System32'
     $processInfo.EnvironmentVariables['PATHEXT'] = '.COM;.EXE;.BAT;.CMD'
     $processInfo.EnvironmentVariables['FAKE_MODE'] = $Mode
     $processInfo.EnvironmentVariables['FAKE_EXIT_CODE'] = [string]$ExitCode
     $processInfo.EnvironmentVariables['FAKE_DELAYED'] = [string][int]$Delayed.IsPresent
     $processInfo.EnvironmentVariables['FAKE_ARG_LOG'] = $argumentLogPath
+    $processInfo.EnvironmentVariables['FAKE_DESKTOP_ARG_LOG'] = $desktopArgumentLogPath
     $processInfo.EnvironmentVariables['FAKE_OUTPUT_LOG'] = $outputPath
     $processInfo.EnvironmentVariables['FAKE_STATUS_LOG'] = $statusPath
     $processInfo.EnvironmentVariables['FAKE_WINGET_LOG'] = $wingetLogPath
@@ -87,12 +92,16 @@ exit /b %ERRORLEVEL%
     $processInfo.EnvironmentVariables['ProgramFiles(x86)'] = $TestRoot
     $processInfo.EnvironmentVariables['ProgramW6432'] = $TestRoot
     $processInfo.EnvironmentVariables['LocalAppData'] = $TestRoot
+    if ($NoWindowsPowerShell) {
+        $processInfo.EnvironmentVariables['SystemRoot'] = Join-Path $TestRoot 'NoWindowsSystemRoot'
+    }
 
     $process = New-Object System.Diagnostics.Process
     $process.StartInfo = $processInfo
     if (-not $process.Start()) {
         throw "Could not start the isolated cmd.exe scenario '$Name'."
     }
+    $process.StandardInput.Close()
 
     if ($Delayed) {
         $startDeadline = [DateTime]::UtcNow.AddSeconds(10)
@@ -113,8 +122,9 @@ exit /b %ERRORLEVEL%
     }
 
     if (-not $process.WaitForExit(20000)) {
-        $outputAtTimeout = Get-TestOutput -Path $outputPath
         $process.Kill()
+        [void]$process.WaitForExit(5000)
+        $outputAtTimeout = Get-TestOutput -Path $outputPath
         throw "The isolated cmd.exe scenario '$Name' did not exit within 20 seconds. Output so far: $($outputAtTimeout.Trim())"
     }
 
@@ -126,10 +136,12 @@ exit /b %ERRORLEVEL%
         ExitCode       = $process.ExitCode
         Output         = Get-TestOutput -Path $outputPath
         ArgumentLog    = $argumentLog
+        DesktopArguments = Get-TestOutput -Path $desktopArgumentLogPath
         WingetInvoked  = Test-Path -LiteralPath $wingetLogPath -PathType Leaf
         RunnerPath     = $runnerPath
         BatchPath      = $testBatchPath
         HelperPath     = $testHelperPath
+        StarterPath    = $testStarterPath
     }
     $process.Dispose()
     return $result
@@ -266,8 +278,9 @@ try {
 
     $batch = Get-Content -Raw -LiteralPath $batchPath
     $helper = Get-Content -Raw -LiteralPath $helperPath
-    Assert-Condition -Condition ($batch -match '(?s)powershell\s+-NoProfile\s+-File[^\r\n]*invoke-elevated-install\.ps1[^\r\n]*%\*') -Message 'The elevated wrapper invokes the helper through direct -File and forwards the original argument tail.'
-    Assert-Condition -Condition ($batch -match '(?i)exit /b !ELEVATION_RC!' -and $batch -match '(?i)9009') -Message 'The unelevated wrapper returns the helper exit status and reports a missing PowerShell launcher.'
+    Assert-Condition -Condition ($batch -match '(?s)"%PWSH_EXE%"\s+-NoProfile\s+-File\s+"%STARTER_PATH%"\s+%\*') -Message 'The executable starts the shared -File launcher and forwards the original argument tail.'
+    Assert-Condition -Condition ($batch -match '(?i)CLASSIFY_BOOTSTRAP' -and $batch -match '(?i)BOOTSTRAP_STATUS_FILE') -Message 'The executable distinguishes a launcher that started from a preferred executable that could not start.'
+    Assert-Condition -Condition ($batch -notmatch '(?i)invoke-elevated-install\.ps1|Install-CompatiblePowerShell\.ps1|winget install|ExecutionPolicy\s+Bypass|Set-ExecutionPolicy') -Message 'The executable neither elevates nor provisions PowerShell nor changes policy during engine discovery.'
     Assert-Condition -Condition ($helper -match "Verb\s+=\s+'RunAs'" -and $helper -match 'PassThru\s+=\s+\$true' -and $helper -match 'WaitForExit\(\$timeoutMilliseconds\)') -Message 'The helper requests RunAs, retains the process handle, and has a bounded wait.'
     Assert-Condition -Condition ($helper -notmatch '(?i)ExecutionPolicy\s+Bypass|Set-ExecutionPolicy') -Message 'The elevation helper does not weaken execution policy or write policy settings.'
 
@@ -300,79 +313,59 @@ using System.Threading;
 
 public static class FakeLaunchers
 {
+    private static bool HasArgumentFile(string[] args, string expectedFileName)
+    {
+        foreach (string argument in args)
+        {
+            if (String.Equals(Path.GetFileName(argument), expectedFileName, StringComparison.OrdinalIgnoreCase)) return true;
+        }
+        return false;
+    }
+
     public static int Main(string[] args)
     {
         string executablePath = Process.GetCurrentProcess().MainModule.FileName;
         string executableName = Path.GetFileNameWithoutExtension(executablePath);
         string mode = Environment.GetEnvironmentVariable("FAKE_MODE") ?? "";
 
-        if (String.Equals(executableName, "net", StringComparison.OrdinalIgnoreCase))
+        if (HasArgumentFile(args, "Start-Installer.ps1"))
         {
-            return Environment.GetEnvironmentVariable("FAKE_IS_ELEVATED") == "1" ? 0 : 1;
-        }
-
-        if (String.Equals(executableName, "winget", StringComparison.OrdinalIgnoreCase))
-        {
-            string logPath = Environment.GetEnvironmentVariable("FAKE_WINGET_LOG");
-            if (!String.IsNullOrEmpty(logPath)) File.WriteAllText(logPath, "FAKE_WINGET_ONLY");
-            return 23;
-        }
-
-        string argumentLog = Environment.GetEnvironmentVariable("FAKE_ARG_LOG");
-        if (!String.IsNullOrEmpty(argumentLog)) File.WriteAllLines(argumentLog, args, Encoding.UTF8);
-
-        if (mode == "launcher-missing")
-        {
-            Console.WriteLine("[ERROR] Simulated missing PowerShell launcher.");
-            return 9009;
-        }
-
-        if (mode == "missing-pwsh")
-        {
-            Console.WriteLine("[FAKE] Starting the elevated wrapper with PowerShell 7 still missing.");
-            if (args.Length < 4) return 91;
-
-            var childInfo = new ProcessStartInfo();
-            childInfo.FileName = Environment.GetEnvironmentVariable("ComSpec");
-            childInfo.Arguments = "/d /c \"\"" + args[3] + "\"\"";
-            childInfo.WorkingDirectory = Path.GetDirectoryName(args[3]);
-            childInfo.UseShellExecute = false;
-            childInfo.RedirectStandardInput = true;
-            childInfo.EnvironmentVariables["FAKE_IS_ELEVATED"] = "1";
-
-            using (Process child = Process.Start(childInfo))
+            string markerPath = Environment.GetEnvironmentVariable("APP_INSTALLER_BOOTSTRAP_STARTED_FILE");
+            if (mode == "preferred-start-failure" && String.Equals(executableName, "pwsh", StringComparison.OrdinalIgnoreCase))
             {
-                child.StandardInput.WriteLine();
-                child.StandardInput.Close();
-                if (!child.WaitForExit(20000)) return 92;
-                return child.ExitCode;
+                Console.WriteLine("[FAKE] Preferred PowerShell process did not reach the bootstrap script.");
+                return 193;
             }
+            if (mode == "policy-before-start")
+            {
+                Console.Error.WriteLine("PowerShell execution policy blocked the unsigned launcher script.");
+                return 1;
+            }
+            if (!String.IsNullOrEmpty(markerPath)) File.WriteAllText(markerPath, "STARTED");
+            string argumentLogPath = Environment.GetEnvironmentVariable("FAKE_ARG_LOG");
+            if (!String.IsNullOrEmpty(argumentLogPath)) File.WriteAllLines(argumentLogPath, args, Encoding.UTF8);
+            if (mode == "unsupported-host")
+            {
+                Console.WriteLine("[ERROR] Mock unsupported Windows host.");
+                return 10;
+            }
+            if (mode == "delayed-success")
+            {
+                string statusLog = Environment.GetEnvironmentVariable("FAKE_STATUS_LOG");
+                if (!String.IsNullOrEmpty(statusLog)) File.WriteAllText(statusLog, "FAKE CHILD STARTED");
+                Thread.Sleep(1000);
+                if (!String.IsNullOrEmpty(statusLog)) File.AppendAllText(statusLog, "\r\nSetup complete.");
+                Console.WriteLine("Setup complete.");
+                return 0;
+            }
+            int startupExitCode = 0;
+            Int32.TryParse(Environment.GetEnvironmentVariable("FAKE_EXIT_CODE"), out startupExitCode);
+            if (startupExitCode == 0) Console.WriteLine("Setup complete.");
+            else Console.WriteLine("[ERROR] Installer exited with code " + startupExitCode + ".");
+            return startupExitCode;
         }
 
-        Console.WriteLine("[FAKE] Elevated installer started.");
-        if (mode == "delayed-success")
-        {
-            string statusLog = Environment.GetEnvironmentVariable("FAKE_STATUS_LOG");
-            if (!String.IsNullOrEmpty(statusLog)) File.WriteAllText(statusLog, "FAKE CHILD STARTED");
-            Thread.Sleep(5000);
-            if (!String.IsNullOrEmpty(statusLog)) File.AppendAllText(statusLog, "\r\nSetup complete.");
-        }
-        if (mode == "cancel")
-        {
-            Console.WriteLine("[ERROR] Administrator elevation was declined or canceled.");
-            return 1223;
-        }
-        if (mode == "nonzero")
-        {
-            Console.WriteLine("[ERROR] Fake elevated installer exited with code 23.");
-            return 23;
-        }
-        if (mode == "success" || mode == "delayed-success")
-        {
-            Console.WriteLine("Setup complete.");
-            return 0;
-        }
-
+        Console.WriteLine("[FAKE] Unexpected executable invocation.");
         return 91;
     }
 }
@@ -397,8 +390,35 @@ public static class FakeLaunchers
         $compilerProcess.Dispose()
 
         Copy-Item -LiteralPath $fakeLauncherOutputPath -Destination (Join-Path $testRoot 'powershell.exe')
+        Copy-Item -LiteralPath $fakeLauncherOutputPath -Destination (Join-Path $testRoot 'pwsh.exe')
         Copy-Item -LiteralPath $fakeLauncherOutputPath -Destination (Join-Path $testRoot 'net.exe')
         Copy-Item -LiteralPath $fakeLauncherOutputPath -Destination (Join-Path $testRoot 'winget.exe')
+
+        $fakeCoreDirectory = Join-Path $testRoot 'PowerShell\7'
+        New-Item -ItemType Directory -Path $fakeCoreDirectory -Force | Out-Null
+        Copy-Item -LiteralPath $fakeLauncherOutputPath -Destination (Join-Path $fakeCoreDirectory 'pwsh.exe')
+        $testToolsDirectory = Join-Path $testRoot 'tools'
+        New-Item -ItemType Directory -Path $testToolsDirectory -Force | Out-Null
+        $testStarterContent = @'
+$markerPath = [string]$env:APP_INSTALLER_BOOTSTRAP_STARTED_FILE
+if ($markerPath) { [System.IO.File]::WriteAllText($markerPath, 'STARTED') }
+if ($env:FAKE_DESKTOP_ARG_LOG) { [System.IO.File]::WriteAllLines($env:FAKE_DESKTOP_ARG_LOG, [string[]]$args) }
+$exitCode = [int]$env:FAKE_EXIT_CODE
+if ($exitCode -eq 0) { Write-Output 'Setup complete.' }
+exit $exitCode
+'@
+        Write-TestFile -Path (Join-Path $testToolsDirectory 'Start-Installer.ps1') -Content $testStarterContent
+
+        $unsupportedHostResult = Invoke-BatchScenario -TestRoot $testRoot -Name 'unsupported-host' -RawArguments '' -Mode 'unsupported-host'
+        Assert-Condition -Condition ($unsupportedHostResult.ExitCode -eq 10 -and $unsupportedHostResult.Output -match '(?i)Mock unsupported Windows host' -and $unsupportedHostResult.Output -notmatch '(?i)WinGet|Requesting elevation|runtime can be provisioned' -and -not $unsupportedHostResult.WingetInvoked) -Message ("An unsupported Windows host stops before runtime provisioning, elevation, or WinGet (exit {0}; output: {1})." -f $unsupportedHostResult.ExitCode, $unsupportedHostResult.Output.Trim())
+
+        $policyBlockedResult = Invoke-BatchScenario -TestRoot $testRoot -Name 'policy-blocked-bootstrap' -RawArguments '' -Mode 'policy-before-start'
+        Assert-Condition -Condition ($policyBlockedResult.ExitCode -eq 1 -and $policyBlockedResult.Output -match '(?i)execution policy blocked' -and $policyBlockedResult.Output -match '(?i)no alternate engine was tried' -and -not (Test-Path -LiteralPath (Join-Path $testRoot 'policy-blocked-bootstrap-desktop-arguments.txt'))) -Message 'An execution-policy block is reported and prevents alternate-engine retry.'
+
+        $fallbackResult = Invoke-BatchScenario -TestRoot $testRoot -Name 'bootstrap-start-fallback' -RawArguments '--profile "Windows PS fallback"' -Mode 'preferred-start-failure' -ExitCode 23
+        $expectedFallbackArguments = @('--profile', 'Windows PS fallback') -join '|'
+        $receivedFallbackArguments = ($fallbackResult.DesktopArguments -replace '^\uFEFF', '' -replace '\r?\n', '|').Trim('|')
+        Assert-Condition -Condition ($fallbackResult.ExitCode -eq 23 -and $fallbackResult.Output -match '(?i)preferred PowerShell process did not reach' -and $receivedFallbackArguments -eq $expectedFallbackArguments -and -not $fallbackResult.WingetInvoked) -Message ("A preferred executable that cannot start the bootstrap falls back before installer work and preserves its argument array (exit {0}; args: {1}; output: {2})." -f $fallbackResult.ExitCode, $receivedFallbackArguments, $fallbackResult.Output.Trim())
 
         $scenarioCases = @(
             [PSCustomObject]@{ Name = 'no-arguments'; Arguments = ''; Mode = 'success'; ExitCode = 0; ExpectedExtra = @() },
@@ -409,7 +429,7 @@ public static class FakeLaunchers
 
         foreach ($scenarioCase in $scenarioCases) {
             $result = Invoke-BatchScenario -TestRoot $testRoot -Name $scenarioCase.Name -RawArguments $scenarioCase.Arguments -Mode $scenarioCase.Mode -ExitCode $scenarioCase.ExitCode
-            $expectedArguments = @('-NoProfile', '-File', $result.HelperPath, $result.BatchPath) + @($scenarioCase.ExpectedExtra)
+            $expectedArguments = @('-NoProfile', '-File', $result.StarterPath) + @($scenarioCase.ExpectedExtra)
             $receivedArguments = @($result.ArgumentLog)
             Assert-Condition -Condition ($result.ExitCode -eq 0 -and (($receivedArguments -join '|') -eq ($expectedArguments -join '|'))) -Message ("The {0} case preserves argv boundaries (exit {1}; expected [{2}], received [{3}]; output: {4})." -f $scenarioCase.Name, $result.ExitCode, ($expectedArguments -join '|'), ($receivedArguments -join '|'), $result.Output.Trim())
             Assert-Condition -Condition ($result.Output -match '(?i)Setup complete\.' -and -not $result.WingetInvoked) -Message ("The {0} fake child completed without invoking a real package manager." -f $scenarioCase.Name)
@@ -419,16 +439,19 @@ public static class FakeLaunchers
         Assert-Condition -Condition ($delayedResult.ExitCode -eq 0 -and $delayedResult.Output -match '(?i)Setup complete\.') -Message 'The wrapper remains active until a delayed fake elevated child finishes.'
 
         $nonzeroResult = Invoke-BatchScenario -TestRoot $testRoot -Name 'child-nonzero' -RawArguments '/quiet' -Mode 'nonzero' -ExitCode 23
-        Assert-Condition -Condition ($nonzeroResult.ExitCode -eq 23 -and $nonzeroResult.Output -match '(?i)exit code 23' -and $nonzeroResult.Output -notmatch '(?i)Setup complete\.') -Message 'A nonzero elevated child result is visible, propagated exactly, and never reports setup success.'
+        Assert-Condition -Condition ($nonzeroResult.ExitCode -eq 23 -and $nonzeroResult.Output -match '(?i)exited with code:? 23' -and $nonzeroResult.Output -notmatch '(?i)Setup complete\.') -Message ("A nonzero launcher child result is visible, propagated exactly, and never reports setup success (exit {0}; output: {1})." -f $nonzeroResult.ExitCode, $nonzeroResult.Output.Trim())
 
-        $cancelResult = Invoke-BatchScenario -TestRoot $testRoot -Name 'uac-canceled' -RawArguments '' -Mode 'cancel' -ExitCode 1223
-        Assert-Condition -Condition ($cancelResult.ExitCode -eq 1223 -and $cancelResult.Output -match '(?i)elevation was declined or canceled' -and $cancelResult.Output -notmatch '(?i)Setup complete\.') -Message 'A declined elevation is visible and returns a nonzero status.'
+        $coreOnlyResult = Invoke-BatchScenario -TestRoot $testRoot -Name 'core-only' -RawArguments '--cli-only' -Mode 'success' -ExitCode 0 -NoWindowsPowerShell
+        $expectedCoreOnlyArguments = @('-NoProfile', '-File', (Join-Path $testRoot 'tools\Start-Installer.ps1'), '--cli-only') -join '|'
+        Assert-Condition -Condition ($coreOnlyResult.ExitCode -eq 0 -and ($coreOnlyResult.ArgumentLog -join '|') -eq $expectedCoreOnlyArguments -and $coreOnlyResult.Output -match '(?i)Setup complete\.') -Message 'The executable entry path succeeds with PowerShell Core as its only available engine.'
 
-        $missingLauncherResult = Invoke-BatchScenario -TestRoot $testRoot -Name 'missing-powershell-launcher' -RawArguments '' -Mode 'launcher-missing' -ExitCode 9009
-        Assert-Condition -Condition ($missingLauncherResult.ExitCode -eq 9009 -and $missingLauncherResult.Output -match '(?i)Windows PowerShell could not be started' -and $missingLauncherResult.Output -notmatch '(?i)Setup complete\.') -Message 'A missing PowerShell launcher is visible and never returns success.'
+        Remove-Item -LiteralPath (Join-Path $fakeCoreDirectory 'pwsh.exe') -Force
+        $windowsPowerShellOnly = Invoke-BatchScenario -TestRoot $testRoot -Name 'windows-powershell-only' -RawArguments '--cli-only' -Mode 'success' -ExitCode 23
+        $desktopOnlyArguments = ($windowsPowerShellOnly.DesktopArguments -replace '^\uFEFF', '').Trim()
+        Assert-Condition -Condition ($windowsPowerShellOnly.ExitCode -eq 23 -and $desktopOnlyArguments -eq '--cli-only' -and -not $windowsPowerShellOnly.WingetInvoked) -Message ("Windows PowerShell remains a direct fallback when the PowerShell Core bootstrap is absent, without runtime installation (exit {0}; winget: {1}; args: {2}; output: {3})." -f $windowsPowerShellOnly.ExitCode, $windowsPowerShellOnly.WingetInvoked, $desktopOnlyArguments, $windowsPowerShellOnly.Output.Trim())
 
-        $missingPwshResult = Invoke-BatchScenario -TestRoot $testRoot -Name 'missing-pwsh-after-elevation' -RawArguments '' -Mode 'missing-pwsh' -ExitCode 1
-        Assert-Condition -Condition ($missingPwshResult.ExitCode -eq 1 -and $missingPwshResult.Output -match '(?i)Failed to install PowerShell 7' -and $missingPwshResult.WingetInvoked -and $missingPwshResult.Output -notmatch '(?i)Setup complete\.') -Message 'A simulated elevated bootstrap with missing PowerShell 7 reports its failed child result.'
+        $noEngineResult = Invoke-BatchScenario -TestRoot $testRoot -Name 'no-engine' -RawArguments '' -Mode 'success' -ExitCode 0 -NoWindowsPowerShell
+        Assert-Condition -Condition ($noEngineResult.ExitCode -eq 1 -and $noEngineResult.Output -match '(?i)No PowerShell executable could start the runtime discovery launcher' -and -not $noEngineResult.WingetInvoked -and -not (Test-Path -LiteralPath (Join-Path $testRoot 'no-engine-launcher-arguments.txt'))) -Message 'The executable entry path fails closed when neither supported bootstrap engine is available.'
 
         $testHelperCopy = Join-Path $testRoot 'invoke-elevated-install.ps1'
         Copy-Item -LiteralPath $helperPath -Destination $testHelperCopy
@@ -467,11 +490,25 @@ public static class FakeLaunchers
 
         $helperTimeout = Invoke-HelperScenario -TestRoot $testRoot -Name 'helper-timeout' -HelperCopy $timedHelperCopy -Arguments @('--profile', 'Slow Setup') -ChildDelaySeconds 3
         Assert-Condition -Condition ($helperTimeout.ExitCode -eq 124 -and $helperTimeout.Output -match '(?i)exceeded the test wait limit' -and $helperTimeout.ChildOutput -notmatch '(?i)Setup complete\.') -Message 'A child that exceeds the wait limit is reported as unconfirmed and nonzero.'
-        Start-Sleep -Seconds 3
-        Assert-Condition -Condition ((Get-TestOutput -Path (Join-Path $testRoot 'helper-timeout-child-output.txt')) -match '(?i)FAKE CHILD FINISHED') -Message 'The fake child was allowed to finish after its unconfirmed timeout, and the harness waits before cleanup.'
+        $timeoutChildOutputPath = Join-Path $testRoot 'helper-timeout-child-output.txt'
+        $timeoutChildOutput = ''
+        $childFinishedDeadline = [DateTime]::UtcNow.AddSeconds(15)
+        while ([DateTime]::UtcNow -lt $childFinishedDeadline) {
+            try {
+                $timeoutChildOutput = Get-TestOutput -Path $timeoutChildOutputPath
+            }
+            catch [System.IO.IOException] {
+                $timeoutChildOutput = ''
+            }
+            if ($timeoutChildOutput -match '(?i)FAKE CHILD FINISHED') {
+                break
+            }
+            Start-Sleep -Milliseconds 250
+        }
+        Assert-Condition -Condition ($timeoutChildOutput -match '(?i)FAKE CHILD FINISHED') -Message 'The fake child was allowed to finish after its unconfirmed timeout, and the harness waits before cleanup.'
 
-        $fakeWingetOutput = Get-TestOutput -Path (Join-Path $testRoot 'missing-pwsh-after-elevation-winget-invoked.txt')
-        Assert-Condition -Condition ($fakeWingetOutput.Trim() -eq 'FAKE_WINGET_ONLY') -Message 'The missing-pwsh scenario invoked only the temporary fake winget launcher.'
+        $wingetLogs = @(Get-ChildItem -LiteralPath $testRoot -Filter '*winget-invoked.txt' -File -ErrorAction SilentlyContinue | Where-Object { (Get-Content -LiteralPath $_.FullName -Raw).Trim() })
+        Assert-Condition -Condition ($wingetLogs.Count -eq 0) -Message 'The Windows executable runtime discovery does not invoke WinGet.'
     }
     finally {
         $resolvedTestRoot = [System.IO.Path]::GetFullPath($testRoot)

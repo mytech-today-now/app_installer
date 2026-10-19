@@ -10,9 +10,9 @@ The **App Installer** is a comprehensive **cross-platform** PowerShell applicati
 
 ### Platform Support
 
-- **Windows:** Full GUI and CLI support (PowerShell 5.1+ or PowerShell 7.2+)
-- **macOS:** CLI support with Homebrew integration (PowerShell 7.2+)
-- **Linux:** CLI support with apt/dnf/pacman/snap (PowerShell 7.2+)
+- **Windows:** GUI and CLI on the supported Windows 11 client releases in the compatibility contract.
+- **macOS:** CLI support on platforms supported by PowerShell 7.6.7, with Homebrew integration.
+- **Linux:** CLI support on platforms supported by PowerShell 7.6.7, with apt/dnf/pacman/snap integration.
 
 ### What's New in 2.0.0
 
@@ -56,6 +56,7 @@ See [REFACTORING-SUMMARY.md](other_files/REFACTORING-SUMMARY.md) for complete de
 ✅ **Export/Import Profiles** - Save and load application selections for backup or deployment
 ✅ **Uninstall Applications** - Remove installed applications with confirmation and progress tracking
 ✅ **Live Status Display** - See installation status, version numbers, and progress in real-time
+✅ **Saved Queue Recovery** - Saves per-app install progress and requires review plus confirmation before resuming a recovered queue
 ✅ **HTML Console Output** - Professional, color-coded installation logs in right panel
 ✅ **Marketing Information** - Company info and service details displayed in HTML panel
 ✅ **Responsive Layout** - Adapts to different screen sizes and resolutions (VGA to 8K UHD)
@@ -178,28 +179,53 @@ The CLI asks for confirmation before creating or replacing its task. The task ru
 
 ## Requirements
 
+The single compatibility source is [`compatibility.json`](compatibility.json). It defines supported Windows releases, editions, architecture, PowerShell engines, runtime prerequisites, end-of-support dates, and recovery behavior. The README table below is checked against that file by `tests/test-compatibility-contract.ps1`. The [PowerShell engine compatibility inventory](other_files/powershell-engine-compatibility.md) records reachable source paths, API differences, safeguards, and validation limits.
+
 ### Windows
-- **Operating System:** Windows 10 (1809+), Windows 11, Windows Server 2016+
-- **PowerShell:** 5.1 or later (PowerShell 7.2+ recommended for best experience)
-- **Privileges:** Administrator rights recommended (see **Administrator & Antivirus Notes** below)
-- **Package Manager:** WinGet (Windows Package Manager) - included by default on Windows 11
-- **Windows 10 WinGet setup:** On supported Windows 10 x64 client systems, the installer checks package names, Microsoft Publisher fields, architectures, signatures, and the WinGet release bundle's SHA-256 digest before installation. If setup or verification does not complete, install App Installer manually from Microsoft Store where available and review any reported partial changes before retrying.
-- **.NET Framework:** 4.7.2 or later (for GUI version only)
-  - **Note:** The GUI installer (`app-installer.ps1`) will automatically detect and offer to install .NET Framework 4.8 if not present
+- **Operating system:** Windows 11 25H2 build 26200 or Windows 11 26H2 build 26300, Home or Pro, x64. The release must still be within its end-of-servicing date in `compatibility.json`.
+- **Windows PowerShell:** Desktop edition 5.1. It supports the GUI and CLI. The GUI requires .NET Framework 4.7.2 or later, registry release value 461808 or later.
+- **PowerShell Core:** Version 7.6.7. It supports the CLI. The GUI also requires Windows Desktop runtime 10 and successful loads of `System.Windows.Forms`, `System.Drawing`, and `System.Web`.
+- **GUI startup gate:** Before loading GUI-only helpers or constructing a form, the installer validates the Windows release, PowerShell edition and version, x64 process architecture, STA apartment, runtime prerequisite, and required assemblies. If GUI capability is unavailable and the supported CLI can run, it starts the CLI once with the original CLI arguments and returns the CLI process exit code. Capability detection does not install a runtime.
+- **Launcher behavior:** The EXE is an unsigned IExpress package and does not bundle PowerShell. The shared runtime discovery checks fixed PowerShell installation locations, registered PowerShell Core installations, and the current-user Microsoft.PowerShell package registration. It prefers PowerShell Core 7.6.7, then Windows PowerShell 5.1, and validates edition, exact version, x64 process architecture, startup, and the shared GUI capability gate before opening the installer. A safe preflight failure can move to the next compatible engine. Once the installer starts, it never retries the install workflow in another engine. The launcher does not search PATH or install a runtime.
+- **Unsupported:** Windows 10, Windows Server, Enterprise and Education editions, x86, ARM64, Windows releases absent from the matrix, and PowerShell versions outside the listed engine contract. The launcher exits before package-manager calls or persistent changes and prints the minimum requirement and recovery steps.
+- **Optional runtime installation:** On a supported Windows host, `tools/Install-CompatiblePowerShell.ps1` requests the contract-pinned PowerShell Core version from WinGet for the current user. Preview with `powershell.exe -NoProfile -File .\tools\Install-CompatiblePowerShell.ps1 -WhatIf`; rerun without `-WhatIf` and accept the prompt to install. The normal launcher does not provision a runtime.
+- **Verification:** `tests/test-compatibility-contract.ps1` covers OS, edition, architecture, engine, runtime, and end-of-servicing boundaries with mocked metadata. The local runner is Windows 11 26H2 x64 with both listed engines. Executable metadata and cabinet resource replacement are covered by `tests/test-executable-metadata.ps1` and `tests/test-executable-resource-update.ps1`.
+
+Microsoft sources: [supported Windows client versions](https://learn.microsoft.com/en-us/windows/release-health/supported-versions-windows-client), [.NET Framework system requirements](https://learn.microsoft.com/en-us/dotnet/framework/get-started/system-requirements), [PowerShell support lifecycle](https://learn.microsoft.com/en-us/powershell/scripting/install/powershell-support-lifecycle?view=powershell-7.6), and the [PowerShell 7.6.7 release](https://github.com/PowerShell/PowerShell/releases/tag/v7.6.7).
 
 ### macOS
-- **Operating System:** macOS 10.13 (High Sierra) or later
-- **PowerShell:** 7.2 or later (install via: `brew install --cask powershell`)
+- **Operating system and PowerShell:** Use a macOS version listed for PowerShell 7.6.7 in Microsoft's support lifecycle.
+- **PowerShell:** Version 7.6.7 (install via: `brew install --cask powershell`)
 - **Package Manager:** Homebrew (install from https://brew.sh)
 - **Privileges:** sudo access recommended for system-wide installations
 - **Note:** GUI mode not available - use CLI mode (`app-installer-cli.ps1`)
 
 ### Linux
-- **Operating System:** Ubuntu 18.04+, Debian 10+, Fedora 33+, Arch Linux, or compatible
-- **PowerShell:** 7.2 or later (see https://docs.microsoft.com/powershell)
+- **Operating system and PowerShell:** Use a Linux distribution and architecture listed for PowerShell 7.6.7 in Microsoft's support lifecycle.
+- **PowerShell:** Version 7.6.7 (see Microsoft's [PowerShell installation guidance](https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell-on-linux?view=powershell-7.6))
 - **Package Manager:** apt, dnf, pacman, or snap (automatically detected)
 - **Privileges:** sudo/root access recommended for system-wide installations
 - **Note:** GUI mode not available - use CLI mode (`app-installer-cli.ps1`)
+
+The CLI preserves the existing OS and package-manager filters in `platform-detect.ps1` and `apps-manifest.json`. Those filters control package availability; they do not expand the PowerShell engine contract.
+
+### CLI container image
+
+The CLI-only image in `Dockerfile.cli` uses Microsoft's .NET 10 Ubuntu runtime and installs PowerShell Core 7.6.7 for `amd64` or `arm64`. It checks the official release archive's SHA-256 before extraction. Build the image from the repository root:
+
+```bash
+docker build -f Dockerfile.cli -t app-installer-cli .
+```
+
+### Building the Windows executable
+
+On Windows, rebuild the embedded cabinet in the existing unsigned IExpress launcher stub, then write version metadata from `VERSION` and `compatibility.json`. The builder requires PowerShell, MakeCab, Expand, and the existing `builds/install-GUI.exe` template:
+
+```powershell
+pwsh -NoProfile -File .\tools\Build-InstallerExe.ps1 -OutputPath .\builds\install-GUI.exe
+```
+
+The build scripts and package payload remain in the repository. The package is unsigned; version-resource metadata is not a code signature. `tests/test-executable-metadata.ps1` validates the built executable without launching it, and `tests/test-executable-resource-update.ps1` exercises cabinet-resource replacement on a temporary copy.
 
 ## Administrator & Antivirus Notes
 
@@ -218,7 +244,7 @@ The CLI asks for confirmation before creating or replacing its task. The task ru
 
 ## PowerShell execution policy and script signatures
 
-The recommended direct launches use the current PowerShell host and do not alter persistent execution-policy scopes. Launch scripts with your normal host and leave its configured policy in place:
+The direct script entry points apply the same Windows engine selection policy and may relaunch under the preferred compatible host before installer work begins. They do not alter persistent execution-policy scopes. Launch scripts with your normal host and leave its configured policy in place:
 
 ```powershell
 pwsh -NoProfile -File .\app-installer.ps1
@@ -253,7 +279,7 @@ powershell.exe -NoProfile -File "C:\myTech.Today\ManageRestorePoints\Manage-Rest
 
 If source verification fails, inspect the reported status before trying again. A nonzero or unknown helper result does not confirm that hosts or restore-point state changed.
 
-If a launcher detects that PowerShell policy prevented the script from starting, it reports:
+If a launcher or verified child runner detects that PowerShell policy prevented the script from starting, it reports:
 
 > PowerShell policy prevented this script from starting. No policy setting was changed. Use the signed release or contact your administrator.
 
@@ -269,10 +295,10 @@ See the [PowerShell signing guidance](https://learn.microsoft.com/en-us/powershe
    cd PowerShellScripts\app_installer
    ```
 
-2. **Ensure WinGet is installed** (Windows 11 has it by default):
-   - On supported Windows 10 x64 client systems, the installer attempts verified setup when WinGet is missing.
-   - If setup does not complete, install "App Installer" from Microsoft Store where available.
-   - Verify: `winget --version`
+2. **Start the validated launcher:**
+   - The launcher checks the Windows release before package-manager calls.
+   - It selects an installed compatible PowerShell engine using the rules in `compatibility.json` and does not provision a runtime.
+   - If no compatible engine is installed, install Windows PowerShell 5.1 or PowerShell Core 7.6.7 and retry.
 
 3. **Run as Administrator**:
 
@@ -288,7 +314,7 @@ See the [PowerShell signing guidance](https://learn.microsoft.com/en-us/powershe
 
 ### macOS Installation
 
-1. **Install PowerShell 7.2+**:
+1. **Install PowerShell 7.6.7**:
    ```bash
    brew install --cask powershell
    ```
@@ -311,7 +337,7 @@ See the [PowerShell signing guidance](https://learn.microsoft.com/en-us/powershe
 
 ### Linux Installation
 
-1. **Install PowerShell 7.2+**:
+1. **Install PowerShell 7.6.7**:
    - **Ubuntu/Debian:**
      ```bash
      wget https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/packages-microsoft-prod.deb
@@ -752,7 +778,7 @@ Edit the `Category` property in the application registry to organize apps differ
 Contributions are welcome! Please:
 1. Fork the repository
 2. Create a feature branch
-3. Test thoroughly on Windows 10 and Windows 11
+3. Test on Windows 11 25H2 and 26H2 x64, with Windows PowerShell 5.1 and PowerShell Core 7.6.7
 4. Update documentation if adding new features
 5. Submit a pull request with detailed description
 

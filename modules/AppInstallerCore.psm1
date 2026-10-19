@@ -13,7 +13,7 @@
 .NOTES
     File Name      : AppInstallerCore.psm1
     Author         : myTech.Today
-    Prerequisite   : PowerShell 5.1+ (Windows) or PowerShell 7+ (macOS/Linux)
+    Prerequisite   : Windows PowerShell Desktop 5.1 or PowerShell Core 7.6.7 per compatibility.json
     Copyright      : (c) 2025 myTech.Today. All rights reserved.
     Version        : 1.0.0
 #>

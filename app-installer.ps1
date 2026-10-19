@@ -15,7 +15,7 @@
     - Support for 271 applications via winget and custom installers
 
     macOS/LINUX:
-    - GUI mode is not available (requires Windows Forms/.NET Framework)
+    - GUI mode is not available (requires Windows Forms and a supported Windows host)
     - Automatically launches CLI mode (app-installer-cli.ps1) without prompting
     - Seamless cross-platform experience
     - Full functionality via command-line interface
@@ -26,9 +26,11 @@
 .NOTES
     File Name      : app-installer.ps1
     Author         : myTech.Today
-    Prerequisite   : PowerShell 7.2+ recommended for cross-platform support
-                     Windows: PowerShell 5.1+ with .NET Framework 4.7.2+
-                     macOS/Linux: PowerShell 7.2+ (will redirect to CLI mode)
+    Prerequisite   : See compatibility.json for the authoritative support contract
+                     Windows: 25H2 or 26H2, Home or Pro, x64
+                     GUI: Windows PowerShell 5.1 with .NET Framework 4.7.2+, or PowerShell Core 7.6.7 with Windows Desktop runtime 10
+                     CLI: Windows PowerShell 5.1 or PowerShell Core 7.6.7
+                     macOS/Linux: PowerShell Core 7.6.7 (redirects to CLI mode)
     Copyright      : (c) 2025 myTech.Today. All rights reserved.
     Version        : 2.0.0
 
@@ -47,10 +49,28 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $false)]
-    [switch]$ForceCLI
+    [switch]$ForceCLI,
+
+    [Parameter(ValueFromRemainingArguments = $true)]
+    [AllowEmptyCollection()]
+    [string[]]$CliArguments = @()
 )
 
 #Requires -Version 5.1
+
+$script:CompatibilityModulePath = Join-Path $PSScriptRoot 'modules\InstallerCompatibility.psm1'
+if (-not (Test-Path -LiteralPath $script:CompatibilityModulePath -PathType Leaf)) {
+    Write-Host '[ERROR] The compatibility contract module is missing. No setup or package operation was started.' -ForegroundColor Red
+    exit 1
+}
+try {
+    Import-Module -Name $script:CompatibilityModulePath -Force -DisableNameChecking -ErrorAction Stop | Out-Null
+}
+catch {
+    Write-Host "[ERROR] The compatibility contract could not be loaded: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host '[INFO] No setup or package operation was started.' -ForegroundColor Yellow
+    exit 1
+}
 
 #region Safe-TestPath Helper
 
@@ -124,10 +144,133 @@ else {
 
 Write-Host "`[INFO] Platform: $script:CurrentPlatform" -ForegroundColor Cyan
 
-# Check if GUI mode is available
+$script:CompatibilityHostInfo = Get-InstallerHostInfo
 $script:CanUseGUI = $script:IsWindowsPlatform -and -not $ForceCLI
+$script:OriginalCliArguments = @($CliArguments)
+if ($script:OriginalCliArguments.Count -eq 0 -and $args.Count -gt 0) {
+    $script:OriginalCliArguments = @($args | ForEach-Object { [string]$_ })
+}
+$script:OriginalRuntimeArguments = @()
+if ($ForceCLI) {
+    $script:OriginalRuntimeArguments += '-ForceCLI'
+}
+$script:OriginalRuntimeArguments += $script:OriginalCliArguments
 
-if (-not $script:CanUseGUI) {
+if ($script:IsWindowsPlatform) {
+    $hostCompatibility = Test-InstallerCompatibility -Component WindowsHost -HostInfo $script:CompatibilityHostInfo
+    if (-not $hostCompatibility.IsSupported) {
+        Write-Host $hostCompatibility.Message -ForegroundColor Red
+        exit 1
+    }
+
+    $runtimeModulePath = Join-Path $PSScriptRoot 'modules\InstallerRuntimeDiscovery.psm1'
+    if (-not (Test-Path -LiteralPath $runtimeModulePath -PathType Leaf)) {
+        Write-Host '[ERROR] The shared PowerShell runtime discovery module is missing. No installer action was started.' -ForegroundColor Red
+        exit 1
+    }
+    try {
+        Import-Module -Name $runtimeModulePath -Force -DisableNameChecking -ErrorAction Stop | Out-Null
+        $runtimeComponent = if ($ForceCLI) { 'WindowsCli' } else { 'WindowsGui' }
+        $runtimeDecision = Invoke-InstallerRuntimeEntry -Component $runtimeComponent -ApplicationPath $PSCommandPath -ScriptArguments $script:OriginalRuntimeArguments -AllowGuiCliFallback
+    }
+    catch {
+        Write-Host "[ERROR] PowerShell runtime discovery failed before installer actions: $($_.Exception.Message)" -ForegroundColor Red
+        exit 1
+    }
+
+    if ($runtimeComponent -eq 'WindowsGui' -and $runtimeDecision.Component -eq 'WindowsCli') {
+        $guiAttempt = @($runtimeDecision.Attempts | Where-Object { $_.Candidate.Engine -eq 'Core' -or $_.Candidate.Engine -eq 'Desktop' } | Select-Object -First 1)
+        $guiReason = if ($guiAttempt.Count -gt 0) { [string]$guiAttempt[0].Reason } else { 'The GUI host capability preflight failed.' }
+        Write-Host "[INFO] GUI capability check failed. Starting the supported CLI fallback. $guiReason" -ForegroundColor Yellow
+    }
+    if ($runtimeDecision.Action -eq 'Failure') {
+        Write-Host "[ERROR] No compatible PowerShell engine could start the Windows entry point: $($runtimeDecision.Reason)" -ForegroundColor Red
+        if ($runtimeDecision.PolicyBlocked) {
+            Write-Host '[INFO] Execution policy was not changed and no alternate engine was tried.' -ForegroundColor Yellow
+        }
+        exit 1
+    }
+    if ($runtimeDecision.Action -eq 'Exit') {
+        exit $runtimeDecision.ExitCode
+    }
+    if ($runtimeDecision.Component -eq 'WindowsCli') {
+        $ForceCLI = $true
+    }
+}
+
+if ($script:IsWindowsPlatform) {
+    $guiCapability = if ($ForceCLI) {
+        [PSCustomObject]@{ IsSupported = $false; Component = 'WindowsGui'; ReasonCode = 'CLI_FORCED'; Reason = 'CLI mode was requested.'; Message = '' }
+    }
+    else {
+        Test-InstallerGuiCapability -HostInfo $script:CompatibilityHostInfo
+    }
+
+    $cliCapability = if ($ForceCLI -or -not $guiCapability.IsSupported) {
+        Test-InstallerCompatibility -Component WindowsCli -HostInfo $script:CompatibilityHostInfo
+    }
+    else {
+        [PSCustomObject]@{ IsSupported = $true; Component = 'WindowsCli'; ReasonCode = 'CLI_CAPABILITY_NOT_NEEDED'; Reason = ''; Message = '' }
+    }
+
+    $guiStartupDecision = Resolve-InstallerGuiStartup -GuiCapability $guiCapability -CliCapability $cliCapability -ForceCLI:$ForceCLI
+    if ($guiStartupDecision.Action -eq 'Failure') {
+        Write-Host $guiStartupDecision.Message -ForegroundColor Red
+        Write-Host '[INFO] Startup stopped before helper loading, form construction, or installer actions.' -ForegroundColor Yellow
+        exit 1
+    }
+
+    if ($guiStartupDecision.Action -eq 'RunCLI') {
+        if ($guiStartupDecision.Message) {
+            Write-Host $guiStartupDecision.Message -ForegroundColor Yellow
+        }
+        if ($ForceCLI) {
+            Write-Host '[INFO] CLI mode forced via -ForceCLI parameter.' -ForegroundColor Cyan
+        }
+        else {
+            Write-Host '[INFO] Windows Forms capability is unavailable. Starting the CLI with the original arguments.' -ForegroundColor Yellow
+        }
+
+        $cliScriptPath = Join-Path $PSScriptRoot 'app-installer-cli.ps1'
+        if (-not (Test-Path -LiteralPath $cliScriptPath -PathType Leaf)) {
+            Write-Host "[ERROR] CLI installer not found at: $cliScriptPath" -ForegroundColor Red
+            Write-Host '[INFO] No installer action was started.' -ForegroundColor Yellow
+            exit 1
+        }
+
+        $cliForwardArguments = @($script:OriginalRuntimeArguments | Where-Object { [string]$_ -notmatch '^(?i)-ForceCLI$' })
+        $cliRunner = {
+            param($applicationPath, $applicationArguments)
+            $cliRuntimeDecision = Invoke-InstallerRuntimeEntry -Component WindowsCli -ApplicationPath $applicationPath -ScriptArguments @($applicationArguments) -AlwaysLaunchApplication
+            if ($cliRuntimeDecision.Action -eq 'Exit') {
+                return [PSCustomObject]@{ ExitCode = [int]$cliRuntimeDecision.ExitCode }
+            }
+            if ($cliRuntimeDecision.Action -eq 'Failure') {
+                throw $cliRuntimeDecision.Reason
+            }
+            throw 'The CLI runtime did not launch the application process.'
+        }.GetNewClosure()
+
+        $cliFallbackResult = Invoke-InstallerCliFallback -StartupDecision $guiStartupDecision -CliScriptPath $cliScriptPath -Arguments $cliForwardArguments -Runner $cliRunner
+        if ($cliFallbackResult.Action -eq 'Failure') {
+            Write-Host "[ERROR] CLI fallback could not start: $($cliFallbackResult.Reason)" -ForegroundColor Red
+            exit $cliFallbackResult.ExitCode
+        }
+        exit $cliFallbackResult.ExitCode
+    }
+
+    $script:CanUseGUI = $guiStartupDecision.Action -eq 'ContinueGUI'
+}
+
+if (-not $script:IsWindowsPlatform) {
+    $cliCompatibility = Test-InstallerCompatibility -Component CrossPlatformCli -HostInfo $script:CompatibilityHostInfo
+    if (-not $cliCompatibility.IsSupported) {
+        Write-Host $cliCompatibility.Message -ForegroundColor Red
+        exit 1
+    }
+}
+
+if (-not $script:CanUseGUI -and -not $script:IsWindowsPlatform) {
     # GUI not available - automatically launch CLI installer
     Write-Host ""
     Write-Host "╔════════════════════════════════════════════════════════════════╗" -ForegroundColor Yellow
@@ -135,13 +278,8 @@ if (-not $script:CanUseGUI) {
     Write-Host "╚════════════════════════════════════════════════════════════════╝" -ForegroundColor Yellow
     Write-Host ""
 
-    if ($ForceCLI) {
-        Write-Host "`[INFO] CLI mode forced via -ForceCLI parameter" -ForegroundColor Cyan
-    }
-    else {
-        Write-Host "`[INFO] GUI mode requires Windows with .NET Framework 4.7.2+" -ForegroundColor Cyan
-        Write-Host "`[INFO] Current platform: $script:CurrentPlatform" -ForegroundColor Cyan
-    }
+    Write-Host "`[INFO] GUI mode requires a supported Windows Forms runtime." -ForegroundColor Cyan
+    Write-Host "`[INFO] Current platform: $script:CurrentPlatform" -ForegroundColor Cyan
 
     Write-Host ""
     Write-Host "The GUI installer uses Windows Forms, which is only available on Windows." -ForegroundColor White
@@ -155,8 +293,9 @@ if (-not $script:CanUseGUI) {
         Write-Host "`[INFO] Launching CLI installer..." -ForegroundColor Green
         Write-Host ""
 
-        # Launch CLI installer and pass through any parameters
-        & $cliScriptPath
+        # Preserve the existing non-Windows CLI handoff behavior.
+        $nonWindowsCliArguments = @($script:OriginalCliArguments)
+        & $cliScriptPath @nonWindowsCliArguments
         exit $LASTEXITCODE
     }
     else {
@@ -762,237 +901,6 @@ function Add-QueueFormResizeHandler {
 
 #endregion Dynamic Form Resizing Helper Functions
 
-function Get-DotNetFrameworkVersion {
-    <#
-    .SYNOPSIS
-        Gets the installed .NET Framework version.
-
-    .DESCRIPTION
-        Checks the registry to determine the highest installed .NET Framework version.
-        Returns the version number or 0 if not found.
-
-    .OUTPUTS
-        System.Int32 - The .NET Framework release number
-    #>
-    [CmdletBinding()]
-    param()
-
-    try {
-        # Check for .NET Framework 4.5+ using Release registry value
-        $releaseKey = 'HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full'
-
-        if (Safe-TestPath $releaseKey) {
-            $release = (Get-ItemProperty -Path $releaseKey -Name Release -ErrorAction SilentlyContinue).Release
-
-            if ($release) {
-                Write-Host "`[CHECK] .NET Framework release number: $release" -ForegroundColor Cyan
-                return $release
-            }
-        }
-
-        Write-Host "`[WARN] .NET Framework 4.5+ not detected in registry" -ForegroundColor Yellow
-        return 0
-    }
-    catch {
-        Write-Host "`[ERROR] Failed to check .NET Framework version: $($_.Exception.Message)" -ForegroundColor Red
-        return 0
-    }
-}
-
-function Get-DotNetFrameworkVersionName {
-    <#
-    .SYNOPSIS
-        Converts .NET Framework release number to version name.
-
-    .PARAMETER Release
-        The release number from the registry.
-
-    .OUTPUTS
-        System.String - The version name (e.g., "4.8")
-    #>
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory = $true)]
-        [int]$Release
-    )
-
-    # .NET Framework version mapping
-    # Reference: https://docs.microsoft.com/en-us/dotnet/framework/migration-guide/how-to-determine-which-versions-are-installed
-    if ($Release -ge 528040) { return "4.8" }
-    elseif ($Release -ge 461808) { return "4.7.2" }
-    elseif ($Release -ge 461308) { return "4.7.1" }
-    elseif ($Release -ge 460798) { return "4.7" }
-    elseif ($Release -ge 394802) { return "4.6.2" }
-    elseif ($Release -ge 394254) { return "4.6.1" }
-    elseif ($Release -ge 393295) { return "4.6" }
-    elseif ($Release -ge 379893) { return "4.5.2" }
-    elseif ($Release -ge 378675) { return "4.5.1" }
-    elseif ($Release -ge 378389) { return "4.5" }
-    else { return "Unknown" }
-}
-
-function Install-DotNetFramework {
-    <#
-    .SYNOPSIS
-        Installs .NET Framework 4.8 using winget.
-
-    .DESCRIPTION
-        Downloads and installs .NET Framework 4.8 which is required for Windows Forms GUI.
-        Uses winget package manager for installation.
-
-    .OUTPUTS
-        System.Boolean - True if installation succeeded, False otherwise
-    #>
-    [CmdletBinding()]
-    param()
-
-    try {
-        Write-Host "`n[INSTALL] Installing .NET Framework 4.8..." -ForegroundColor Yellow
-        Write-Host "`[INFO] This is required for the GUI to function properly" -ForegroundColor Cyan
-        Write-Host "`[INFO] Installation may take several minutes and require a restart" -ForegroundColor Cyan
-
-        # Check if winget is available
-        $wingetAvailable = $null -ne (Get-Command winget -ErrorAction SilentlyContinue)
-
-        if (-not $wingetAvailable) {
-            Write-Host "`[ERROR] winget not available - cannot install .NET Framework automatically" -ForegroundColor Red
-            Write-Host "`[INFO] Please install .NET Framework 4.8 manually from:" -ForegroundColor Yellow
-            Write-Host "       https://dotnet.microsoft.com/download/dotnet-framework/net48" -ForegroundColor Yellow
-            return $false
-        }
-
-        # Install .NET Framework 4.8 using winget
-        Write-Host "`[DOWNLOAD] Downloading .NET Framework 4.8..." -ForegroundColor Yellow
-        $result = winget install --id Microsoft.DotNet.Framework.DeveloperPack_4 --silent --accept-source-agreements --accept-package-agreements 2>&1
-
-        if ($LASTEXITCODE -eq 0) {
-            Write-Host "`[OK] .NET Framework 4.8 installed successfully!" -ForegroundColor Green
-            Write-Host "`[WARN] A system restart may be required for changes to take effect" -ForegroundColor Yellow
-            Write-Host "`[INFO] Please restart your computer and run this script again" -ForegroundColor Cyan
-
-            # Prompt user to restart
-            $restart = Read-Host "`nWould you like to restart now? (Y/N)"
-            if ($restart -eq 'Y' -or $restart -eq 'y') {
-                Write-Host "`[INFO] Restarting computer in 10 seconds..." -ForegroundColor Yellow
-                Write-Host "`[INFO] Press Ctrl+C to cancel" -ForegroundColor Cyan
-                Start-Sleep -Seconds 10
-                Restart-Computer -Force
-            }
-            else {
-                Write-Host "`[INFO] Please restart your computer manually before running this script again" -ForegroundColor Yellow
-                exit 0
-            }
-
-            return $true
-        }
-        else {
-            Write-Host "`[ERROR] .NET Framework installation failed with exit code: $LASTEXITCODE" -ForegroundColor Red
-            Write-Host "`[INFO] Please install .NET Framework 4.8 manually from:" -ForegroundColor Yellow
-            Write-Host "       https://dotnet.microsoft.com/download/dotnet-framework/net48" -ForegroundColor Yellow
-            return $false
-        }
-    }
-    catch {
-        Write-Host "`[ERROR] Failed to install .NET Framework: $($_.Exception.Message)" -ForegroundColor Red
-        Write-Host "`[INFO] Please install .NET Framework 4.8 manually from:" -ForegroundColor Yellow
-        Write-Host "       https://dotnet.microsoft.com/download/dotnet-framework/net48" -ForegroundColor Yellow
-        return $false
-    }
-}
-
-function Ensure-DotNetFramework {
-    <#
-    .SYNOPSIS
-        Ensures .NET Framework 4.7.2 or later is installed.
-
-    .DESCRIPTION
-        Checks for .NET Framework 4.7.2+ and installs 4.8 if not present.
-        This is required for Windows Forms GUI to function properly.
-
-    .OUTPUTS
-        System.Boolean - True if .NET Framework is available, False otherwise
-    #>
-    [CmdletBinding()]
-    param()
-
-    Write-Host "`n`[CHECK] Checking .NET Framework version..." -ForegroundColor Cyan
-
-    $release = Get-DotNetFrameworkVersion
-
-    if ($release -eq 0) {
-        Write-Host "`[ERROR] .NET Framework not detected" -ForegroundColor Red
-        Write-Host "`[INFO] .NET Framework 4.7.2 or later is required for this GUI" -ForegroundColor Yellow
-
-        $install = Read-Host "`nWould you like to install .NET Framework 4.8 now? (Y/N)"
-        if ($install -eq 'Y' -or $install -eq 'y') {
-            return Install-DotNetFramework
-        }
-        else {
-            Write-Host "`[ERROR] Cannot continue without .NET Framework" -ForegroundColor Red
-            return $false
-        }
-    }
-
-    $versionName = Get-DotNetFrameworkVersionName -Release $release
-    Write-Host "`[OK] .NET Framework $versionName detected (Release: $release)" -ForegroundColor Green
-
-    # Check if version is 4.7.2 or later (release >= 461808)
-    if ($release -lt 461808) {
-        Write-Host "`[WARN] .NET Framework $versionName is installed, but 4.7.2 or later is recommended" -ForegroundColor Yellow
-        Write-Host "`[INFO] Current version may not support all GUI features" -ForegroundColor Yellow
-
-        $upgrade = Read-Host "`nWould you like to upgrade to .NET Framework 4.8? (Y/N)"
-        if ($upgrade -eq 'Y' -or $upgrade -eq 'y') {
-            return Install-DotNetFramework
-        }
-        else {
-            Write-Host "`[WARN] Continuing with .NET Framework $versionName - some features may not work" -ForegroundColor Yellow
-            return $true
-        }
-    }
-
-    Write-Host "`[OK] .NET Framework version is sufficient for GUI" -ForegroundColor Green
-    return $true
-}
-
-# Check and install .NET Framework before loading assemblies
-# NOTE: This section only runs on Windows - non-Windows platforms exit earlier
-Write-Host "`[CHECK] Verifying .NET Framework prerequisites..." -ForegroundColor Cyan
-
-if (-not (Ensure-DotNetFramework)) {
-    Write-Host "`n[ERROR] .NET Framework prerequisites not met" -ForegroundColor Red
-    Write-Host "`[INFO] Please install .NET Framework 4.8 and try again" -ForegroundColor Yellow
-    Read-Host "`nPress Enter to exit"
-    exit 1
-}
-
-#endregion .NET Framework Prerequisites
-
-#region Load Windows Forms Assemblies
-
-# NOTE: This section only runs on Windows - non-Windows platforms exit earlier
-# Windows Forms is only available on Windows with .NET Framework or .NET Desktop Runtime
-Write-Host "`n[INFO] Loading Windows Forms assemblies..." -ForegroundColor Cyan
-try {
-    Add-Type -AssemblyName System.Windows.Forms
-    Add-Type -AssemblyName System.Drawing
-    Add-Type -AssemblyName System.Web
-    Write-Host "`[OK] Windows Forms assemblies loaded successfully" -ForegroundColor Green
-}
-catch {
-    Write-Host "`[ERROR] Failed to load Windows Forms assemblies: $($_.Exception.Message)" -ForegroundColor Red
-    Write-Host "`[INFO] This usually indicates a .NET Framework issue" -ForegroundColor Yellow
-    Write-Host "`[INFO] Please ensure .NET Framework 4.8 is properly installed" -ForegroundColor Yellow
-    Write-Host ""
-    Write-Host "`[TIP] You can use the CLI installer instead:" -ForegroundColor Cyan
-    Write-Host "      ./app-installer-cli.ps1" -ForegroundColor White
-    Write-Host ""
-    Read-Host "Press Enter to exit"
-    exit 1
-}
-
-#endregion Load Windows Forms Assemblies
-
 # Script variables
 $script:ScriptVersion = '2.0.6'
 $script:OriginalScriptPath = $PSScriptRoot
@@ -1013,6 +921,13 @@ $script:FilteredApplications = @()  # Filtered application list
 # Queue management variables
 $script:InstallationQueue = @()  # Array of apps in installation queue
 $script:QueueStatePath = "$env:USERPROFILE\myTech.Today\AppInstaller\queue-state.json"  # Queue state file
+$script:QueueStateSchemaVersion = 1
+$script:QueueStateManifestPath = Join-Path $script:OriginalScriptPath 'apps-manifest.json'
+$script:QueueStateManifestCachePath = $null
+$script:QueueStateManifestCache = $null
+$script:QueueStateLoadStatus = 'NotLoaded'
+$script:QueueStateRecoveryMessage = ''
+$script:HasRestoredQueue = $false
 $script:IsPaused = $false  # Flag to track if installation is paused
 $script:SkipCurrent = $false  # Flag to skip current installation
 $script:CurrentQueueIndex = 0  # Current position in queue
@@ -1420,7 +1335,6 @@ function Copy-ScriptToSystemLocation {
         if (Safe-TestPath $sourceInstallScript) {
             Write-Host "    [>>] Copying app-installer-cli.ps1..." -ForegroundColor Yellow
             Copy-Item -Path $sourceInstallScript -Destination $targetInstallScript -Force -ErrorAction Stop
-            Unblock-File -Path $targetInstallScript -ErrorAction SilentlyContinue
         }
 
         # Copy GUI script
@@ -1430,7 +1344,6 @@ function Copy-ScriptToSystemLocation {
         if (Safe-TestPath $sourceGuiScript) {
             Write-Host "    [>>] Copying app-installer.ps1..." -ForegroundColor Yellow
             Copy-Item -Path $sourceGuiScript -Destination $targetGuiScript -Force -ErrorAction Stop
-            Unblock-File -Path $targetGuiScript -ErrorAction SilentlyContinue
         }
 
         # Copy bundled modules, including the startup helper trust verifier and GUI helper.
@@ -1442,9 +1355,6 @@ function Copy-ScriptToSystemLocation {
             }
 
             Copy-Item -Path (Join-Path $sourceModulesPath '*') -Destination $systemModulesPath -Recurse -Force -ErrorAction Stop
-            Get-ChildItem -Path $systemModulesPath -Recurse -File -ErrorAction SilentlyContinue | ForEach-Object {
-                Unblock-File -Path $_.FullName -ErrorAction SilentlyContinue
-            }
             Write-Host "    [OK] Copied modules directory" -ForegroundColor Green
         }
 
@@ -1456,14 +1366,13 @@ function Copy-ScriptToSystemLocation {
             foreach ($script in $appScripts) {
                 $targetScript = Join-Path $systemAppsPath $script.Name
                 Copy-Item -Path $script.FullName -Destination $targetScript -Force -ErrorAction Stop
-                Unblock-File -Path $targetScript -ErrorAction SilentlyContinue
             }
 
             Write-Host "    [OK] Copied $($appScripts.Count) app scripts" -ForegroundColor Green
         }
 
         # Copy platform detection module and manifest (required by app scripts)
-        $requiredFiles = @("platform-detect.ps1", "apps-manifest.json")
+        $requiredFiles = @("platform-detect.ps1", "apps-manifest.json", "compatibility.json")
         foreach ($reqFile in $requiredFiles) {
             $sourceReq = Join-Path $sourcePath $reqFile
             $targetReq = Join-Path $systemPath $reqFile
@@ -1471,7 +1380,6 @@ function Copy-ScriptToSystemLocation {
             if (Safe-TestPath $sourceReq) {
                 Write-Host "    [>>] Copying $reqFile..." -ForegroundColor Yellow
                 Copy-Item -Path $sourceReq -Destination $targetReq -Force -ErrorAction Stop
-                Unblock-File -Path $targetReq -ErrorAction SilentlyContinue
             }
         }
 
@@ -1483,7 +1391,6 @@ function Copy-ScriptToSystemLocation {
 
             if (Safe-TestPath $sourceDoc) {
                 Copy-Item -Path $sourceDoc -Destination $targetDoc -Force -ErrorAction SilentlyContinue
-                Unblock-File -Path $targetDoc -ErrorAction SilentlyContinue
             }
         }
 
@@ -1496,10 +1403,6 @@ function Copy-ScriptToSystemLocation {
             }
 
             Copy-Item -Path (Join-Path $sourceProfilesPath '*') -Destination $systemProfilesPath -Recurse -Force -ErrorAction Stop
-            # Unblock all copied profile files
-            Get-ChildItem -Path $systemProfilesPath -Recurse -File -ErrorAction SilentlyContinue | ForEach-Object {
-                Unblock-File -Path $_.FullName -ErrorAction SilentlyContinue
-            }
             Write-Host "    [OK] Copied profiles directory" -ForegroundColor Green
         }
         else {
@@ -3107,6 +3010,9 @@ function Install-OOShutUp10FromRemote {
     elseif ($result.FailureReason -eq 'cancelled') {
         Write-Output 'O&O installer verification was cancelled. No O&O changes were made.' -Color ([System.Drawing.Color]::Orange)
     }
+    elseif ($result.FailureReason -eq 'execution-policy-blocked') {
+        Write-Output $result.RecoveryMessage -Color ([System.Drawing.Color]::Red)
+    }
     elseif ($result.InstallationStatus -eq 'not-started') {
         Write-Output 'The O&O installer could not be verified. No O&O changes were made. Review the local installer or retry after the release source is verified.' -Color ([System.Drawing.Color]::Orange)
     }
@@ -3188,7 +3094,10 @@ function Install-Application {
                 $script:AppProgressBar.Visible = $false
             }
             if ($script:StatusLabel) {
-                if ($remoteResult.FailureReason -eq 'cancelled') {
+                if ($remoteResult.FailureReason -eq 'execution-policy-blocked') {
+                    $script:StatusLabel.Text = $remoteResult.RecoveryMessage
+                }
+                elseif ($remoteResult.FailureReason -eq 'cancelled') {
                     $script:StatusLabel.Text = 'O&O installer verification was cancelled. No O&O changes were made.'
                 }
                 elseif ($remoteResult.InstallationStatus -eq 'not-started') {
@@ -4151,6 +4060,18 @@ function Create-MainForm {
         # Prevent execution during form closing
         if ($script:IsClosing) {
             return
+        }
+
+        if ($script:HasRestoredQueue) {
+            # A new checkbox selection is an explicit choice of a different queue.
+            $script:HasRestoredQueue = $false
+            $script:InstallationQueue = @()
+            $script:CurrentQueueIndex = 0
+            $script:IsPaused = $false
+            if ($script:StatusLabel) {
+                $script:StatusLabel.Text = 'Saved queue remains on disk; the current selection will be used.'
+                $script:StatusLabel.ForeColor = [System.Drawing.Color]::Gray
+            }
         }
 
         # Log the check state change for debugging
@@ -5178,6 +5099,114 @@ function Refresh-ApplicationList {
 
 #region Queue Management Functions
 
+function Get-QueueStateManifest {
+    [CmdletBinding()]
+    param()
+
+    $manifestPath = $script:QueueStateManifestPath
+    if ([string]::IsNullOrWhiteSpace($manifestPath)) {
+        throw 'The application manifest path is unavailable.'
+    }
+
+    if ($script:QueueStateManifestCache -and $script:QueueStateManifestCachePath -ceq $manifestPath) {
+        return $script:QueueStateManifestCache
+    }
+
+    if (-not (Safe-TestPath $manifestPath)) {
+        throw 'The application manifest is unavailable.'
+    }
+
+    $manifest = Get-Content -LiteralPath $manifestPath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+    if ($null -eq $manifest -or $null -eq $manifest.PSObject.Properties['apps'] -or $null -eq $manifest.apps) {
+        throw 'The application manifest has an invalid shape.'
+    }
+
+    $apps = @($manifest.apps)
+    if ($apps.Count -eq 0) {
+        throw 'The application manifest contains no applications.'
+    }
+
+    $script:QueueStateManifestCache = [PSCustomObject]@{
+        Path = $manifestPath
+        Apps = $apps
+    }
+    $script:QueueStateManifestCachePath = $manifestPath
+    return $script:QueueStateManifestCache
+}
+
+function Resolve-QueueStateApplication {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Name,
+
+        [Parameter(Mandatory = $true)]
+        [string]$ScriptName,
+
+        [Parameter(Mandatory = $true)]
+        [string]$WingetId,
+
+        [Parameter(Mandatory = $true)]
+        [object[]]$ManifestApps
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Name) -or
+        [string]::IsNullOrWhiteSpace($ScriptName) -or
+        [string]::IsNullOrWhiteSpace($WingetId)) {
+        return $null
+    }
+
+    $currentMatches = @($script:Applications | Where-Object {
+        [string]$_.Name -ceq $Name -and
+        [string]$_.ScriptName -ceq $ScriptName -and
+        [string]$_.WingetId -ceq $WingetId
+    })
+    if ($currentMatches.Count -ne 1) {
+        return $null
+    }
+
+    $manifestMatches = @($ManifestApps | Where-Object {
+        $_.packages -and [string]$_.packages.winget -ieq $WingetId
+    })
+    if ($manifestMatches.Count -ne 1) {
+        return $null
+    }
+
+    $manifestScriptName = [System.IO.Path]::GetFileNameWithoutExtension($ScriptName)
+    $manifestDisplayName = [string]$manifestMatches[0].displayName
+    $manifestAppName = [string]$manifestMatches[0].name
+    if ($manifestDisplayName -ine $Name -and $manifestAppName -ine $manifestScriptName) {
+        return $null
+    }
+
+    return $currentMatches[0]
+}
+
+function Get-QueueStateNextIndex {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [object[]]$Statuses
+    )
+
+    for ($i = 0; $i -lt $Statuses.Count; $i++) {
+        if ([string]$Statuses[$i] -cne 'Processed') {
+            return $i
+        }
+    }
+
+    return $Statuses.Count
+}
+
+function Set-QueueStateRecoveryFailure {
+    $script:InstallationQueue = @()
+    $script:CurrentQueueIndex = 0
+    $script:IsPaused = $false
+    $script:HasRestoredQueue = $false
+    $script:QueueStateLoadStatus = 'Invalid'
+    $script:QueueStateRecoveryMessage = 'Saved queue could not be restored. The file was left unchanged and the queue is empty.'
+}
+
 function Save-QueueState {
     <#
     .SYNOPSIS
@@ -5190,38 +5219,146 @@ function Save-QueueState {
     [CmdletBinding()]
     param()
 
+    $temporaryPath = $null
+    $backupPath = "$script:QueueStatePath.bak"
+    $replacementCommitted = $false
     try {
+        if ([string]::IsNullOrWhiteSpace($script:QueueStatePath)) {
+            throw 'The queue state path is unavailable.'
+        }
+
         # Ensure directory exists
         $queueDir = Split-Path $script:QueueStatePath -Parent
         if (-not (Safe-TestPath $queueDir)) {
-            New-Item -Path $queueDir -ItemType Directory -Force | Out-Null
+            New-Item -LiteralPath $queueDir -ItemType Directory -Force -ErrorAction Stop | Out-Null
         }
 
-        # Create state object
+        if (-not [System.IO.File]::Exists($script:QueueStatePath) -and [System.IO.File]::Exists($backupPath)) {
+            [System.IO.File]::Move($backupPath, $script:QueueStatePath)
+        }
+
+        $queueItems = @($script:InstallationQueue)
+        if ($queueItems.Count -eq 0) {
+            throw 'An empty queue is not saved as recoverable state.'
+        }
+
+        $manifestInfo = Get-QueueStateManifest
+        $serializedQueue = @()
+        $seenNames = @{}
+        $statuses = @()
+        $queueHasPausedStatus = @($queueItems | Where-Object {
+            $null -ne $_.PSObject.Properties['QueueStatus'] -and $_.QueueStatus -ceq 'Paused'
+        }).Count -gt 0
+
+        for ($i = 0; $i -lt $queueItems.Count; $i++) {
+            $app = $queueItems[$i]
+            $name = [string]$app.Name
+            $scriptName = [string]$app.ScriptName
+            $wingetId = [string]$app.WingetId
+            $canonicalApp = Resolve-QueueStateApplication `
+                -Name $name `
+                -ScriptName $scriptName `
+                -WingetId $wingetId `
+                -ManifestApps $manifestInfo.Apps
+
+            if ($null -eq $canonicalApp) {
+                throw "Queue item identity is not present in current application data: $name"
+            }
+
+            $key = $name.ToLowerInvariant()
+            if ($seenNames.ContainsKey($key)) {
+                throw "Duplicate queue item identity: $name"
+            }
+            $seenNames[$key] = $true
+
+            $status = if ($null -ne $app.PSObject.Properties['QueueStatus']) { [string]$app.QueueStatus } else { 'Pending' }
+            if (@('Pending', 'InProgress', 'Paused', 'Processed') -cnotcontains $status) {
+                throw "Queue item status is invalid: $name"
+            }
+            if ($script:IsPaused -and $i -eq $script:CurrentQueueIndex -and $status -ne 'Processed' -and -not $queueHasPausedStatus) {
+                $status = 'Paused'
+            }
+
+            $statuses += $status
+            $serializedQueue += [PSCustomObject]@{
+                Name = [string]$canonicalApp.Name
+                ScriptName = [string]$canonicalApp.ScriptName
+                WingetId = [string]$canonicalApp.WingetId
+                Status = $status
+            }
+        }
+
+        $currentIndex = [int]$script:CurrentQueueIndex
+        if ($currentIndex -lt 0 -or $currentIndex -gt $serializedQueue.Count -or
+            (Get-QueueStateNextIndex -Statuses $statuses) -ne $currentIndex) {
+            throw 'Queue progress does not match its item statuses.'
+        }
+        $pausedStatuses = @($statuses | Where-Object { $_ -ceq 'Paused' })
+        if ($script:IsPaused -and $pausedStatuses.Count -ne 1) {
+            throw 'Paused queue progress is inconsistent.'
+        }
+        if (-not $script:IsPaused -and $pausedStatuses.Count -gt 0) {
+            throw 'Queue has a paused item but is not marked paused.'
+        }
+
         $state = @{
+            SchemaVersion = [int]$script:QueueStateSchemaVersion
             Version = $script:ScriptVersion
-            Timestamp = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
-            CurrentIndex = $script:CurrentQueueIndex
+            Timestamp = (Get-Date).ToUniversalTime().ToString('o')
+            CurrentIndex = $currentIndex
             IsPaused = $script:IsPaused
-            Queue = @($script:InstallationQueue | ForEach-Object {
-                @{
-                    Name = $_.Name
-                    ScriptName = $_.ScriptName
-                    WingetId = $_.WingetId
-                    Category = $_.Category
-                    Description = $_.Description
-                }
-            })
+            Queue = $serializedQueue
         }
 
-        # Save to JSON
-        $state | ConvertTo-Json -Depth 10 | Set-Content -Path $script:QueueStatePath -Encoding UTF8
+        # Write beside the destination, then replace it so readers never observe a partial JSON file.
+        $temporaryPath = '{0}.{1}.tmp' -f $script:QueueStatePath, [Guid]::NewGuid().ToString('N')
+        $json = $state | ConvertTo-Json -Depth 10
+        $utf8NoBom = New-Object -TypeName System.Text.UTF8Encoding -ArgumentList $false
+        [System.IO.File]::WriteAllText($temporaryPath, $json, $utf8NoBom)
+
+        if ([System.IO.File]::Exists($script:QueueStatePath)) {
+            if ([System.IO.File]::Exists($backupPath)) {
+                # A primary file exists, so a leftover backup is from an older interrupted replacement.
+                [System.IO.File]::Delete($backupPath)
+            }
+            [System.IO.File]::Move($script:QueueStatePath, $backupPath)
+        }
+        [System.IO.File]::Move($temporaryPath, $script:QueueStatePath)
+        $replacementCommitted = $true
+
+        if ([System.IO.File]::Exists($backupPath)) {
+            [System.IO.File]::Delete($backupPath)
+        }
+
         Write-Log "Queue state saved to: $script:QueueStatePath" -Level INFO
         return $true
     }
     catch {
         Write-Log "Failed to save queue state: $_" -Level ERROR
         return $false
+    }
+    finally {
+        if ($temporaryPath -and [System.IO.File]::Exists($temporaryPath)) {
+            try {
+                [System.IO.File]::Delete($temporaryPath)
+            }
+            catch {
+                Write-Log 'A temporary queue-state file could not be removed.' -Level WARNING
+            }
+        }
+        if ($backupPath -and [System.IO.File]::Exists($backupPath)) {
+            try {
+                if (-not [System.IO.File]::Exists($script:QueueStatePath)) {
+                    [System.IO.File]::Move($backupPath, $script:QueueStatePath)
+                }
+                elseif ($replacementCommitted) {
+                    [System.IO.File]::Delete($backupPath)
+                }
+            }
+            catch {
+                Write-Log 'A queue-state replacement backup could not be reconciled.' -Level WARNING
+            }
+        }
     }
 }
 
@@ -5231,8 +5368,8 @@ function Load-QueueState {
         Loads the installation queue state from JSON file.
 
     .DESCRIPTION
-        Restores a previously saved installation queue to allow resuming
-        interrupted installations.
+        Restores a validated queue into the GUI review flow. Package operations
+        still require a later explicit Install Selected action and confirmation.
 
     .OUTPUTS
         Returns $true if state was loaded successfully, $false otherwise.
@@ -5241,41 +5378,245 @@ function Load-QueueState {
     param()
 
     try {
-        if (-not (Safe-TestPath $script:QueueStatePath)) {
-            Write-Log "No saved queue state found" -Level INFO
-            return $false
-        }
+        $script:InstallationQueue = @()
+        $script:CurrentQueueIndex = 0
+        $script:IsPaused = $false
+        $script:HasRestoredQueue = $false
+        $script:QueueStateRecoveryMessage = ''
+        $sourcePath = $script:QueueStatePath
+        $loadedFromBackup = $false
 
-        # Load state from JSON
-        $state = Get-Content -Path $script:QueueStatePath -Raw | ConvertFrom-Json
-
-        # Validate state
-        if (-not $state.Queue -or $state.Queue.Count -eq 0) {
-            Write-Log "Saved queue state is empty" -Level INFO
-            return $false
-        }
-
-        # Restore queue
-        $script:InstallationQueue = @($state.Queue | ForEach-Object {
-            [PSCustomObject]@{
-                Name = $_.Name
-                ScriptName = $_.ScriptName
-                WingetId = $_.WingetId
-                Category = $_.Category
-                Description = $_.Description
+        if (-not (Safe-TestPath $sourcePath)) {
+            $backupPath = "$script:QueueStatePath.bak"
+            if (Safe-TestPath $backupPath) {
+                $sourcePath = $backupPath
+                $loadedFromBackup = $true
             }
-        })
+            else {
+                $script:QueueStateLoadStatus = 'Missing'
+                $script:QueueStateRecoveryMessage = 'No saved queue was found; the queue is empty.'
+                Write-Log "No saved queue state found" -Level INFO
+                return $false
+            }
+        }
 
-        $script:CurrentQueueIndex = $state.CurrentIndex
+        $state = Get-Content -LiteralPath $sourcePath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+        if ($null -eq $state -or $state -isnot [System.Management.Automation.PSCustomObject]) {
+            throw 'The saved queue root is not a JSON object.'
+        }
+
+        foreach ($propertyName in @('Version', 'Timestamp', 'CurrentIndex', 'IsPaused', 'Queue')) {
+            if ($null -eq $state.PSObject.Properties[$propertyName]) {
+                throw "Saved queue is missing required property: $propertyName"
+            }
+        }
+
+        # The previous released GUI format had no SchemaVersion or item statuses.
+        # Accept that known shape only at the same installer version and derive progress from CurrentIndex.
+        $isLegacyState = $null -eq $state.PSObject.Properties['SchemaVersion']
+        if (-not $isLegacyState) {
+            if ($state.SchemaVersion -isnot [int] -and $state.SchemaVersion -isnot [long]) {
+                throw 'Saved queue schema version is invalid.'
+            }
+            if ([int]$state.SchemaVersion -ne [int]$script:QueueStateSchemaVersion) {
+                throw 'Saved queue schema version is not supported.'
+            }
+        }
+        if ([string]$state.Version -cne [string]$script:ScriptVersion) {
+            throw 'Saved queue installer version does not match.'
+        }
+        if ($state.Timestamp -isnot [string] -and $state.Timestamp -isnot [DateTime]) {
+            throw 'Saved queue timestamp is invalid.'
+        }
+        if ([string]::IsNullOrWhiteSpace([string]$state.Timestamp)) {
+            throw 'Saved queue timestamp is invalid.'
+        }
+        if ($state.CurrentIndex -isnot [int] -and $state.CurrentIndex -isnot [long]) {
+            throw 'Saved queue index is invalid.'
+        }
+        if ($state.IsPaused -isnot [bool]) {
+            throw 'Saved queue pause state is invalid.'
+        }
+        if ($state.Queue -isnot [System.Array] -or $state.Queue.Count -eq 0 -or $state.Queue.Count -gt $script:Applications.Count) {
+            throw 'Saved queue item list is invalid.'
+        }
+        $currentIndex = [int]$state.CurrentIndex
+        if ($currentIndex -lt 0 -or $currentIndex -gt $state.Queue.Count) {
+            throw 'Saved queue index is outside the queue.'
+        }
+
+        $manifestInfo = Get-QueueStateManifest
+        $restoredQueue = @()
+        $statuses = @()
+        $seenNames = @{}
+        $itemIndex = 0
+        foreach ($item in $state.Queue) {
+            if ($null -eq $item -or $item -isnot [System.Management.Automation.PSCustomObject]) {
+                throw 'Saved queue contains an item with an invalid shape.'
+            }
+            $requiredItemProperties = if ($isLegacyState) {
+                @('Name', 'ScriptName', 'WingetId', 'Category', 'Description')
+            }
+            else {
+                @('Name', 'ScriptName', 'WingetId', 'Status')
+            }
+            foreach ($propertyName in $requiredItemProperties) {
+                if ($null -eq $item.PSObject.Properties[$propertyName]) {
+                    throw "Saved queue item is missing required property: $propertyName"
+                }
+            }
+            if ($item.Name -isnot [string] -or $item.ScriptName -isnot [string] -or $item.WingetId -isnot [string]) {
+                throw 'Saved queue contains an item with invalid property types.'
+            }
+            if ($isLegacyState -and ($item.Category -isnot [string] -or $item.Description -isnot [string])) {
+                throw 'Legacy saved queue contains invalid app metadata.'
+            }
+            if (-not $isLegacyState) {
+                if ($item.Status -isnot [string]) {
+                    throw 'Saved queue contains an invalid item status type.'
+                }
+                if (@('Pending', 'InProgress', 'Paused', 'Processed') -cnotcontains [string]$item.Status) {
+                    throw 'Saved queue contains an unsupported item status.'
+                }
+            }
+
+            $canonicalApp = Resolve-QueueStateApplication `
+                -Name $item.Name `
+                -ScriptName $item.ScriptName `
+                -WingetId $item.WingetId `
+                -ManifestApps $manifestInfo.Apps
+            if ($null -eq $canonicalApp) {
+                throw "Saved queue contains an unknown or stale application: $($item.Name)"
+            }
+
+            $key = $item.Name.ToLowerInvariant()
+            if ($seenNames.ContainsKey($key)) {
+                throw "Saved queue contains a duplicate application: $($item.Name)"
+            }
+            $seenNames[$key] = $true
+
+            if ($isLegacyState) {
+                if ($itemIndex -lt $currentIndex) {
+                    $itemStatus = 'Processed'
+                }
+                elseif ($itemIndex -eq $currentIndex -and $currentIndex -lt $state.Queue.Count) {
+                    $itemStatus = if ($state.IsPaused) { 'Paused' } else { 'InProgress' }
+                }
+                else {
+                    $itemStatus = 'Pending'
+                }
+            }
+            else {
+                $itemStatus = [string]$item.Status
+            }
+            $itemIndex++
+
+            $statuses += $itemStatus
+            $restoredQueue += [PSCustomObject]@{
+                Name = [string]$canonicalApp.Name
+                ScriptName = [string]$canonicalApp.ScriptName
+                WingetId = [string]$canonicalApp.WingetId
+                Category = [string]$canonicalApp.Category
+                Description = [string]$canonicalApp.Description
+                QueueStatus = $itemStatus
+            }
+        }
+
+        if ((Get-QueueStateNextIndex -Statuses $statuses) -ne $currentIndex) {
+            throw 'Saved queue progress does not match item statuses.'
+        }
+        $activeStatuses = @($statuses | Where-Object { $_ -ceq 'InProgress' -or $_ -ceq 'Paused' })
+        if ($activeStatuses.Count -gt 1) {
+            throw 'Saved queue has multiple active items.'
+        }
+        $pausedStatuses = @($statuses | Where-Object { $_ -ceq 'Paused' })
+        if ($state.IsPaused -and $pausedStatuses.Count -ne 1) {
+            throw 'Saved queue pause state does not match item statuses.'
+        }
+        if (-not $state.IsPaused -and $pausedStatuses.Count -gt 0) {
+            throw 'Saved queue has a paused item but is not marked paused.'
+        }
+        # A reviewed queue may have been reordered, so its active item need not be at CurrentIndex.
+
+        $script:InstallationQueue = $restoredQueue
+        $script:CurrentQueueIndex = $currentIndex
         $script:IsPaused = $state.IsPaused
+        $script:QueueStateLoadStatus = 'Restored'
+        if ($loadedFromBackup) {
+            $script:QueueStateRecoveryMessage = 'Saved queue recovered from its replacement backup for review. No installation has started.'
+        }
+        elseif ($isLegacyState) {
+            $script:QueueStateRecoveryMessage = 'Older saved queue restored for review. No installation has started.'
+        }
+        else {
+            $script:QueueStateRecoveryMessage = 'Saved queue restored for review. No installation has started.'
+        }
 
         Write-Log "Queue state loaded: $($script:InstallationQueue.Count) apps, index $script:CurrentQueueIndex" -Level INFO
         return $true
     }
     catch {
-        Write-Log "Failed to load queue state: $_" -Level ERROR
+        Set-QueueStateRecoveryFailure
+        Write-Log "Failed to load queue state: $_" -Level WARNING
         return $false
     }
+}
+
+function Show-RestoredQueueReview {
+    [CmdletBinding()]
+    param()
+
+    if ($script:QueueStateLoadStatus -ne 'Restored' -or $script:InstallationQueue.Count -eq 0) {
+        return $false
+    }
+
+    $reviewedQueue = Show-QueueManagementDialog -Queue $script:InstallationQueue
+    if ($null -eq $reviewedQueue) {
+        $script:InstallationQueue = @()
+        $script:CurrentQueueIndex = 0
+        $script:IsPaused = $false
+        $script:HasRestoredQueue = $false
+        if ($script:StatusLabel) {
+            $script:StatusLabel.Text = 'Saved queue remains on disk; no items were selected.'
+            $script:StatusLabel.ForeColor = [System.Drawing.Color]::Gray
+        }
+        return $false
+    }
+
+    $reviewedQueue = @($reviewedQueue)
+    if ($reviewedQueue.Count -eq 0) {
+        $script:InstallationQueue = @()
+        $script:CurrentQueueIndex = 0
+        $script:IsPaused = $false
+        $script:HasRestoredQueue = $false
+        if ($script:StatusLabel) {
+            $script:StatusLabel.Text = 'The reviewed queue is empty; the saved file was left unchanged.'
+            $script:StatusLabel.ForeColor = [System.Drawing.Color]::Gray
+        }
+        return $false
+    }
+
+    $script:InstallationQueue = $reviewedQueue
+    $statuses = @($script:InstallationQueue | ForEach-Object { [string]$_.QueueStatus })
+    $script:CurrentQueueIndex = Get-QueueStateNextIndex -Statuses $statuses
+    $script:HasRestoredQueue = $true
+
+    $script:IsPaused = @($script:InstallationQueue | Where-Object { $_.QueueStatus -ceq 'Paused' }).Count -gt 0
+
+    $saveSucceeded = Save-QueueState
+    if ($script:StatusLabel) {
+        $processedCount = @($script:InstallationQueue | Where-Object { $_.QueueStatus -ceq 'Processed' }).Count
+        if ($saveSucceeded) {
+            $script:StatusLabel.Text = "Saved queue reviewed: $($script:InstallationQueue.Count) apps, $processedCount already attempted. Click Install Selected to continue."
+            $script:StatusLabel.ForeColor = [System.Drawing.Color]::DodgerBlue
+        }
+        else {
+            $script:StatusLabel.Text = 'Queue is available for this session, but its saved state could not be updated. The existing file was preserved.'
+            $script:StatusLabel.ForeColor = [System.Drawing.Color]::Orange
+        }
+    }
+    Write-Log "Restored queue reviewed by user: $($script:InstallationQueue.Count) applications" -Level INFO
+    return $true
 }
 
 function Clear-QueueState {
@@ -5293,6 +5634,11 @@ function Clear-QueueState {
         if (Safe-TestPath $script:QueueStatePath) {
             Remove-Item -Path $script:QueueStatePath -Force
             Write-Log "Queue state file cleared" -Level INFO
+        }
+        $backupPath = "$script:QueueStatePath.bak"
+        if ([System.IO.File]::Exists($backupPath)) {
+            [System.IO.File]::Delete($backupPath)
+            Write-Log "Queue state replacement backup cleared after completion" -Level INFO
         }
     }
     catch {
@@ -5359,6 +5705,7 @@ function Show-QueueManagementDialog {
     # Create fonts for measurement
     $buttonFont = New-Object System.Drawing.Font("Segoe UI", $fontSize)
     $tableFont = New-Object System.Drawing.Font("Segoe UI", $tableFontSize)
+    $showStatusColumn = $Queue.Count -gt 0 -and @($Queue | Where-Object { $null -ne $_.PSObject.Properties['QueueStatus'] }).Count -eq $Queue.Count
 
     # Calculate dynamic column widths based on actual queue content
     # Index column - measure header "#" and potential index numbers
@@ -5384,9 +5731,17 @@ function Show-QueueManagementDialog {
         $col3Width = [Math]::Max($col3Width, [int](100 * $scaleFactor))
     }
 
+    $statusColumnWidth = 0
+    if ($showStatusColumn) {
+        $statusColumnWidth = Measure-TextWidth -Text 'Processed' -Font $tableFont
+        $statusHeaderWidth = Measure-TextWidth -Text 'Progress' -Font $tableFont
+        $statusColumnWidth = [Math]::Max($statusColumnWidth, $statusHeaderWidth) + [int](30 * $scaleFactor)
+        $statusColumnWidth = [Math]::Max($statusColumnWidth, [int](95 * $scaleFactor))
+    }
+
     # Calculate ListView width based on columns
     $scrollbarWidth = [int](25 * $scaleFactor)
-    $listViewWidth = $col1Width + $col2Width + $col3Width + $scrollbarWidth
+    $listViewWidth = $col1Width + $col2Width + $col3Width + $statusColumnWidth + $scrollbarWidth
 
     # Calculate dynamic button widths based on text
     $buttonTexts = @("Move Up", "Move Down", "Move to Top (Prioritize)", "Remove from Queue")
@@ -5427,6 +5782,9 @@ function Show-QueueManagementDialog {
     $queueListView.Columns.Add("#", $col1Width) | Out-Null
     $queueListView.Columns.Add("Application", $col2Width) | Out-Null
     $queueListView.Columns.Add("Category", $col3Width) | Out-Null
+    if ($showStatusColumn) {
+        $queueListView.Columns.Add('Progress', $statusColumnWidth) | Out-Null
+    }
 
     # Set row height using ImageList for better scaling
     $rowHeight = [Math]::Max([int](22 * $scaleFactor), 22)
@@ -5442,6 +5800,9 @@ function Show-QueueManagementDialog {
             $item = New-Object System.Windows.Forms.ListViewItem($i.ToString())
             $item.SubItems.Add($app.Name) | Out-Null
             $item.SubItems.Add($app.Category) | Out-Null
+            if ($showStatusColumn) {
+                $item.SubItems.Add([string]$app.QueueStatus) | Out-Null
+            }
             $item.Tag = $app
             $queueListView.Items.Add($item) | Out-Null
             $i++
@@ -5907,7 +6268,7 @@ function Check-ForUpdates {
 
     if ($scanResult.Status -in @('Failed', 'Unknown', 'Cancelled')) {
         Show-UpdateScanNotice `
-            -Message 'Update check could not be confirmed. Review the log and retry.' `
+            -Message 'Update availability could not be verified. No packages were changed. Retry the check or use winget upgrade manually.' `
             -Title 'Update Check Incomplete' `
             -Warning $true
         return
@@ -6164,8 +6525,30 @@ function Install-SelectedApplications {
     # Log that installation was explicitly triggered by user
     Write-Log "Install-SelectedApplications function called by user action" -Level INFO
 
-    # Get checked items (including ones that may be ignored because they are already installed)
-    $allCheckedItems = $script:ListView.Items | Where-Object { $_.Checked }
+    # A restored queue is already reviewed in saved order. A later Install click uses only its unfinished items.
+    $restoringSavedQueue = [bool]$script:HasRestoredQueue
+    if ($restoringSavedQueue) {
+        $pendingQueueItems = @($script:InstallationQueue | Where-Object { $_.QueueStatus -cne 'Processed' })
+        if ($pendingQueueItems.Count -eq 0) {
+            Write-Log 'Restored queue contains no unattempted items' -Level INFO
+            [System.Windows.Forms.MessageBox]::Show(
+                "The saved queue has no unattempted items. Refresh the application list before selecting anything to retry.",
+                "No Pending Applications",
+                [System.Windows.Forms.MessageBoxButtons]::OK,
+                [System.Windows.Forms.MessageBoxIcon]::Information
+            ) | Out-Null
+            $script:HasRestoredQueue = $false
+            return
+        }
+
+        $allCheckedItems = @($pendingQueueItems | ForEach-Object {
+            [PSCustomObject]@{ Tag = $_; Text = $_.Name; Checked = $true }
+        })
+    }
+    else {
+        # Get checked items (including ones that may be ignored because they are already installed)
+        $allCheckedItems = @($script:ListView.Items | Where-Object { $_.Checked })
+    }
 
     if ($allCheckedItems.Count -eq 0) {
         Write-Log "Installation cancelled: No applications selected" -Level INFO
@@ -6281,7 +6664,16 @@ function Install-SelectedApplications {
         $confirmMessage += "Note: $($ignoredItems.Count) selected application(s) are already installed, checked, and grayed out in the list. They will be skipped during installation.`r`n`r`n"
     }
 
-    $confirmMessage += "Proceed with installation?"
+    if ($restoringSavedQueue) {
+        $confirmMessage += "This resumes the reviewed saved queue. Previously attempted items will be skipped."
+        if (@($script:InstallationQueue | Where-Object { $_.QueueStatus -ceq 'InProgress' -or $_.QueueStatus -ceq 'Paused' }).Count -gt 0) {
+            $confirmMessage += "`r`n`r`nAn item marked In Progress may have been interrupted and will be retried."
+        }
+        $confirmMessage += "`r`n`r`nContinue?"
+    }
+    else {
+        $confirmMessage += "Proceed with installation?"
+    }
 
     # Confirm installation - REQUIRED for all installations
     Write-Log "Displaying installation confirmation dialog to user" -Level INFO
@@ -6313,29 +6705,41 @@ function Install-SelectedApplications {
         }
     }
 
-    # Build installation queue from checked items (excluding ignored ones)
-    $script:InstallationQueue = @($checkedItems | ForEach-Object { $_.Tag })
+    if (-not $restoringSavedQueue) {
+        # Build the queue from canonical app records and keep transient progress off the application registry.
+        $script:InstallationQueue = @($checkedItems | ForEach-Object {
+            $app = $_.Tag
+            [PSCustomObject]@{
+                Name = [string]$app.Name
+                ScriptName = [string]$app.ScriptName
+                WingetId = [string]$app.WingetId
+                Category = [string]$app.Category
+                Description = [string]$app.Description
+                QueueStatus = 'Pending'
+            }
+        })
 
-    # Reorder queue to install O&O ShutUp10 first if present
-    $ooShutUpApp = $script:InstallationQueue | Where-Object { $_.Name -eq "O&O ShutUp10" }
-    if ($ooShutUpApp) {
-        Write-Log "O&O ShutUp10 detected - moving to front of installation queue" -Level INFO
-        $otherApps = $script:InstallationQueue | Where-Object { $_.Name -ne "O&O ShutUp10" }
-        $script:InstallationQueue = @($ooShutUpApp) + $otherApps
+        # Reorder queue to install O&O ShutUp10 first if present
+        $ooShutUpApp = $script:InstallationQueue | Where-Object { $_.Name -eq "O&O ShutUp10" }
+        if ($ooShutUpApp) {
+            Write-Log "O&O ShutUp10 detected - moving to front of installation queue" -Level INFO
+            $otherApps = $script:InstallationQueue | Where-Object { $_.Name -ne "O&O ShutUp10" }
+            $script:InstallationQueue = @($ooShutUpApp) + $otherApps
+        }
+
+        # Show queue management dialog
+        Write-Log "Showing queue management dialog" -Level INFO
+        $modifiedQueue = Show-QueueManagementDialog -Queue $script:InstallationQueue
+
+        if ($null -eq $modifiedQueue) {
+            Write-Log "Installation cancelled - user closed queue management dialog" -Level INFO
+            return
+        }
+
+        # Update queue with user's modifications
+        $script:InstallationQueue = @($modifiedQueue)
+        Write-Log "Queue finalized with $($script:InstallationQueue.Count) application(s)" -Level INFO
     }
-
-    # Show queue management dialog
-    Write-Log "Showing queue management dialog" -Level INFO
-    $modifiedQueue = Show-QueueManagementDialog -Queue $script:InstallationQueue
-
-    if ($null -eq $modifiedQueue) {
-        Write-Log "Installation cancelled - user closed queue management dialog" -Level INFO
-        return
-    }
-
-    # Update queue with user's modifications
-    $script:InstallationQueue = $modifiedQueue
-    Write-Log "Queue finalized with $($script:InstallationQueue.Count) application(s)" -Level INFO
 
     # If the queue is empty after management, abort early
     if ($script:InstallationQueue.Count -eq 0) {
@@ -6350,15 +6754,27 @@ function Install-SelectedApplications {
         return
     }
 
-    # Reset queue state
-    $script:CurrentQueueIndex = 0
-    $script:IsPaused = $false
+    # Reset progress for a new queue; preserve reviewed per-item progress when resuming.
+    if ($restoringSavedQueue) {
+        $script:HasRestoredQueue = $false
+        $script:IsPaused = $false
+        foreach ($queueItem in $script:InstallationQueue) {
+            if ($queueItem.QueueStatus -ceq 'Paused' -or $queueItem.QueueStatus -ceq 'InProgress') {
+                # An interrupted operation may have made partial changes; explicit confirmation retries it in queue order.
+                $queueItem.QueueStatus = 'Pending'
+            }
+        }
+    }
+    else {
+        $script:CurrentQueueIndex = 0
+        $script:IsPaused = $false
+    }
     $script:SkipCurrent = $false
 
-    # Save initial queue state
+    # Save initial queue state after a new explicit user confirmation.
     Save-QueueState
 
-    # Set installation flag
+    # Set installation flag only after the user's explicit click and confirmation.
     $script:IsInstalling = $true
 
     # Disable buttons during installation (except pause/skip buttons)
@@ -6380,7 +6796,8 @@ function Install-SelectedApplications {
 
     # Setup progress bar
     $script:ProgressBar.Maximum = $script:InstallationQueue.Count
-    $script:ProgressBar.Value = 0
+    $completedCount = @($script:InstallationQueue | Where-Object { $_.QueueStatus -ceq 'Processed' }).Count
+    $script:ProgressBar.Value = $completedCount
 
     Write-Log "Starting installation loop with queue count $($script:InstallationQueue.Count) and CurrentQueueIndex=$($script:CurrentQueueIndex)" -Level INFO
 
@@ -6391,14 +6808,20 @@ function Install-SelectedApplications {
     $successCount = 0
     $failCount = 0
     $skippedCount = 0
-    $completedCount = 0
     $startTime = Get-Date  # Track installation start time
     $installationTimes = @()  # Track individual installation times for ETA
 
     # Process queue
     while ($script:CurrentQueueIndex -lt $script:InstallationQueue.Count) {
+        # Preserve processed statuses if the user reordered the reviewed queue.
+        if ($script:InstallationQueue[$script:CurrentQueueIndex].QueueStatus -ceq 'Processed') {
+            $script:CurrentQueueIndex++
+            continue
+        }
+
         # Check if paused
         while ($script:IsPaused) {
+            $script:InstallationQueue[$script:CurrentQueueIndex].QueueStatus = 'Paused'
             Write-Output "[PAUSE] Installation paused - waiting for resume..." -Color ([System.Drawing.Color]::Yellow)
             Save-QueueState
             [System.Windows.Forms.Application]::DoEvents()
@@ -6407,6 +6830,8 @@ function Install-SelectedApplications {
 
         # Get current app from queue
         $app = $script:InstallationQueue[$script:CurrentQueueIndex]
+        $app.QueueStatus = 'InProgress'
+        Save-QueueState
         $currentIndex = $script:CurrentQueueIndex + 1
 
         # Calculate percentage
@@ -6456,8 +6881,13 @@ function Install-SelectedApplications {
         }
 
         # Update progress after installation completes
+        $app.QueueStatus = 'Processed'
         $completedCount++
         $script:CurrentQueueIndex++
+        while ($script:CurrentQueueIndex -lt $script:InstallationQueue.Count -and
+            $script:InstallationQueue[$script:CurrentQueueIndex].QueueStatus -ceq 'Processed') {
+            $script:CurrentQueueIndex++
+        }
         $script:ProgressBar.Value = $completedCount
         $percentComplete = [Math]::Round(($completedCount / $script:InstallationQueue.Count) * 100, 1)
 
@@ -6944,6 +7374,18 @@ try {
     Refresh-ApplicationList
     Write-Host "`[OK] Application detection complete" -ForegroundColor Green
 
+    # Restore only a validated queue into a review dialog. The installer remains idle until the user clicks Install Selected.
+    if (Load-QueueState) {
+        if ($script:StatusLabel) {
+            $script:StatusLabel.Text = $script:QueueStateRecoveryMessage
+            $script:StatusLabel.ForeColor = [System.Drawing.Color]::DodgerBlue
+        }
+    }
+    elseif (($script:QueueStateLoadStatus -eq 'Invalid' -or $script:QueueStateLoadStatus -eq 'Missing') -and $script:StatusLabel) {
+        $script:StatusLabel.Text = $script:QueueStateRecoveryMessage
+        $script:StatusLabel.ForeColor = if ($script:QueueStateLoadStatus -eq 'Invalid') { [System.Drawing.Color]::Orange } else { [System.Drawing.Color]::Gray }
+    }
+
     # Display additional marketing information with dynamic stats
     Show-MarketingInformation
 
@@ -6957,6 +7399,10 @@ try {
         $this.Activate()
         $this.BringToFront()
         $this.TopMost = $false
+
+        if ($script:QueueStateLoadStatus -eq 'Restored') {
+            Show-RestoredQueueReview | Out-Null
+        }
     })
 
     # Add FormClosing event handler for cleanup

@@ -54,8 +54,8 @@ try {
     }
 }
 catch {
-    Write-Host "Error installing $AppName: $_" -ForegroundColor Red
-    if ($logAvailable) { Write-Log "Unhandled error while installing $AppName: $_" -Level 'ERROR' }
+    Write-Host "Error installing ${AppName}: $_" -ForegroundColor Red
+    if ($logAvailable) { Write-Log "Unhandled error while installing ${AppName}: $_" -Level 'ERROR' }
     exit 1
 }
 

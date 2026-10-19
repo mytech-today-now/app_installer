@@ -159,18 +159,19 @@
     <div class="info">
         <h3>Windows (Full GUI Support)</h3>
         <ul>
-            <li><strong>Operating Systems:</strong> Windows 10 (1809+), Windows 11, Windows Server 2016+</li>
-            <li><strong>PowerShell:</strong> 5.1 or later (PowerShell 7.2+ recommended)</li>
+            <li><strong>Operating Systems:</strong> Windows 11 25H2 build 26200 or 26H2 build 26300, Home or Pro, x64. See <a href="compatibility.json">the compatibility contract</a> for end-of-servicing dates.</li>
+            <li><strong>PowerShell:</strong> Windows PowerShell Desktop 5.1 or PowerShell Core 7.6.7.</li>
             <li><strong>Interface:</strong> Full graphical user interface (GUI) with Windows Forms</li>
-            <li><strong>.NET Framework:</strong> 4.7.2 or later (automatically installed if missing)</li>
-            <li><strong>Package Manager:</strong> winget (Windows Package Manager) - installed by default on Windows 11</li>
+            <li><strong>Runtime:</strong> Windows PowerShell GUI requires .NET Framework 4.7.2 or later. PowerShell Core GUI requires Windows Desktop runtime 10 and loadable Windows Forms assemblies.</li>
+            <li><strong>Executable:</strong> The unsigned IExpress package does not bundle PowerShell. It checks fixed and registered installation locations, prefers PowerShell Core 7.6.7, then Windows PowerShell 5.1, and does not search PATH or install a runtime.</li>
+            <li><strong>Unsupported:</strong> Windows 10, Windows Server, Enterprise or Education editions, x86, ARM64, and Windows releases not listed in the contract.</li>
         </ul>
     </div>
 
     <div class="info">
         <h3>macOS &amp; Linux (CLI Mode)</h3>
         <ul>
-            <li><strong>PowerShell:</strong> PowerShell 7.2+ required (cross-platform PowerShell Core)</li>
+            <li><strong>PowerShell:</strong> PowerShell Core 7.6.7 on platforms listed in <a href="https://learn.microsoft.com/en-us/powershell/scripting/install/powershell-support-lifecycle?view=powershell-7.6">Microsoft's PowerShell support lifecycle</a>.</li>
             <li><strong>Interface:</strong> Command-line interface (CLI) - automatically launched</li>
             <li><strong>Note:</strong> The GUI requires Windows Forms which is only available on Windows. When you run <code>app-installer.ps1</code> on macOS or Linux, it automatically launches the CLI version (<code>app-installer-cli.ps1</code>) for a seamless experience.</li>
         </ul>
@@ -430,13 +431,13 @@
         </tr>
         <tr>
             <td><strong>Operating System</strong></td>
-            <td>Windows 10 (1809+), Windows 11, Windows Server 2016+</td>
-            <td>macOS 10.13+, Ubuntu 18.04+, or equivalent Linux distribution</td>
+            <td>Windows 11 25H2 build 26200 or 26H2 build 26300, Home or Pro, x64</td>
+            <td>Platforms supported by PowerShell Core 7.6.7</td>
         </tr>
         <tr>
             <td><strong>PowerShell</strong></td>
-            <td>5.1 or later (7.2+ recommended)</td>
-            <td>PowerShell 7.2+ required</td>
+            <td>Windows PowerShell Desktop 5.1 or PowerShell Core 7.6.7</td>
+            <td>PowerShell Core 7.6.7</td>
         </tr>
         <tr>
             <td><strong>Privileges</strong></td>
@@ -445,12 +446,12 @@
         </tr>
         <tr>
             <td><strong>.NET Framework</strong></td>
-            <td>4.7.2+ (for GUI, auto-installed if missing)</td>
+            <td>.NET Framework 4.7.2+ for Windows PowerShell GUI, or Windows Desktop runtime 10 for PowerShell Core GUI</td>
             <td>Not required (CLI only)</td>
         </tr>
         <tr>
             <td><strong>Package Manager</strong></td>
-            <td>winget (auto-installed on Windows 11)</td>
+            <td>WinGet is used for app installs and optional compatible PowerShell provisioning</td>
             <td>Homebrew (macOS), apt/dnf/pacman (Linux)</td>
         </tr>
         <tr>
@@ -472,7 +473,7 @@
     <p><strong>A:</strong> Yes! The application list is defined in the script. Advanced users can modify the <code>$script:Applications</code> array to add or remove applications.</p>
 
     <h3>Q: Will this work on Windows 7 or 8?</h3>
-    <p><strong>A:</strong> No. Windows 10 (1809 or later) is required because the tool relies on winget and modern PowerShell features.</p>
+    <p><strong>A:</strong> No. The verified Windows contract is limited to Windows 11 25H2 or 26H2, Home or Pro, x64. See <a href="compatibility.json">the compatibility contract</a> for release end dates and recovery guidance.</p>
 
     <h3>Q: Can I use this in a corporate environment?</h3>
     <p><strong>A:</strong> Yes! Many users deploy this tool for standardizing workstation setups. However, check with your IT department first, as some organizations have policies about software installation tools.</p>

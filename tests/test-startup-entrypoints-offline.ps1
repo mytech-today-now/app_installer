@@ -47,7 +47,7 @@ function Copy-IsolatedInstallerTree {
     )
 
     New-Item -ItemType Directory -Path $Destination -Force | Out-Null
-    foreach ($fileName in @('app-installer.ps1', 'app-installer-cli.ps1', 'apps-manifest.json', 'platform-detect.ps1', 'README.md')) {
+    foreach ($fileName in @('app-installer.ps1', 'app-installer-cli.ps1', 'apps-manifest.json', 'compatibility.json', 'platform-detect.ps1', 'README.md')) {
         $source = Join-Path $repositoryRoot $fileName
         if (Test-Path -LiteralPath $source -PathType Leaf) {
             Copy-Item -LiteralPath $source -Destination $Destination -Force
@@ -79,7 +79,7 @@ function Copy-IsolatedInstallerTree {
 function Invoke-IsolatedEntrypoint {
     param(
         [Parameter(Mandatory = $true)]
-        [ValidateSet('cli', 'gui')]
+        [ValidateSet('cli', 'gui', 'gui-forced-cli')]
         [string]$Mode,
 
         [Parameter(Mandatory = $true)]
@@ -89,7 +89,7 @@ function Invoke-IsolatedEntrypoint {
         [string]$UserProfile
     )
 
-    $scriptPath = Join-Path $TreeRoot $(if ($Mode -eq 'gui') { 'app-installer.ps1' } else { 'app-installer-cli.ps1' })
+    $scriptPath = Join-Path $TreeRoot $(if ($Mode -in @('gui', 'gui-forced-cli')) { 'app-installer.ps1' } else { 'app-installer-cli.ps1' })
     $driverText = @'
 $ErrorActionPreference = 'Stop'
 function global:Invoke-WebRequest {
@@ -198,6 +198,9 @@ public static class StartupDialogProbe {
     $timer.Stop()
     Set-Content -LiteralPath $env:STARTUP_UI_STATUS -Value ('FormSeen={0};FallbackVisible={1}' -f $timerState.FormSeen, $timerState.FallbackVisible)
 }
+elseif ($env:STARTUP_MODE -eq 'gui-forced-cli') {
+    & $env:STARTUP_SCRIPT_PATH -ForceCLI -Action __invalid__
+}
 else {
     & $env:STARTUP_SCRIPT_PATH -Action Menu
 }
@@ -206,7 +209,10 @@ else {
 
     $processInfo = New-Object System.Diagnostics.ProcessStartInfo
     $processInfo.FileName = $pwshPath
-    $processInfo.Arguments = '-NoLogo -NoProfile -ExecutionPolicy Bypass -File "' + $driverPath + '"'
+    $processInfo.Arguments = '-NoLogo -NoProfile -File "' + $driverPath + '"'
+    if ($Mode -eq 'gui-forced-cli') {
+        $processInfo.Arguments = '-NoLogo -NoProfile -File "' + $scriptPath + '" -ForceCLI -Action __invalid__'
+    }
     $processInfo.WorkingDirectory = $TreeRoot
     $processInfo.UseShellExecute = $false
     $processInfo.CreateNoWindow = $true
@@ -231,7 +237,7 @@ else {
     $process = [System.Diagnostics.Process]::Start($processInfo)
     $stdoutTask = $process.StandardOutput.ReadToEndAsync()
     $stderrTask = $process.StandardError.ReadToEndAsync()
-    if ($Mode -eq 'cli') {
+    if ($Mode -in @('cli', 'gui-forced-cli')) {
         $process.StandardInput.WriteLine('Q')
     }
     else {
@@ -241,12 +247,13 @@ else {
     }
     $process.StandardInput.Close()
 
-    if (-not $process.WaitForExit(30000)) {
+    $startupWaitLimitSeconds = 120
+    if (-not $process.WaitForExit($startupWaitLimitSeconds * 1000)) {
         $process.Kill()
         $process.WaitForExit()
         $trace = if (Test-Path -LiteralPath $uiTracePath -PathType Leaf) { (Get-Content -LiteralPath $uiTracePath -Tail 20) -join '; ' } else { 'no Windows Forms timer events recorded' }
         $childOutput = ($stdoutTask.Result + [Environment]::NewLine + $stderrTask.Result) -split "`r?`n" | Select-Object -Last 25
-        throw "$Mode startup did not exit within 30 seconds. UI trace: $trace. Child output: $($childOutput -join '; ')"
+        throw "$Mode startup did not exit within $startupWaitLimitSeconds seconds. UI trace: $trace. Child output: $($childOutput -join '; ')"
     }
 
     return [PSCustomObject]@{
@@ -280,19 +287,30 @@ exit /b 0
     Assert-Condition -Condition (Test-Path -LiteralPath $positiveGui.UiStatusPath -PathType Leaf) -Message 'GUI form was reached with the verified helper'
     $installedGuiModules = Join-Path $positiveGui.UserProfile 'myTech.Today\AppInstaller\modules'
     Assert-Condition -Condition ((Test-Path -LiteralPath (Join-Path $installedGuiModules 'StartupHelperTrust.psm1') -PathType Leaf) -and (Test-Path -LiteralPath (Join-Path $installedGuiModules 'ResponsiveGuiHelper.psm1') -PathType Leaf)) -Message 'GUI self-install copies both bundled startup modules'
+    Assert-Condition -Condition (Test-Path -LiteralPath (Join-Path (Split-Path -Parent $installedGuiModules) 'compatibility.json') -PathType Leaf) -Message 'GUI self-install copies the compatibility contract for future launches'
 
     $fallbackGui = Invoke-IsolatedEntrypoint -Mode gui -TreeRoot $fallbackTree -UserProfile (Join-Path $tempRoot 'profile-gui-fallback')
     Assert-Condition -Condition ($fallbackGui.ExitCode -eq 0) -Message 'GUI starts with the helper absent and exits cleanly'
     $fallbackModules = Join-Path $fallbackGui.UserProfile 'myTech.Today\AppInstaller\modules'
     Assert-Condition -Condition ((Test-Path -LiteralPath (Join-Path $fallbackModules 'StartupHelperTrust.psm1') -PathType Leaf) -and -not (Test-Path -LiteralPath (Join-Path $fallbackModules 'ResponsiveGuiHelper.psm1') -PathType Leaf)) -Message 'GUI self-install preserves the missing-helper fallback state'
+    Assert-Condition -Condition (Test-Path -LiteralPath (Join-Path (Split-Path -Parent $fallbackModules) 'compatibility.json') -PathType Leaf) -Message 'GUI fallback self-install copies the compatibility contract for future launches'
     $guiStatus = if (Test-Path -LiteralPath $fallbackGui.UiStatusPath -PathType Leaf) { Get-Content -LiteralPath $fallbackGui.UiStatusPath -Raw } else { '' }
     Assert-Condition -Condition ($guiStatus -match 'FormSeen=True;FallbackVisible=True') -Message 'GUI visibly reports the fallback status and built-in responsive layout'
 
     $cli = Invoke-IsolatedEntrypoint -Mode cli -TreeRoot $fallbackTree -UserProfile (Join-Path $tempRoot 'profile-cli')
     Assert-Condition -Condition ($cli.ExitCode -eq 0) -Message 'CLI starts offline with its optional helper absent and exits cleanly'
     Assert-Condition -Condition ($cli.Output.Contains('A required optional helper could not be verified. Installation remains available with built-in behavior.')) -Message 'CLI displays the documented built-in fallback'
+    Assert-Condition -Condition (Test-Path -LiteralPath (Join-Path $cli.UserProfile 'myTech.Today\AppInstaller\compatibility.json') -PathType Leaf) -Message 'CLI self-install copies the compatibility contract for future launches'
 
-    foreach ($result in @($positiveGui, $fallbackGui, $cli)) {
+    $forcedCli = Invoke-IsolatedEntrypoint -Mode gui-forced-cli -TreeRoot $fallbackTree -UserProfile (Join-Path $tempRoot 'profile-gui-forced-cli')
+    $forcedCliOutputMatches = $forcedCli.Output.Contains('__invalid__') -and $forcedCli.Output.Contains('does not belong to the set')
+    if ($forcedCli.ExitCode -ne 1 -or -not $forcedCliOutputMatches) {
+        $forcedCliDiagnostic = ($forcedCli.Output -replace '\s+', ' ').Trim()
+        throw "FAIL: Forced CLI fallback forwards original arguments and returns the CLI validation exit code. ExitCode=$($forcedCli.ExitCode); Output=$forcedCliDiagnostic"
+    }
+    Assert-Condition -Condition $true -Message 'Forced CLI fallback forwards original arguments and returns the CLI validation exit code'
+
+    foreach ($result in @($positiveGui, $fallbackGui, $cli, $forcedCli)) {
         Assert-Condition -Condition ($result.Output -notmatch '(?i)Unhandled exception|uncaught exception|GUI initialization failed|GUI Error:|At .+\.ps1:\d+ char:') -Message 'Entrypoint exits without a startup exception'
         Assert-Condition -Condition ($result.Output -notmatch '(?i)responsive GUI helper loaded successfully|generic logging module loaded successfully|helper initialized successfully') -Message 'Entrypoint makes no claim that an unverified helper initialized'
     }

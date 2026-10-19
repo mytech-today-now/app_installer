@@ -7,7 +7,8 @@
     multiple applications across Windows, macOS, and Linux. Features include:
 
     CROSS-PLATFORM FEATURES:
-    - Works on Windows (PowerShell 5.1+), macOS, and Linux (PowerShell 7.2+)
+    - Works on supported Windows clients with Windows PowerShell 5.1 or PowerShell Core 7.6.7
+    - Works on supported macOS and Linux platforms with PowerShell Core 7.6.7
     - Automatic package manager detection (winget, brew, apt, dnf, pacman, snap)
     - Platform-aware application filtering
     - Cross-platform path handling
@@ -86,8 +87,9 @@
 .NOTES
     File Name      : install.ps1
     Author         : myTech.Today
-    Prerequisite   : Windows: PowerShell 5.1+ (admin recommended)
-                     macOS/Linux: PowerShell 7.2+ (sudo/root for system-wide installs)
+    Prerequisite   : See compatibility.json for the authoritative support contract
+                     Windows: Windows 11 25H2 or 26H2, Home or Pro, x64; Windows PowerShell 5.1 or PowerShell Core 7.6.7
+                     macOS/Linux: PowerShell Core 7.6.7 on a supported platform
     Copyright      : (c) 2025 myTech.Today. All rights reserved.
     Version        : 2.0.0
 
@@ -125,6 +127,56 @@ param(
 )
 
 #Requires -Version 5.1
+
+$script:CompatibilityModulePath = Join-Path $PSScriptRoot 'modules\InstallerCompatibility.psm1'
+if (-not (Test-Path -LiteralPath $script:CompatibilityModulePath -PathType Leaf)) {
+    Write-Host '[ERROR] The compatibility contract module is missing. No setup or package operation was started.' -ForegroundColor Red
+    exit 1
+}
+try {
+    Import-Module -Name $script:CompatibilityModulePath -Force -DisableNameChecking -ErrorAction Stop | Out-Null
+}
+catch {
+    Write-Host "[ERROR] The compatibility contract could not be loaded: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host '[INFO] No setup or package operation was started.' -ForegroundColor Yellow
+    exit 1
+}
+
+$script:CompatibilityHostInfo = Get-InstallerHostInfo
+$cliComponent = if ($script:CompatibilityHostInfo.Platform -eq 'Windows') { 'WindowsCli' } else { 'CrossPlatformCli' }
+if ($cliComponent -eq 'WindowsCli') {
+    $runtimeModulePath = Join-Path $PSScriptRoot 'modules\InstallerRuntimeDiscovery.psm1'
+    if (-not (Test-Path -LiteralPath $runtimeModulePath -PathType Leaf)) {
+        Write-Host '[ERROR] The shared PowerShell runtime discovery module is missing. No installer action was started.' -ForegroundColor Red
+        exit 1
+    }
+    try {
+        Import-Module -Name $runtimeModulePath -Force -DisableNameChecking -ErrorAction Stop | Out-Null
+        $runtimeArguments = ConvertTo-InstallerRuntimeArgumentArray -BoundParameters $PSBoundParameters -RemainingArguments $args
+        $runtimeDecision = Invoke-InstallerRuntimeEntry -Component WindowsCli -ApplicationPath $PSCommandPath -ScriptArguments $runtimeArguments
+    }
+    catch {
+        Write-Host "[ERROR] PowerShell runtime discovery failed before installer actions: $($_.Exception.Message)" -ForegroundColor Red
+        exit 1
+    }
+
+    if ($runtimeDecision.Action -eq 'Failure') {
+        Write-Host "[ERROR] No compatible PowerShell engine could start the CLI: $($runtimeDecision.Reason)" -ForegroundColor Red
+        if ($runtimeDecision.PolicyBlocked) {
+            Write-Host '[INFO] Execution policy was not changed and no alternate engine was tried.' -ForegroundColor Yellow
+        }
+        exit 1
+    }
+    if ($runtimeDecision.Action -eq 'Exit') {
+        exit $runtimeDecision.ExitCode
+    }
+}
+
+$cliCompatibility = Test-InstallerCompatibility -Component $cliComponent -HostInfo $script:CompatibilityHostInfo
+if (-not $cliCompatibility.IsSupported) {
+    Write-Host $cliCompatibility.Message -ForegroundColor Red
+    exit 1
+}
 
 #region Safe-TestPath Helper
 
@@ -372,7 +424,6 @@ function Copy-ScriptToSystemLocation {
         if (Safe-TestPath $sourceInstallScript) {
             Write-Host "    [>>] Copying install.ps1..." -ForegroundColor Yellow
             Copy-Item -Path $sourceInstallScript -Destination $targetInstallScript -Force -ErrorAction Stop
-            Unblock-File -Path $targetInstallScript -ErrorAction SilentlyContinue
         }
 
         # Copy platform-detect.ps1 (required for cross-platform support)
@@ -382,7 +433,6 @@ function Copy-ScriptToSystemLocation {
         if (Safe-TestPath $sourcePlatformDetect) {
             Write-Host "    [>>] Copying platform-detect.ps1..." -ForegroundColor Yellow
             Copy-Item -Path $sourcePlatformDetect -Destination $targetPlatformDetect -Force -ErrorAction Stop
-            Unblock-File -Path $targetPlatformDetect -ErrorAction SilentlyContinue
         }
 
         # Copy apps-manifest.json (cross-platform app definitions)
@@ -392,7 +442,15 @@ function Copy-ScriptToSystemLocation {
         if (Safe-TestPath $sourceManifest) {
             Write-Host "    [>>] Copying apps-manifest.json..." -ForegroundColor Yellow
             Copy-Item -Path $sourceManifest -Destination $targetManifest -Force -ErrorAction Stop
-            Unblock-File -Path $targetManifest -ErrorAction SilentlyContinue
+        }
+
+        # Copy the compatibility contract required by future launches.
+        $sourceCompatibility = Join-Path $sourcePath "compatibility.json"
+        $targetCompatibility = Join-Path $systemPath "compatibility.json"
+
+        if (Safe-TestPath $sourceCompatibility) {
+            Write-Host "    [>>] Copying compatibility.json..." -ForegroundColor Yellow
+            Copy-Item -Path $sourceCompatibility -Destination $targetCompatibility -Force -ErrorAction Stop
         }
 
         # Copy modules directory (if it exists)
@@ -407,10 +465,6 @@ function Copy-ScriptToSystemLocation {
             }
 
             Copy-Item -Path (Join-Path $sourceModulesPath '*') -Destination $systemModulesPath -Recurse -Force -ErrorAction Stop
-            # Unblock all copied module files
-            Get-ChildItem -Path $systemModulesPath -Recurse -File -ErrorAction SilentlyContinue | ForEach-Object {
-                Unblock-File -Path $_.FullName -ErrorAction SilentlyContinue
-            }
             Write-Host "    [OK] Copied modules directory" -ForegroundColor Green
         }
 
@@ -422,7 +476,6 @@ function Copy-ScriptToSystemLocation {
             foreach ($script in $appScripts) {
                 $targetScript = Join-Path $systemAppsPath $script.Name
                 Copy-Item -Path $script.FullName -Destination $targetScript -Force -ErrorAction Stop
-                Unblock-File -Path $targetScript -ErrorAction SilentlyContinue
             }
 
             Write-Host "    [OK] Copied $($appScripts.Count) app scripts" -ForegroundColor Green
@@ -436,7 +489,6 @@ function Copy-ScriptToSystemLocation {
 
             if (Safe-TestPath $sourceDoc) {
                 Copy-Item -Path $sourceDoc -Destination $targetDoc -Force -ErrorAction SilentlyContinue
-                Unblock-File -Path $targetDoc -ErrorAction SilentlyContinue
             }
         }
 
@@ -449,10 +501,6 @@ function Copy-ScriptToSystemLocation {
             }
 
             Copy-Item -Path (Join-Path $sourceProfilesPath '*') -Destination $systemProfilesPath -Recurse -Force -ErrorAction Stop
-            # Unblock all copied profile files
-            Get-ChildItem -Path $systemProfilesPath -Recurse -File -ErrorAction SilentlyContinue | ForEach-Object {
-                Unblock-File -Path $_.FullName -ErrorAction SilentlyContinue
-            }
             Write-Host "    [OK] Copied profiles directory" -ForegroundColor Green
         }
         else {
@@ -511,7 +559,7 @@ if ($script:CoreModuleLoaded) {
         $allApplications = Get-ApplicationRegistry -Verbose:$VerbosePreference
 
         # Filter by current platform
-        $script:Applications = Select-ApplicationsByPlatform -Applications $allApplications -CurrentPlatform $Platform
+        $script:Applications = @(Select-ApplicationsByPlatform -Applications $allApplications -CurrentPlatform $Platform)
 
         Write-Host "[OK] Loaded $($script:Applications.Count) applications for $Platform" -ForegroundColor Green
     }
@@ -2565,7 +2613,7 @@ function Check-ForUpdates {
     }
 
     if ($scanResult.Status -in @('Failed', 'Unknown', 'Cancelled')) {
-        Write-Host '[WARN] Update check could not be confirmed. Review the log and retry.' -ForegroundColor Yellow
+        Write-Host 'Update availability could not be verified. No packages were changed. Retry the check or use winget upgrade manually.' -ForegroundColor Yellow
         return
     }
 
@@ -2877,6 +2925,9 @@ function Install-OOShutUp10FromRemote {
     }
     elseif ($result.FailureReason -eq 'cancelled') {
         Write-Host 'O&O installer verification was cancelled. No O&O changes were made.' -ForegroundColor Yellow
+    }
+    elseif ($result.FailureReason -eq 'execution-policy-blocked') {
+        Write-Host $result.RecoveryMessage -ForegroundColor Red
     }
     elseif ($result.InstallationStatus -eq 'not-started') {
         Write-Host 'The O&O installer could not be verified. No O&O changes were made. Review the local installer or retry after the release source is verified.' -ForegroundColor Yellow
@@ -4726,20 +4777,20 @@ exit 0
 
     WINDOWS TESTING:
     ----------------
-    1. PowerShell 5.1 (Windows PowerShell):
+    1. Windows PowerShell Desktop 5.1:
        - Run as Administrator
        - Test winget installation and app installation
        - Verify paths: %USERPROFILE%\myTech.Today\AppInstaller
        - Test GUI fallback: .\install-gui.ps1
 
-    2. PowerShell 7.x:
+    2. PowerShell Core 7.6.7:
        - Run as Administrator
        - Test all features
        - Verify cross-platform variables work
 
     macOS TESTING:
     --------------
-    1. Install PowerShell 7.2+:
+    1. Install PowerShell 7.6.7:
        brew install --cask powershell
 
     2. Run the installer:
@@ -4752,14 +4803,13 @@ exit 0
        - Brew cask/formula installations work
 
     4. Test GUI script graceful degradation:
-       pwsh ./install-gui.ps1
-       (Should offer CLI fallback)
+       pwsh ./app-installer.ps1
+       (Should offer CLI fallback if the Windows Desktop runtime is unavailable)
 
     LINUX TESTING:
     --------------
-    1. Install PowerShell 7.2+:
-       - Ubuntu/Debian: https://docs.microsoft.com/powershell/scripting/install/install-ubuntu
-       - Fedora: https://docs.microsoft.com/powershell/scripting/install/install-fedora
+    1. Install PowerShell 7.6.7:
+       - Follow Microsoft's PowerShell 7.6 installation instructions for your distribution
        - Arch: yay -S powershell-bin
 
     2. Run the installer:
@@ -4772,7 +4822,7 @@ exit 0
        - Package installations work
 
     4. Test GUI script graceful degradation:
-       pwsh ./install-gui.ps1
+       pwsh ./app-installer.ps1
        (Should offer CLI fallback)
 
     COMMON TESTS (All Platforms):

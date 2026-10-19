@@ -1,9 +1,9 @@
 @echo off
 REM ============================================================================
 REM  myTech.Today - App Installer Setup
-REM  Checks for PowerShell 7+, installs if needed, then runs the installer
+REM  Starts the shared PowerShell runtime discovery entry point.
 REM ============================================================================
-setlocal enabledelayedexpansion 
+setlocal DisableDelayedExpansion
 
 echo.
 echo ============================================================
@@ -15,162 +15,112 @@ if not exist "%~dp0app-installer.ps1" (
     echo [ERROR] App Installer script was not found: "%~dp0app-installer.ps1"
     exit /b 2
 )
-
-REM Check if PowerShell 7+ is installed (PATH first, then common locations)
-call :FIND_PWSH
-if defined PWSH_EXE (
-    echo [OK] PowerShell 7+ found: %PWSH_EXE%
-    goto :RUN_INSTALLER
+if not exist "%~dp0tools\Start-Installer.ps1" (
+    echo [ERROR] Shared runtime launcher was not found: "%~dp0tools\Start-Installer.ps1"
+    exit /b 2
 )
-
-echo [INFO] PowerShell 7+ not found. Checking for winget...
-
-REM Check if winget is available
-where winget >nul 2>&1
-if %ERRORLEVEL% NEQ 0 (
-    echo [ERROR] winget is not available on this system.
-    echo.
-    echo Please install PowerShell 7 manually:
-    echo   1. Visit: https://github.com/PowerShell/PowerShell/releases
-    echo   2. Download the latest .msi installer for Windows
-    echo   3. Run the installer and follow the prompts
-    echo   4. Re-run this script after installation
-    echo.
-    pause
-    exit /b 1
-)
-
-echo [INFO] Installing PowerShell 7 using winget...
-echo        This may require administrator privileges.
-echo.
-
-REM Check for admin privileges
-net session >nul 2>&1
-if %ERRORLEVEL% NEQ 0 (
-    echo [WARN] Not running as administrator. Requesting elevation...
-    if not exist "%~dp0invoke-elevated-install.ps1" (
-        echo [ERROR] The elevation helper was not found: "%~dp0invoke-elevated-install.ps1"
-        exit /b 2
-    )
-    if not defined TEMP (
-        echo [ERROR] A temporary directory is unavailable for elevation diagnostics.
-        exit /b 2
-    )
-    set "ELEVATION_ERROR_FILE=%TEMP%\app-installer-elevation-%RANDOM%.err"
-    type nul > "!ELEVATION_ERROR_FILE!" 2>nul
-    if errorlevel 1 (
-        echo [ERROR] Could not prepare temporary elevation diagnostics.
-        exit /b 2
-    )
-    powershell -NoProfile -File "%~dp0invoke-elevated-install.ps1" "%~f0" %* 2>"!ELEVATION_ERROR_FILE!"
-    set "ELEVATION_RC=!ERRORLEVEL!"
-
-    if exist "!ELEVATION_ERROR_FILE!" (
-        findstr /I /C:"execution policy" /C:"running scripts is disabled" /C:"not digitally signed" "!ELEVATION_ERROR_FILE!" >nul 2>&1
-        if !ERRORLEVEL! EQU 0 (
-            type "!ELEVATION_ERROR_FILE!"
-            echo PowerShell policy prevented this script from starting. No policy setting was changed. Use the signed release or contact your administrator.
-            echo Signature guidance: https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_signing?view=powershell-7.5
-            del "!ELEVATION_ERROR_FILE!" >nul 2>&1
-            exit /b 1
-        )
-        type "!ELEVATION_ERROR_FILE!"
-        del "!ELEVATION_ERROR_FILE!" >nul 2>&1
-    )
-
-    if "!ELEVATION_RC!"=="9009" (
-        echo [ERROR] Windows PowerShell could not be started. The elevated installer result is unknown.
-    )
-    if not "!ELEVATION_RC!"=="0" (
-        echo [ERROR] The elevated App Installer did not complete successfully; exit code !ELEVATION_RC!.
-    )
-    exit /b !ELEVATION_RC!
-)
-
-winget install --id Microsoft.PowerShell --source winget --accept-package-agreements --accept-source-agreements
-set WINGET_RC=%ERRORLEVEL%
-
-REM Re-check for pwsh after winget attempt (handles "already installed" case)
-call :FIND_PWSH
-if defined PWSH_EXE (
-    echo.
-    echo [OK] PowerShell 7 is available: %PWSH_EXE%
-    echo.
-    goto :RUN_INSTALLER
-)
-
-if %WINGET_RC% NEQ 0 (
-    echo [ERROR] Failed to install PowerShell 7.
-    echo         Please install manually from: https://github.com/PowerShell/PowerShell/releases
-    pause
-    exit /b 1
-)
-
-echo.
-echo [OK] PowerShell 7 installed successfully!
-echo.
-
-:RUN_INSTALLER
-echo [INFO] Running App Installer...
-echo.
-
-REM Run the PowerShell installer script
 if not defined TEMP (
-    echo [ERROR] A temporary directory is unavailable for launch diagnostics.
+    echo [ERROR] A temporary directory is unavailable for startup diagnostics.
     exit /b 2
 )
-set "POLICY_ERROR_FILE=%TEMP%\app-installer-launch-%RANDOM%.err"
-type nul > "%POLICY_ERROR_FILE%" 2>nul
+
+set "STARTER_PATH=%~dp0tools\Start-Installer.ps1"
+set "BOOTSTRAP_STATUS_FILE=%TEMP%\app-installer-bootstrap-%RANDOM%-%RANDOM%.status"
+set "BOOTSTRAP_ERROR_FILE=%TEMP%\app-installer-bootstrap-%RANDOM%-%RANDOM%.err"
+type nul > "%BOOTSTRAP_STATUS_FILE%"
 if errorlevel 1 (
-    echo [ERROR] Could not prepare temporary launch diagnostics.
+    echo [ERROR] Could not prepare temporary startup status.
     exit /b 2
 )
+type nul > "%BOOTSTRAP_ERROR_FILE%"
+if errorlevel 1 (
+    echo [ERROR] Could not prepare temporary startup diagnostics.
+    del "%BOOTSTRAP_STATUS_FILE%" >nul 2>&1
+    exit /b 2
+)
+set "APP_INSTALLER_BOOTSTRAP_STARTED_FILE=%BOOTSTRAP_STATUS_FILE%"
 
-"%PWSH_EXE%" -NoProfile -File "%~dp0app-installer.ps1" %* 2>"%POLICY_ERROR_FILE%"
-set "INSTALLER_RC=!ERRORLEVEL!"
+set "PWSH_EXE="
+if defined ProgramW6432 if exist "%ProgramW6432%\PowerShell\7\pwsh.exe" set "PWSH_EXE=%ProgramW6432%\PowerShell\7\pwsh.exe"
+if not defined PWSH_EXE if defined ProgramFiles if exist "%ProgramFiles%\PowerShell\7\pwsh.exe" set "PWSH_EXE=%ProgramFiles%\PowerShell\7\pwsh.exe"
+if not defined PWSH_EXE if exist "%ProgramFiles(x86)%\PowerShell\7\pwsh.exe" set "PWSH_EXE=%ProgramFiles(x86)%\PowerShell\7\pwsh.exe"
+if not defined PWSH_EXE if defined LOCALAPPDATA if exist "%LOCALAPPDATA%\Programs\PowerShell\7\pwsh.exe" set "PWSH_EXE=%LOCALAPPDATA%\Programs\PowerShell\7\pwsh.exe"
+if not defined PWSH_EXE if defined LOCALAPPDATA if exist "%LOCALAPPDATA%\Microsoft\PowerShell\pwsh.exe" set "PWSH_EXE=%LOCALAPPDATA%\Microsoft\PowerShell\pwsh.exe"
 
-if exist "%POLICY_ERROR_FILE%" (
-    findstr /I /C:"execution policy" /C:"running scripts is disabled" /C:"not digitally signed" "%POLICY_ERROR_FILE%" >nul 2>&1
-    if !ERRORLEVEL! EQU 0 (
-        type "%POLICY_ERROR_FILE%"
-        echo PowerShell policy prevented this script from starting. No policy setting was changed. Use the signed release or contact your administrator.
-        echo Signature guidance: https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_signing?view=powershell-7.5
-        del "%POLICY_ERROR_FILE%" >nul 2>&1
+if not defined PWSH_EXE goto :TRY_WINDOWS_POWERSHELL
+"%PWSH_EXE%" -NoProfile -File "%STARTER_PATH%" %* 2>"%BOOTSTRAP_ERROR_FILE%"
+set "BOOTSTRAP_RC=%ERRORLEVEL%"
+call :CLASSIFY_BOOTSTRAP
+if errorlevel 100 goto :TRY_WINDOWS_POWERSHELL
+if errorlevel 1 goto :BOOTSTRAP_FAILED
+goto :BOOTSTRAP_FINISHED
+
+:TRY_WINDOWS_POWERSHELL
+set "WINDOWS_POWERSHELL_EXE="
+if defined PROCESSOR_ARCHITEW6432 (
+    set "WINDOWS_POWERSHELL_EXE=%SystemRoot%\Sysnative\WindowsPowerShell\v1.0\powershell.exe"
+) else (
+    set "WINDOWS_POWERSHELL_EXE=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
+)
+if not exist "%WINDOWS_POWERSHELL_EXE%" goto :NO_BOOTSTRAP_ENGINE
+type nul > "%BOOTSTRAP_STATUS_FILE%"
+type nul > "%BOOTSTRAP_ERROR_FILE%"
+"%WINDOWS_POWERSHELL_EXE%" -NoProfile -File "%STARTER_PATH%" %* 2>"%BOOTSTRAP_ERROR_FILE%"
+set "BOOTSTRAP_RC=%ERRORLEVEL%"
+call :CLASSIFY_BOOTSTRAP
+if errorlevel 100 goto :NO_BOOTSTRAP_ENGINE
+if errorlevel 1 goto :BOOTSTRAP_FAILED
+goto :BOOTSTRAP_FINISHED
+
+:CLASSIFY_BOOTSTRAP
+findstr /I /C:"STARTED" "%BOOTSTRAP_STATUS_FILE%" >nul 2>&1
+if not errorlevel 1 (
+    if exist "%BOOTSTRAP_ERROR_FILE%" type "%BOOTSTRAP_ERROR_FILE%" 1>&2
+    if exist "%BOOTSTRAP_ERROR_FILE%" (
+        findstr /I /C:"execution policy" /C:"running scripts is disabled" /C:"not digitally signed" "%BOOTSTRAP_ERROR_FILE%" >nul 2>&1
+        if not errorlevel 1 (
+            echo PowerShell policy prevented this script from starting. No policy setting was changed. Use the signed release or contact your administrator. 1>&2
+            echo Signature guidance: https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_signing?view=powershell-7.5 1>&2
+            echo No alternate engine was tried. 1>&2
+        )
+    )
+    exit /b 0
+)
+if exist "%BOOTSTRAP_ERROR_FILE%" (
+    findstr /I /C:"execution policy" /C:"running scripts is disabled" /C:"not digitally signed" "%BOOTSTRAP_ERROR_FILE%" >nul 2>&1
+    if not errorlevel 1 (
+        type "%BOOTSTRAP_ERROR_FILE%" 1>&2
+        echo PowerShell policy prevented this script from starting. No policy setting was changed. Use the signed release or contact your administrator. 1>&2
+        echo Signature guidance: https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_signing?view=powershell-7.5 1>&2
+        echo No alternate engine was tried. 1>&2
         exit /b 1
     )
-    type "%POLICY_ERROR_FILE%"
-    del "%POLICY_ERROR_FILE%" >nul 2>&1
+    type "%BOOTSTRAP_ERROR_FILE%" 1>&2
 )
+exit /b 100
 
-if not "!INSTALLER_RC!"=="0" (
+:BOOTSTRAP_FAILED
+echo [ERROR] The App Installer launcher failed before it could select a compatible PowerShell engine.
+del "%BOOTSTRAP_STATUS_FILE%" >nul 2>&1
+del "%BOOTSTRAP_ERROR_FILE%" >nul 2>&1
+exit /b 1
+
+:BOOTSTRAP_FINISHED
+del "%BOOTSTRAP_STATUS_FILE%" >nul 2>&1
+del "%BOOTSTRAP_ERROR_FILE%" >nul 2>&1
+if not "%BOOTSTRAP_RC%"=="0" (
     echo.
-    echo [ERROR] Installer exited with code: !INSTALLER_RC!
-    exit /b !INSTALLER_RC!
+    echo [ERROR] Installer exited with code: %BOOTSTRAP_RC%
+    exit /b %BOOTSTRAP_RC%
 )
-
 echo.
 echo [INFO] Setup complete.
 pause
-exit /b !INSTALLER_RC!
+exit /b 0
 
-REM ---- Subroutine: locate pwsh.exe via PATH or common install dirs ----
-:FIND_PWSH
-set "PWSH_EXE="
-where pwsh >nul 2>&1
-if %ERRORLEVEL% EQU 0 (
-    set "PWSH_EXE=pwsh"
-    goto :EOF
-)
-REM Check common install locations
-for %%D in (
-    "%ProgramFiles%\PowerShell\7\pwsh.exe"
-    "%ProgramFiles(x86)%\PowerShell\7\pwsh.exe"
-    "%LocalAppData%\Microsoft\PowerShell\pwsh.exe"
-    "%ProgramW6432%\PowerShell\7\pwsh.exe"
-) do (
-    if exist %%D (
-        set "PWSH_EXE=%%~D"
-        goto :EOF
-    )
-)
-goto :EOF
+:NO_BOOTSTRAP_ENGINE
+del "%BOOTSTRAP_STATUS_FILE%" >nul 2>&1
+del "%BOOTSTRAP_ERROR_FILE%" >nul 2>&1
+echo [ERROR] No PowerShell executable could start the runtime discovery launcher.
+echo Restore Windows PowerShell 5.1 or install PowerShell Core 7.6.7, then retry on a supported Windows 11 x64 client.
+exit /b 1

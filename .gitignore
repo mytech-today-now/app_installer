@@ -41,6 +41,14 @@ other_files/
 ai-prompts/
 .augment/
 tools/
+!tools/
+tools/*
+!tools/Install-CompatiblePowerShell.ps1
+!tools/Start-Installer.ps1
+!tools/InstallerExecutableVersionInfo.cs
+!tools/Set-InstallerExeMetadata.ps1
+!tools/Test-InstallerCompatibility.ps1
+!tools/Build-InstallerExe.ps1
 
 # Local Beads workspace files
 /.dolt/

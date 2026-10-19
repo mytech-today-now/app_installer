@@ -164,6 +164,7 @@ $tableWithoutUpdates = @(
     '--------------------------------------------------------',
     '0 upgrades available'
 ) -join [Environment]::NewLine
+$verificationFailedMessage = 'Update availability could not be verified. No packages were changed. Retry the check or use winget upgrade manually.'
 
 $scanCases = @(
     @{ Name = 'valid populated table'; Result = (New-CommandResult -Output $tableWithUpdate); ExpectedStatus = 'CompletedWithUpdates'; ExpectedExitCode = 0; ExpectedReason = 'table-validated' },
@@ -173,8 +174,10 @@ $scanCases = @(
     @{ Name = 'missing executable'; Result = (New-CommandResult -Status Unavailable -Output @() -ExitCode $null); ExpectedStatus = 'Failed'; ExpectedExitCode = $null; ExpectedReason = 'command-unavailable' },
     @{ Name = 'empty output'; Result = (New-CommandResult -Output @()); ExpectedStatus = 'Unknown'; ExpectedExitCode = 0; ExpectedReason = 'empty-output' },
     @{ Name = 'missing header'; Result = (New-CommandResult -Output 'WinGet returned an unexpected response.'); ExpectedStatus = 'Unknown'; ExpectedExitCode = 0; ExpectedReason = 'missing-header' },
+    @{ Name = 'error message output'; Result = (New-CommandResult -Output 'Failed when searching source: private detail token=do-not-log'); ExpectedStatus = 'Unknown'; ExpectedExitCode = 0; ExpectedReason = 'missing-header' },
     @{ Name = 'missing separator'; Result = (New-CommandResult -Output (@('Name  Id  Version  Available  Source', 'Example Application  Example.App  1.0  1.1  winget', '1 upgrade available') -join [Environment]::NewLine)); ExpectedStatus = 'Unknown'; ExpectedExitCode = 0; ExpectedReason = 'missing-separator' },
     @{ Name = 'malformed row'; Result = (New-CommandResult -Output (@('Name  Id  Version  Available  Source', '--------------------------------------------------------', 'Example Application  Example.App  1.0', '1 upgrade available') -join [Environment]::NewLine)); ExpectedStatus = 'Unknown'; ExpectedExitCode = 0; ExpectedReason = 'malformed-row' },
+    @{ Name = 'truncated table'; Result = (New-CommandResult -Output (@('Name  Id  Version  Available  Source', '--------------------------------------------------------', 'Example Application  Example.App  1.0  1.1  winget') -join [Environment]::NewLine)); ExpectedStatus = 'Unknown'; ExpectedExitCode = 0; ExpectedReason = 'missing-summary' },
     @{ Name = 'localized table'; Result = (New-CommandResult -Output (@('Nombre  Identificador  Versión  Disponible  Origen', '--------------------------------------------------------', 'Aplicación de ejemplo  Example.App  1.0  1.1  winget', '1 actualización disponible') -join [Environment]::NewLine)); ExpectedStatus = 'Unknown'; ExpectedExitCode = 0; ExpectedReason = 'missing-header' }
 )
 
@@ -193,6 +196,7 @@ foreach ($entrypoint in $entrypoints) {
         $script:commandResult = $case.Result
         $result = Get-AvailableUpdates
         Assert-Condition -Condition ($result.Status -ceq $case.ExpectedStatus) -Message "$($entrypoint.Name): $($case.Name) status is $($case.ExpectedStatus)"
+        Assert-Condition -Condition ((($result.Status -ceq 'CompletedNoUpdates') -eq ($case.ExpectedStatus -ceq 'CompletedNoUpdates')) -and ($result.Status -ne 'CompletedNoUpdates' -or $result.Updates.Count -eq 0)) -Message "$($entrypoint.Name): $($case.Name) reports empty success only for recognized no-update output"
         Assert-Condition -Condition ($result.ExitCode -ceq $case.ExpectedExitCode) -Message "$($entrypoint.Name): $($case.Name) preserves the exit code"
         Assert-Condition -Condition ($result.Reason -ceq $case.ExpectedReason) -Message "$($entrypoint.Name): $($case.Name) records reason $($case.ExpectedReason)"
         Assert-Condition -Condition ($script:commandArguments.Count -eq 1 -and $script:commandArguments[0] -ceq 'upgrade') -Message "$($entrypoint.Name): $($case.Name) uses the read-only upgrade query"
@@ -218,6 +222,28 @@ foreach ($entrypoint in $entrypoints) {
     Assert-Condition -Condition ($unknownCommand.Status -ceq 'Unknown' -and $unknownCommand.Reason -ceq 'command-outcome-unknown') -Message "$($entrypoint.Name): unconfirmed command outcome is Unknown"
     Assert-Condition -Condition ((($script:logs | ForEach-Object Message) -join ' ') -notmatch 'Injected private command detail') -Message "$($entrypoint.Name): thrown command details are not logged"
 
+    $integrationFailures = @(
+        @{ Name = 'fake WinGet nonzero exit'; Result = (New-CommandResult -Status Failed -Output 'Failed when searching source: private detail token=do-not-log' -ExitCode 42) },
+        @{ Name = 'fake WinGet arbitrary output'; Result = (New-CommandResult -Output 'Failed when searching source: private detail token=do-not-log' -ExitCode 0) }
+    )
+    foreach ($failure in $integrationFailures) {
+        Reset-TestState
+        $script:commandResult = $failure.Result
+        $null = Check-ForUpdates
+        $visibleText = $script:visibleMessages -join ' '
+        if ($entrypoint.Name -eq 'GUI') {
+            $noticeText = ($script:notices | ForEach-Object Message) -join ' '
+            Assert-Condition -Condition ($noticeText -ceq $verificationFailedMessage -and $script:notices[0].Warning) -Message "GUI displays the recovery message for $($failure.Name)"
+            Assert-Condition -Condition ($noticeText -notmatch 'All applications are up to date') -Message "GUI does not claim all applications are current for $($failure.Name)"
+        }
+        else {
+            Assert-Condition -Condition ($visibleText -match [regex]::Escape($verificationFailedMessage)) -Message "CLI displays the recovery message for $($failure.Name)"
+            Assert-Condition -Condition ($visibleText -notmatch 'All applications are up to date') -Message "CLI does not claim all applications are current for $($failure.Name)"
+        }
+        Assert-Condition -Condition ($script:packageMutationCount -eq 0 -and $script:dialogUpdateCount -eq 0) -Message "$($entrypoint.Name): $($failure.Name) does not open update selection or mutate packages"
+        Assert-Condition -Condition ((($script:logs | ForEach-Object Message) -join ' ') -notmatch 'token=do-not-log') -Message "$($entrypoint.Name): $($failure.Name) does not log raw command output"
+    }
+
     Set-ConsumerResultStub
     foreach ($status in @('Failed', 'Unknown', 'Cancelled')) {
         Reset-TestState
@@ -226,11 +252,11 @@ foreach ($entrypoint in $entrypoints) {
         $visibleText = $script:visibleMessages -join ' '
         if ($entrypoint.Name -eq 'GUI') {
             $noticeText = ($script:notices | ForEach-Object Message) -join ' '
-            Assert-Condition -Condition ($noticeText -match 'Update check could not be confirmed\. Review the log and retry\.' -and $script:notices[0].Warning) -Message ('GUI shows the incomplete-check warning for ' + $status)
+            Assert-Condition -Condition ($noticeText -ceq $verificationFailedMessage -and $script:notices[0].Warning) -Message ('GUI shows the incomplete-check warning for ' + $status)
             Assert-Condition -Condition ($noticeText -notmatch 'All applications are up to date') -Message ('GUI does not claim all applications are current for ' + $status)
         }
         else {
-            Assert-Condition -Condition ($visibleText -match 'Update check could not be confirmed\. Review the log and retry\.') -Message ('CLI shows the incomplete-check warning for ' + $status)
+            Assert-Condition -Condition ($visibleText -match [regex]::Escape($verificationFailedMessage)) -Message ('CLI shows the incomplete-check warning for ' + $status)
             Assert-Condition -Condition ($visibleText -notmatch 'All applications are up to date') -Message ('CLI does not claim all applications are current for ' + $status)
         }
         Assert-Condition -Condition ($script:packageMutationCount -eq 0 -and $script:dialogUpdateCount -eq 0) -Message "$($entrypoint.Name): $status does not open update selection or mutate packages"
@@ -271,10 +297,10 @@ foreach ($entrypoint in $entrypoints) {
     }
     $null = Check-ForUpdates
     if ($entrypoint.Name -eq 'GUI') {
-        Assert-Condition -Condition (($script:notices | ForEach-Object Message) -join ' ' -match 'Update check could not be confirmed') -Message 'GUI treats a status and update-count mismatch as incomplete'
+        Assert-Condition -Condition (($script:notices | ForEach-Object Message) -join ' ' -match [regex]::Escape($verificationFailedMessage)) -Message 'GUI treats a status and update-count mismatch as incomplete'
     }
     else {
-        Assert-Condition -Condition (($script:visibleMessages -join ' ') -match 'Update check could not be confirmed') -Message 'CLI treats a status and update-count mismatch as incomplete'
+        Assert-Condition -Condition (($script:visibleMessages -join ' ') -match [regex]::Escape($verificationFailedMessage)) -Message 'CLI treats a status and update-count mismatch as incomplete'
     }
 }
 

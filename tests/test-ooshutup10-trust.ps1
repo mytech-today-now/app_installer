@@ -85,6 +85,8 @@ try {
 
     $release = Get-OOShutUp10PinnedRelease
     Assert-Condition -Condition (-not $release.Uri -and -not $release.Sha256) -Message 'No unreviewed O&O release is enabled in production.'
+    $productionChildRunnerText = Get-FunctionDefinitionText -Path $productionModulePath -Name 'Start-OOVerifiedChildProcess'
+    Assert-Condition -Condition ($productionChildRunnerText.Contains('-NoProfile -NonInteractive -File') -and $productionChildRunnerText.Contains('-RedirectStandardError $standardErrorPath') -and $productionChildRunnerText.Contains('PolicyBlocked = [bool]$policyBlocked') -and $productionChildRunnerText -notmatch '(?i)-ExecutionPolicy\b') -Message 'Verified O&O children respect policy, detect blocked launch stderr, and retain no bypass option.'
 
     $fixedSharedPath = Join-Path $testRoot 'Install-OOShutUp10.ps1'
     $markerPath = Join-Path $testRoot 'approved-script-executed.txt'
@@ -247,6 +249,21 @@ try {
         -ExecutorScript $nonzeroExecutor
     Assert-Condition -Condition (-not $nonzeroResult.Success -and $nonzeroResult.ExitCode -eq 7 -and $nonzeroResult.InstallationStatus -eq 'failed') -Message 'Nonzero child status is captured and never reported as success.'
     Assert-Condition -Condition ($nonzeroResult.CleanupStatus -eq 'cleaned' -and -not (Test-Path -LiteralPath $nonzeroResult.TempDirectory)) -Message 'A nonzero child result still removes the temp script.'
+
+    $policyBefore = (Get-ExecutionPolicy -List | ForEach-Object { '{0}={1}' -f $_.Scope, $_.ExecutionPolicy }) -join ';'
+    $policyMessage = 'PowerShell policy prevented this script from starting. No policy setting was changed. Use the signed release or contact your administrator.'
+    $policyBlockedExecutor = { param($LiteralPath, $ScriptArguments) return [PSCustomObject]@{ ExitCode = 1; PolicyBlocked = $true } }.GetNewClosure()
+    $policyBlockedResult = Invoke-VerifiedOOShutUp10Script `
+        -Uri $immutableUri `
+        -ExpectedSha256 $approvedHash `
+        -TempRoot $tempRoot `
+        -DownloadScript $fakeDownload `
+        -ExecutorScript $policyBlockedExecutor
+    $policyAfter = (Get-ExecutionPolicy -List | ForEach-Object { '{0}={1}' -f $_.Scope, $_.ExecutionPolicy }) -join ';'
+    Assert-Condition -Condition (-not $policyBlockedResult.Success -and $policyBlockedResult.ExitCode -eq 1 -and $policyBlockedResult.InstallationStatus -eq 'failed' -and $policyBlockedResult.FailureReason -eq 'execution-policy-blocked') -Message 'A policy-blocked fake child returns nonzero and cannot be reported complete.'
+    Assert-Condition -Condition ($policyBlockedResult.RecoveryMessage -ceq $policyMessage) -Message 'A policy block carries the sanitized recovery message for visible reporting.'
+    Assert-Condition -Condition ($policyAfter -ceq $policyBefore) -Message 'The policy-blocked child harness leaves every execution-policy scope unchanged.'
+    Assert-Condition -Condition ($policyBlockedResult.CleanupStatus -eq 'cleaned' -and -not (Test-Path -LiteralPath $policyBlockedResult.TempDirectory)) -Message 'A policy-blocked child still cleans its verified temp script.'
 
     $invalidPowerShell = $encoding.GetBytes("function Broken {`r`n")
     $invalidPowerShellHash = Get-TestSha256 -Bytes $invalidPowerShell
@@ -420,6 +437,12 @@ try {
 
     $guiContent = [System.IO.File]::ReadAllText($guiPath)
     $cliContent = [System.IO.File]::ReadAllText($cliPath)
+    $guiRemoteHelperText = Get-FunctionDefinitionText -Path $guiPath -Name 'Install-OOShutUp10FromRemote'
+    $cliRemoteHelperText = Get-FunctionDefinitionText -Path $cliPath -Name 'Install-OOShutUp10FromRemote'
+    Assert-Condition -Condition ($guiRemoteHelperText.Contains("elseif (`$result.FailureReason -eq 'execution-policy-blocked')") -and $guiRemoteHelperText.Contains('Write-Output $result.RecoveryMessage')) -Message 'The GUI visibly reports the sanitized child policy-block message.'
+    Assert-Condition -Condition ($cliRemoteHelperText.Contains("elseif (`$result.FailureReason -eq 'execution-policy-blocked')") -and $cliRemoteHelperText.Contains('Write-Host $result.RecoveryMessage')) -Message 'The CLI visibly reports the sanitized child policy-block message.'
+    $guiInstallFunctionText = Get-FunctionDefinitionText -Path $guiPath -Name 'Install-Application'
+    Assert-Condition -Condition ($guiInstallFunctionText.Contains('execution-policy-blocked') -and $guiInstallFunctionText.Contains('$remoteResult.RecoveryMessage') -and $guiInstallFunctionText.Contains('return $false')) -Message 'The GUI policy-block path remains failed and displays the same recovery text.'
     foreach ($entryPath in @($guiPath, $cliPath)) {
         $installText = Get-FunctionDefinitionText -Path $entryPath -Name 'Install-Application'
         $parseErrors = $null

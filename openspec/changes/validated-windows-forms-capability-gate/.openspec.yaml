@@ -1,0 +1,5 @@
+schema: spec-driven
+created: 2026-10-19
+goal: Validate every documented GUI host prerequisite before GUI helper loading
+  or form construction, and start one supported CLI fallback with the original
+  arguments when GUI capability is unavailable.

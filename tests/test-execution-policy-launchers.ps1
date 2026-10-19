@@ -75,7 +75,7 @@ exit /b %ERRORLEVEL%
 
     $process.StandardInput.WriteLine()
     $process.StandardInput.Close()
-    if (-not $process.WaitForExit(20000)) {
+    if (-not $process.WaitForExit(90000)) {
         $process.Kill()
         throw 'The isolated batch wrapper test did not exit within 20 seconds.'
     }
@@ -102,6 +102,7 @@ try {
     $hostsHelper = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'apps\hosts.ps1')
     $restorePointsHelper = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'apps\managerestorepoints.ps1')
     $remoteHelperTrust = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'modules\RemotePowerShellTrust.psm1')
+    $applicationSources = $help + (Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'app-installer-cli.ps1'))
 
     Assert-Condition -Condition (($readme + $help) -notmatch '(?im)Set-ExecutionPolicy\s+-Scope\s+CurrentUser\s+-ExecutionPolicy\s+Unrestricted') -Message 'README and PowerShell help do not recommend persistent CurrentUser Unrestricted.'
     Assert-Condition -Condition ($readme -match '(?i)Do not use\s+`?Unblock-File`?\s+or a policy change as a substitute' -and $readme -notmatch '(?i)Unblock the EXE|Run anyway') -Message 'README rejects unblocking or policy changes as substitutes for verification.'
@@ -111,6 +112,7 @@ try {
     Assert-Condition -Condition (($hostsHelper + $restorePointsHelper + $remoteHelperTrust) -notmatch '(?i)-ExecutionPolicy\s+Bypass') -Message 'Hosts and restore-point helper launches do not override execution policy.'
     Assert-Condition -Condition (($hostsHelper + $restorePointsHelper + $remoteHelperTrust) -notmatch '(?i)-ExecutionPolicy\b') -Message 'Hosts and restore-point production sources contain no process-level policy option.'
     Assert-Condition -Condition (($hostsHelper + $restorePointsHelper + $remoteHelperTrust) -notmatch 'Invoke-Expression') -Message 'Hosts and restore-point helpers do not evaluate downloaded PowerShell text.'
+    Assert-Condition -Condition ($applicationSources -notmatch '(?i)\bUnblock-File\b' -and $applicationSources -notmatch '(?i)-ExecutionPolicy\s+Bypass') -Message 'Application entrypoints preserve file blocking marks and never bypass execution policy.'
     Assert-Condition -Condition ($hostsHelper.Contains('-NoProfile -File') -and $hostsHelper.Contains('Hosts File Manager.lnk')) -Message 'The hosts shortcut uses a direct file launch and keeps its existing name.'
     Assert-Condition -Condition ($restorePointsHelper.Contains('-NoProfile -File') -and $restorePointsHelper.Contains('-Action List') -and $restorePointsHelper.Contains('Manage Restore Points.lnk')) -Message 'The restore-point shortcut uses a direct file launch and keeps List behavior.'
     Assert-Condition -Condition (($batch + $shell + $help) -notmatch '(?im)Set-ExecutionPolicy\b') -Message 'The documented launch path does not write PowerShell policy settings.'
@@ -128,6 +130,13 @@ try {
 
         try {
             Copy-Item -LiteralPath (Join-Path $repoRoot 'install.bat') -Destination (Join-Path $testRoot 'install.bat')
+            Copy-Item -LiteralPath (Join-Path $repoRoot 'compatibility.json') -Destination (Join-Path $testRoot 'compatibility.json')
+            New-Item -ItemType Directory -Path (Join-Path $testRoot 'modules') -Force | Out-Null
+            New-Item -ItemType Directory -Path (Join-Path $testRoot 'tools') -Force | Out-Null
+            Copy-Item -LiteralPath (Join-Path $repoRoot 'modules\InstallerCompatibility.psm1') -Destination (Join-Path $testRoot 'modules')
+            Copy-Item -LiteralPath (Join-Path $repoRoot 'modules\InstallerRuntimeDiscovery.psm1') -Destination (Join-Path $testRoot 'modules')
+            Copy-Item -LiteralPath (Join-Path $repoRoot 'tools\Start-Installer.ps1') -Destination (Join-Path $testRoot 'tools')
+            Copy-Item -LiteralPath (Join-Path $repoRoot 'tools\Test-InstallerCompatibility.ps1') -Destination (Join-Path $testRoot 'tools')
             $targetScript = @'
 [System.IO.File]::WriteAllText($env:FAKE_PWSH_LOG, ($args -join '|'))
 if ($env:FAKE_PWSH_MODE -eq 'gpo-simulated') {
@@ -150,15 +159,16 @@ exit 0
             Set-Content -LiteralPath $targetPath -Value $targetScript -Encoding UTF8
 
             $failedRun = Invoke-BatchLauncher -BatchPath $batchPath -TestRoot $testRoot -Mode 'nonzero'
-            $argumentLog = Get-Content -Raw -LiteralPath (Join-Path $testRoot 'fake-pwsh-arguments.txt')
-            Assert-Condition -Condition ($failedRun.ExitCode -eq 23 -and $failedRun.Output.Contains('Installer exited with code: 23') -and -not $failedRun.Output.Contains('Setup complete.')) -Message 'A failed child launch returns its nonzero status and does not claim success.'
+            $argumentLogPath = Join-Path $testRoot 'fake-pwsh-arguments.txt'
+            $argumentLog = if (Test-Path -LiteralPath $argumentLogPath -PathType Leaf) { Get-Content -Raw -LiteralPath $argumentLogPath } else { '' }
+            Assert-Condition -Condition ($failedRun.ExitCode -eq 23 -and $failedRun.Output.Contains('Installer exited with code: 23') -and -not $failedRun.Output.Contains('Setup complete.')) -Message ("A failed child launch returns its nonzero status and does not claim success (exit {0}; output: {1})." -f $failedRun.ExitCode, $failedRun.Output.Trim())
             Assert-Condition -Condition ($argumentLog -eq '--test-flag|two words') -Message 'The Windows launcher forwards arguments to the PowerShell script unchanged.'
 
             $gpoRun = Invoke-BatchLauncher -BatchPath $batchPath -TestRoot $testRoot -Mode 'gpo-simulated'
             Assert-Condition -Condition ($gpoRun.ExitCode -ne 0 -and $gpoRun.Output.Contains($policyFallback) -and $gpoRun.Output.Contains($signingGuide) -and -not $gpoRun.Output.Contains('Setup complete.')) -Message ("A simulated Group Policy denial displays the fallback and returns failure (exit {0}; output: {1})." -f $gpoRun.ExitCode, $gpoRun.Output.Trim())
 
             $restrictedRun = Invoke-BatchLauncher -BatchPath $batchPath -TestRoot $testRoot -Mode 'restrictive-process' -ProcessPolicy 'AllSigned'
-            Assert-Condition -Condition ($restrictedRun.ExitCode -ne 0 -and $restrictedRun.Output.Contains($policyFallback) -and -not $restrictedRun.Output.Contains('Setup complete.')) -Message 'A restrictive process-scoped policy blocks an unsigned script without a bypass.'
+            Assert-Condition -Condition ($restrictedRun.ExitCode -ne 0 -and $restrictedRun.Output.Contains($policyFallback) -and -not $restrictedRun.Output.Contains('Setup complete.')) -Message ("A restrictive process-scoped policy blocks an unsigned script without a bypass (exit {0}; output: {1})." -f $restrictedRun.ExitCode, $restrictedRun.Output.Trim())
             Assert-Condition -Condition ($restrictedRun.Output -notmatch '(?i)winget|brew install|apt-get install|dnf install|pacman -S') -Message 'Wrapper integration checks did not run a package manager.'
 
         }

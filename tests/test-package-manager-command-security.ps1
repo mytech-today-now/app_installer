@@ -38,7 +38,9 @@ function Assert-ArgumentList {
         [string]$Context
     )
 
-    Assert-Condition -Condition ($Actual.Count -eq $Expected.Count) -Message "$Context argument count is exact"
+    $actualJson = ConvertTo-Json -InputObject @($Actual) -Compress
+    $expectedJson = ConvertTo-Json -InputObject @($Expected) -Compress
+    Assert-Condition -Condition ($Actual.Count -eq $Expected.Count) -Message ("{0} argument count is exact (actual: {1}; expected: {2})" -f $Context, $actualJson, $expectedJson)
     for ($index = 0; $index -lt $Expected.Count; $index++) {
         Assert-Condition -Condition ($Actual[$index] -ceq $Expected[$index]) -Message "$Context argument $index is exact"
     }
@@ -201,7 +203,10 @@ exec "$PACKAGE_MANAGER_TEST_PWSH" -NoLogo -NoProfile -File "$PACKAGE_MANAGER_TES
         Assert-Condition -Condition ($run.ResultCode -eq 23) -Message "$($testCase.Manager) adapter preserves the fake process exit code"
         Assert-Condition -Condition (Test-Path -LiteralPath $capturePath) -Message "$($testCase.Manager) adapter invokes only the fake executable"
         $actualArguments = @(Get-Content -LiteralPath $capturePath -Raw | ConvertFrom-Json)
-        Assert-ArgumentList -Actual $actualArguments -Expected $testCase.Expected -Context $testCase.Manager
+        if ($actualArguments.Count -eq 1 -and $actualArguments[0] -is [System.Array]) {
+            $actualArguments = @($actualArguments[0])
+        }
+        Assert-ArgumentList -Actual $actualArguments -Expected $testCase.Expected -Context ("{0} capture: {1}" -f $testCase.Manager, $run.DisplayText)
         Assert-Condition -Condition ($run.DisplayText.Contains('fake manager output')) -Message "$($testCase.Manager) native output remains available for diagnostics"
     }
     $script:QuietAssertions = $false

@@ -21,7 +21,7 @@ $installRoot = Join-Path $testRoot 'installer'
 $updateScriptPath = Join-Path (Join-Path $installRoot 'apps') 'winget-update.ps1'
 $checkCount = 0
 $originalEnvironment = @{}
-$environmentNames = @('PATH', 'PATHEXT', 'USERPROFILE', 'HOME', 'LOCALAPPDATA', 'APPDATA', 'TEMP', 'TMP', 'CLI_TRACE', 'FAKE_WINGET_EXIT_CODE', 'OS')
+$environmentNames = @('PATH', 'PATHEXT', 'USERPROFILE', 'HOME', 'LOCALAPPDATA', 'APPDATA', 'TEMP', 'TMP', 'CLI_TRACE', 'FAKE_WINGET_EXIT_CODE', 'OS', 'APP_INSTALLER_RUNTIME_HANDOFF_PATH', 'APP_INSTALLER_RUNTIME_HANDOFF_COMPONENT')
 
 if (-not $testRoot.StartsWith($tempBase.TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::OrdinalIgnoreCase)) {
     throw 'Temporary test directory is outside the system temporary directory.'
@@ -107,15 +107,20 @@ exit /b %FAKE_WINGET_EXIT_CODE%
     $env:FAKE_WINGET_EXIT_CODE = '0'
 
     # Run the real entrypoint in preview mode with an isolated user profile.
-    $script:CliEntryOutput = @()
-    function Write-Host {
+    # Mark this process as the validated runtime handoff so the test exercises
+    # the requested engine instead of launching a second engine without mocks.
+    $env:APP_INSTALLER_RUNTIME_HANDOFF_PATH = (Get-Process -Id $PID -ErrorAction Stop).Path
+    $env:APP_INSTALLER_RUNTIME_HANDOFF_COMPONENT = 'WindowsCli'
+    $global:AppInstallerCliWhatIfOutput = @()
+    function global:Write-Host {
         param([object]$Object, [object]$ForegroundColor, [object]$BackgroundColor, [switch]$NoNewline)
-        $script:CliEntryOutput += [string]$Object
+        $global:AppInstallerCliWhatIfOutput += [string]$Object
     }
     . $cliPath -Action InstallProfile -Profile $profilePath -WhatIf
-    Remove-Item Function:\Write-Host -ErrorAction SilentlyContinue
-    $entrypointOutput = $script:CliEntryOutput -join [Environment]::NewLine
-    Assert-Condition -Condition ($entrypointOutput -notmatch 'Fatal error' -and $entrypointOutput -match '\[PREVIEW\] Would install.*Google Chrome \[Google\.Chrome\]') -Message 'Profile -WhatIf reaches the CLI preview without an execution claim or fatal error.'
+    Remove-Item -LiteralPath 'Function:\Write-Host' -ErrorAction SilentlyContinue
+    $entrypointOutput = $global:AppInstallerCliWhatIfOutput -join [Environment]::NewLine
+    Remove-Variable -Name AppInstallerCliWhatIfOutput -Scope Global -ErrorAction SilentlyContinue
+    Assert-Condition -Condition ($entrypointOutput -notmatch 'Fatal error' -and $entrypointOutput -match '\[PREVIEW\] Would install.*Google Chrome \[Google\.Chrome\]') -Message ("Profile -WhatIf reaches the CLI preview without an execution claim or fatal error. Output: {0}" -f $entrypointOutput)
     Assert-Condition -Condition ((Read-TraceLines -Path $tracePath).Count -eq 0) -Message 'CLI startup and profile preview made no package-manager calls.'
     Assert-Condition -Condition (-not (Test-Path -LiteralPath (Join-Path $profileRoot 'myTech.Today'))) -Message 'CLI preview created no installed copy or log directory.'
 

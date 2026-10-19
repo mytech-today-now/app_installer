@@ -9,6 +9,7 @@ $script:OOShutUp10Release = [PSCustomObject]@{
     Sha256          = $null
     SignerThumbprint = $null
 }
+$script:OOExecutionPolicyRecoveryMessage = 'PowerShell policy prevented this script from starting. No policy setting was changed. Use the signed release or contact your administrator.'
 
 function Get-OOShutUp10PinnedRelease {
     [CmdletBinding()]
@@ -292,8 +293,27 @@ function Start-OOVerifiedChildProcess {
         $argumentString += ' ' + ($ScriptArguments -join ' ')
     }
 
-    $child = Start-Process -FilePath $hostPath -ArgumentList $argumentString -WindowStyle Hidden -Wait -PassThru -ErrorAction Stop
-    return [int]$child.ExitCode
+    $standardErrorPath = Join-Path (Split-Path -Parent $LiteralPath) ('.ooshutup-child-stderr-' + [guid]::NewGuid().ToString('N') + '.txt')
+    try {
+        $child = Start-Process -FilePath $hostPath -ArgumentList $argumentString -WindowStyle Hidden -Wait -PassThru -RedirectStandardError $standardErrorPath -ErrorAction Stop
+        $standardError = if ([System.IO.File]::Exists($standardErrorPath)) {
+            [System.IO.File]::ReadAllText($standardErrorPath)
+        }
+        else {
+            ''
+        }
+        $policyBlocked = ($child.ExitCode -ne 0) -and ($standardError -match '(?im)(execution policy|running scripts is disabled|not digitally signed)')
+
+        return [PSCustomObject]@{
+            ExitCode      = [int]$child.ExitCode
+            PolicyBlocked = [bool]$policyBlocked
+        }
+    }
+    finally {
+        if ([System.IO.File]::Exists($standardErrorPath)) {
+            Remove-Item -LiteralPath $standardErrorPath -Force -ErrorAction SilentlyContinue
+        }
+    }
 }
 
 function Invoke-VerifiedOOShutUp10Script {
@@ -325,6 +345,8 @@ function Invoke-VerifiedOOShutUp10Script {
         InstallationStatus  = 'not-started'
         ExitCode            = $null
         FailureReason       = $null
+        PolicyBlocked       = $false
+        RecoveryMessage     = $null
         CleanupStatus       = 'not-required'
         TempDirectory       = $null
     }
@@ -436,6 +458,15 @@ function Invoke-VerifiedOOShutUp10Script {
                                 elseif ($executionResult -is [int]) {
                                     $result.ExitCode = $executionResult
                                 }
+                                $policyBlockedProperty = if ($executionResult -and $executionResult.PSObject) {
+                                    $executionResult.PSObject.Properties['PolicyBlocked']
+                                }
+                                else {
+                                    $null
+                                }
+                                if ($null -ne $policyBlockedProperty -and [bool]$policyBlockedProperty.Value) {
+                                    $result.PolicyBlocked = $true
+                                }
 
                                 if ($null -eq $result.ExitCode) {
                                     $result.InstallationStatus = 'unknown'
@@ -447,7 +478,13 @@ function Invoke-VerifiedOOShutUp10Script {
                                 }
                                 else {
                                     $result.InstallationStatus = 'failed'
-                                    $result.FailureReason = 'child-nonzero-exit'
+                                    if ($result.PolicyBlocked) {
+                                        $result.FailureReason = 'execution-policy-blocked'
+                                        $result.RecoveryMessage = $script:OOExecutionPolicyRecoveryMessage
+                                    }
+                                    else {
+                                        $result.FailureReason = 'child-nonzero-exit'
+                                    }
                                 }
                             }
                         }

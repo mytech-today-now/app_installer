@@ -2,6 +2,7 @@
 
 $ErrorActionPreference = 'Stop'
 
+
 function ConvertTo-WindowsCommandLineArgument {
     param(
         [Parameter(Mandatory = $true)]
@@ -147,6 +148,26 @@ function Invoke-ElevatedInstall {
 }
 
 if ($MyInvocation.InvocationName -ne '.') {
+    $compatibilityModulePath = Join-Path $PSScriptRoot 'modules\InstallerCompatibility.psm1'
+    if (-not (Test-Path -LiteralPath $compatibilityModulePath -PathType Leaf)) {
+        [Console]::Error.WriteLine('[ERROR] The compatibility contract module is missing. Elevation was not started.')
+        exit 1
+    }
+
+    try {
+        Import-Module -Name $compatibilityModulePath -Force -DisableNameChecking -ErrorAction Stop | Out-Null
+        $hostInfo = Get-InstallerHostInfo
+        $hostDecision = Test-InstallerCompatibility -Component WindowsHost -HostInfo $hostInfo
+        if (-not $hostDecision.IsSupported) {
+            [Console]::Error.WriteLine($hostDecision.Message)
+            exit 1
+        }
+    }
+    catch {
+        [Console]::Error.WriteLine("[ERROR] Windows support could not be verified. Elevation was not started. $($_.Exception.Message)")
+        exit 1
+    }
+
     $helperExitCode = Invoke-ElevatedInstall -Arguments @($args)
     exit $helperExitCode
 }

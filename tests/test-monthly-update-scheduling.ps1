@@ -12,7 +12,11 @@ if ($env:OS -notmatch 'Windows') {
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $tempBase = [System.IO.Path]::GetFullPath([System.IO.Path]::GetTempPath())
 $testRoot = [System.IO.Path]::GetFullPath((Join-Path $tempBase ('app-installer-monthly-task-' + [guid]::NewGuid().ToString('N'))))
-$pwshPath = (Get-Command pwsh -ErrorAction Stop).Source
+$engineExecutableName = if ($PSVersionTable.PSEdition -eq 'Core') { 'pwsh.exe' } else { 'powershell.exe' }
+$cliEnginePath = Join-Path $PSHOME $engineExecutableName
+if (-not (Test-Path -LiteralPath $cliEnginePath -PathType Leaf)) {
+    throw "The current PowerShell engine executable could not be resolved at $cliEnginePath."
+}
 $checkCount = 0
 
 if (-not $testRoot.StartsWith($tempBase.TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::OrdinalIgnoreCase)) {
@@ -65,8 +69,12 @@ function New-Scenario {
         [switch]$SeedOldTask,
         [switch]$FailFinalCreate,
         [switch]$OmitUpdateScript,
-        [switch]$SimulateNonWindows,
         [switch]$InvalidSchedulerQuery,
+        [switch]$WhatIf,
+        [switch]$NonInteractive,
+        [switch]$FakeWingetUnavailable,
+        [switch]$FakeWingetReportsInstalled,
+        [switch]$TraceAllWingetCalls,
         [ValidateSet('cli', 'updater')][string]$Mode = 'cli',
         [string]$PackageIds = '',
         [int]$WingetExitCode = 0
@@ -75,19 +83,46 @@ function New-Scenario {
     $scenarioRoot = Join-Path $testRoot $Name
     $checkoutRoot = Join-Path $scenarioRoot 'checkout'
     $userProfile = Join-Path $scenarioRoot 'user'
+    $scenarioBinPath = Join-Path $scenarioRoot 'bin'
     New-Item -ItemType Directory -Path $checkoutRoot -Force | Out-Null
     New-Item -ItemType Directory -Path (Join-Path $checkoutRoot 'modules') -Force | Out-Null
     New-Item -ItemType Directory -Path $userProfile -Force | Out-Null
-    foreach ($fileName in @('app-installer-cli.ps1', 'apps-manifest.json', 'platform-detect.ps1')) {
+    New-Item -ItemType Directory -Path $scenarioBinPath -Force | Out-Null
+    foreach ($fileName in @('app-installer-cli.ps1', 'apps-manifest.json', 'platform-detect.ps1', 'compatibility.json')) {
         Copy-Item -LiteralPath (Join-Path $repositoryRoot $fileName) -Destination $checkoutRoot -Force
     }
-    Copy-Item -LiteralPath (Join-Path $repositoryRoot 'apps') -Destination (Join-Path $checkoutRoot 'apps') -Recurse -Force
-    Copy-Item -LiteralPath (Join-Path $repositoryRoot 'modules\AppInstallerCore.psm1') -Destination (Join-Path $checkoutRoot 'modules\AppInstallerCore.psm1') -Force
+    $sourceManifest = Get-Content -LiteralPath (Join-Path $repositoryRoot 'apps-manifest.json') -Raw | ConvertFrom-Json
+    $packageFixture = @($sourceManifest.apps | Where-Object { $_.packages.winget -ceq 'Box.Box' } | Select-Object -First 1)
+    if ($packageFixture.Count -ne 1) {
+        throw 'The monthly task fixture package Box.Box was not found in apps-manifest.json.'
+    }
+    $packageFixture[0].platform = 'Windows'
+    $scenarioManifest = [PSCustomObject]@{
+        '$schema' = [string]$sourceManifest.'$schema'
+        version = [string]$sourceManifest.version
+        generated = [string]$sourceManifest.generated
+        description = 'Disposable single-package fixture for monthly update scheduling tests.'
+        apps = @($packageFixture)
+    }
+    [System.IO.File]::WriteAllText(
+        (Join-Path $checkoutRoot 'apps-manifest.json'),
+        ($scenarioManifest | ConvertTo-Json -Depth 10),
+        (New-Object System.Text.UTF8Encoding($false))
+    )
+    $checkoutAppsPath = Join-Path $checkoutRoot 'apps'
+    New-Item -ItemType Directory -Path $checkoutAppsPath -Force | Out-Null
+    Copy-Item -LiteralPath (Join-Path (Join-Path $repositoryRoot 'apps') 'winget-update.ps1') -Destination $checkoutAppsPath -Force
+    foreach ($moduleName in @('AppInstallerCore.psm1', 'InstallerCompatibility.psm1', 'InstallerRuntimeDiscovery.psm1')) {
+        $sourceModulePath = Join-Path (Join-Path $repositoryRoot 'modules') $moduleName
+        $targetModulePath = Join-Path (Join-Path $checkoutRoot 'modules') $moduleName
+        Copy-Item -LiteralPath $sourceModulePath -Destination $targetModulePath -Force
+    }
 
     $installedUpdaterPath = Join-Path (Join-Path (Join-Path $userProfile 'myTech.Today\AppInstaller') 'apps') 'winget-update.ps1'
     $statePath = Join-Path $scenarioRoot 'fake-task-state.json'
     $tracePath = Join-Path $scenarioRoot 'fake-schtasks-trace.txt'
     $wingetTracePath = Join-Path $scenarioRoot 'fake-winget-updates.txt'
+    $nativeWingetTracePath = Join-Path $scenarioRoot 'fake-native-winget-trace.txt'
     $driverPath = Join-Path $scenarioRoot 'driver.ps1'
     $initialTasks = @()
     if ($SeedOldTask) {
@@ -101,6 +136,14 @@ function New-Scenario {
     [System.IO.File]::WriteAllText($statePath, $stateJson, $utf8)
     [System.IO.File]::WriteAllText($tracePath, '', $utf8)
     [System.IO.File]::WriteAllText($wingetTracePath, '', $utf8)
+    [System.IO.File]::WriteAllText($nativeWingetTracePath, '', $utf8)
+    $fakeNativeWingetText = @'
+@echo off
+>>"%FAKE_NATIVE_WINGET_TRACE%" echo %*
+if /I "%1"=="show" echo Fake dependency metadata.
+exit /b %FAKE_WINGET_EXIT_CODE%
+'@
+    [System.IO.File]::WriteAllText((Join-Path $scenarioBinPath 'winget.cmd'), $fakeNativeWingetText, [System.Text.Encoding]::ASCII)
 
     $driverText = @'
 $ErrorActionPreference = 'Continue'
@@ -221,10 +264,20 @@ function global:schtasks.exe {
     $global:LASTEXITCODE = 2
 }
 
+if ($env:FAKE_WINGET_AVAILABLE -ne '0') {
 function global:winget {
     param([Parameter(ValueFromRemainingArguments = $true)][string[]]$PackageArgs)
     if ($PackageArgs -contains 'list') {
-        Write-Output 'No fake winget packages are installed.'
+        if ($env:FAKE_TRACE_ALL_WINGET -eq '1') {
+            [System.IO.File]::AppendAllText($env:FAKE_WINGET_TRACE, (($PackageArgs -join '|') + [Environment]::NewLine))
+        }
+        if ($env:FAKE_WINGET_INSTALLED -eq '1') {
+            Write-Output 'Name Id Version'
+            Write-Output 'Box Drive Box.Box 1.0'
+        }
+        else {
+            Write-Output 'No fake winget packages are installed.'
+        }
         $global:LASTEXITCODE = 0
         return
     }
@@ -248,6 +301,7 @@ function global:winget {
     Write-Output 'Fake winget command.'
     $global:LASTEXITCODE = 0
 }
+}
 
 if ($env:DRIVER_MODE -eq 'updater') {
     function global:Test-Path {
@@ -269,12 +323,17 @@ if ($env:FAKE_OMIT_UPDATE_SCRIPT -eq '1') {
     }
 }
 
+$cliParameters = @{ Action = $env:CLI_ACTION }
 if (-not [string]::IsNullOrWhiteSpace($env:CLI_PROFILE)) {
-    & $env:CLI_SCRIPT -Action $env:CLI_ACTION -Profile $env:CLI_PROFILE
+    $cliParameters.Profile = $env:CLI_PROFILE
 }
-else {
-    & $env:CLI_SCRIPT -Action $env:CLI_ACTION
+if ($env:CLI_WHATIF -eq '1') {
+    $cliParameters.WhatIf = $true
 }
+if ($env:CLI_NONINTERACTIVE -eq '1') {
+    $cliParameters.Confirm = $false
+}
+& $env:CLI_SCRIPT @cliParameters
 '@
     [System.IO.File]::WriteAllText($driverPath, $driverText, $utf8)
 
@@ -284,6 +343,7 @@ else {
         StatePath = $statePath
         TracePath = $tracePath
         WingetTracePath = $wingetTracePath
+        NativeWingetTracePath = $nativeWingetTracePath
         DriverPath = $driverPath
         CliPath = Join-Path $checkoutRoot 'app-installer-cli.ps1'
         InputText = $InputText
@@ -291,8 +351,12 @@ else {
         ProfilePath = $ProfilePath
         FailFinalCreate = [bool]$FailFinalCreate
         OmitUpdateScript = [bool]$OmitUpdateScript
-        SimulateNonWindows = [bool]$SimulateNonWindows
         InvalidSchedulerQuery = [bool]$InvalidSchedulerQuery
+        WhatIf = [bool]$WhatIf
+        NonInteractive = [bool]$NonInteractive
+        FakeWingetUnavailable = [bool]$FakeWingetUnavailable
+        FakeWingetReportsInstalled = [bool]$FakeWingetReportsInstalled
+        TraceAllWingetCalls = [bool]$TraceAllWingetCalls
         Mode = $Mode
         PackageIds = $PackageIds
         WingetExitCode = $WingetExitCode
@@ -304,7 +368,7 @@ function Invoke-Scenario {
     param([Parameter(Mandatory = $true)]$Scenario)
 
     $startInfo = New-Object System.Diagnostics.ProcessStartInfo
-    $startInfo.FileName = $pwshPath
+    $startInfo.FileName = $cliEnginePath
     $startInfo.Arguments = '-NoProfile -File "{0}"' -f $Scenario.DriverPath
     $startInfo.WorkingDirectory = $Scenario.Root
     $startInfo.UseShellExecute = $false
@@ -317,22 +381,32 @@ function Invoke-Scenario {
     $environment['HOME'] = $Scenario.UserProfile
     $environment['APPDATA'] = Join-Path $Scenario.UserProfile 'AppData\Roaming'
     $environment['LOCALAPPDATA'] = Join-Path $Scenario.UserProfile 'AppData\Local'
+    $environment['PATH'] = Join-Path $env:SystemRoot 'System32'
+    if (-not $Scenario.FakeWingetUnavailable) {
+        $environment['PATH'] = (Join-Path $Scenario.Root 'bin') + ';' + $environment['PATH']
+    }
+    $environment['PATHEXT'] = '.COM;.EXE;.BAT;.CMD'
     $environment['TEMP'] = $Scenario.Root
     $environment['TMP'] = $Scenario.Root
     $environment['FAKE_TASK_STATE'] = $Scenario.StatePath
     $environment['FAKE_SCHTASKS_TRACE'] = $Scenario.TracePath
     $environment['FAKE_WINGET_TRACE'] = $Scenario.WingetTracePath
+    $environment['FAKE_NATIVE_WINGET_TRACE'] = $Scenario.NativeWingetTracePath
     $environment['FAKE_WINGET_EXIT_CODE'] = [string]$Scenario.WingetExitCode
     $environment['FAKE_FAIL_FINAL_CREATE'] = if ($Scenario.FailFinalCreate) { '1' } else { '0' }
     $environment['FAKE_OMIT_UPDATE_SCRIPT'] = if ($Scenario.OmitUpdateScript) { '1' } else { '0' }
     $environment['FAKE_INVALID_SCHEDULER_QUERY'] = if ($Scenario.InvalidSchedulerQuery) { '1' } else { '0' }
-    if ($Scenario.SimulateNonWindows) {
-        $environment['OS'] = 'TestOS'
-    }
+    $environment['FAKE_WINGET_AVAILABLE'] = if ($Scenario.FakeWingetUnavailable) { '0' } else { '1' }
+    $environment['FAKE_WINGET_INSTALLED'] = if ($Scenario.FakeWingetReportsInstalled) { '1' } else { '0' }
+    $environment['FAKE_TRACE_ALL_WINGET'] = if ($Scenario.TraceAllWingetCalls) { '1' } else { '0' }
     $environment['CLI_SCRIPT'] = $Scenario.CliPath
+    $environment['APP_INSTALLER_RUNTIME_HANDOFF_PATH'] = $cliEnginePath
+    $environment['APP_INSTALLER_RUNTIME_HANDOFF_COMPONENT'] = 'WindowsCli'
     $environment['CLI_ACTION'] = $Scenario.Action
     $environment['CLI_PROFILE'] = $Scenario.ProfilePath
     $environment['CLI_INPUT_BASE64'] = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($Scenario.InputText))
+    $environment['CLI_WHATIF'] = if ($Scenario.WhatIf) { '1' } else { '0' }
+    $environment['CLI_NONINTERACTIVE'] = if ($Scenario.NonInteractive) { '1' } else { '0' }
     $environment['DRIVER_MODE'] = $Scenario.Mode
     $environment['UPDATE_SCRIPT'] = Join-Path $repositoryRoot 'apps\winget-update.ps1'
     $environment['PACKAGE_IDS'] = $Scenario.PackageIds
@@ -400,6 +474,49 @@ try {
     Assert-Condition -Condition ($menuResult.ExitCode -eq 0) -Message 'Menu exit completes successfully'
     Assert-NoTaskMutation -Result $menuResult -Description 'Menu exit' -BeforeDigest $menuDigest
 
+    $installAll = New-Scenario -Name 'install-all-success' -Action 'InstallAll' -TraceAllWingetCalls
+    $installAllResult = Invoke-Scenario -Scenario $installAll
+    $installAllCalls = [string](Get-Content -LiteralPath $installAll.WingetTracePath -Raw)
+    Assert-Condition -Condition ($installAllResult.Output -match 'Loaded 1 applications for Windows') -Message 'Single-app registry remains an array in both PowerShell engines'
+    Assert-Condition -Condition ($installAllResult.Output -match 'Successful: 1' -and $installAllResult.Output -match 'Failed: 0') -Message 'InstallAll classifies a successful fake package operation'
+    Assert-Condition -Condition ($installAllCalls -match '(?m)^install\|--id\|Box\.Box\|') -Message 'InstallAll invokes the fake manager with the selected package ID'
+
+    $installAllFailure = New-Scenario -Name 'install-all-failure' -Action 'InstallAll' -WingetExitCode 23
+    $installAllFailureResult = Invoke-Scenario -Scenario $installAllFailure
+    Assert-Condition -Condition ($installAllFailureResult.Output -match 'Installation failed:.*Exit code: 23' -and $installAllFailureResult.Output -match 'Failed: 1') -Message 'InstallAll reports a nonzero fake package result as failure'
+
+    $installAllPreview = New-Scenario -Name 'install-all-whatif' -Action 'InstallAll' -WhatIf -TraceAllWingetCalls
+    $installAllPreviewResult = Invoke-Scenario -Scenario $installAllPreview
+    Assert-Condition -Condition ($installAllPreviewResult.Output -match '\[PREVIEW\].*Box Drive \[Box\.Box\]') -Message 'InstallAll WhatIf previews the selected app'
+    Assert-Condition -Condition ([string]::IsNullOrWhiteSpace([string](Get-Content -LiteralPath $installAllPreview.WingetTracePath -Raw)) -and [string]::IsNullOrWhiteSpace([string](Get-Content -LiteralPath $installAllPreview.NativeWingetTracePath -Raw))) -Message 'InstallAll WhatIf does not query or invoke the fake package manager'
+
+    $installMissing = New-Scenario -Name 'install-missing-success' -Action 'InstallMissing' -TraceAllWingetCalls
+    $installMissingResult = Invoke-Scenario -Scenario $installMissing
+    $installMissingCalls = @(([string](Get-Content -LiteralPath $installMissing.WingetTracePath -Raw)) -split '\r?\n' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    Assert-Condition -Condition ($installMissingResult.Output -match 'Installed: 1' -and $installMissingResult.Output -match 'Skipped: 0' -and $installMissingResult.Output -match 'Failed: 0') -Message 'InstallMissing installs an absent app through the fake manager'
+    Assert-Condition -Condition ($installMissingCalls.Count -eq 2 -and $installMissingCalls[0] -match '^list\|' -and $installMissingCalls[1] -match '^install\|--id\|Box\.Box\|') -Message 'InstallMissing queries installed state before invoking the selected package install'
+
+    $installMissingInstalled = New-Scenario -Name 'install-missing-already-installed' -Action 'InstallMissing' -NonInteractive -FakeWingetReportsInstalled -TraceAllWingetCalls
+    $installMissingInstalledResult = Invoke-Scenario -Scenario $installMissingInstalled
+    $installMissingInstalledCalls = @(([string](Get-Content -LiteralPath $installMissingInstalled.WingetTracePath -Raw)) -split '\r?\n' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    Assert-Condition -Condition ($installMissingInstalledResult.Output -match 'already installed' -and $installMissingInstalledResult.Output -match 'Skipped: 1') -Message 'Noninteractive InstallMissing skips an already installed app'
+    Assert-Condition -Condition ($installMissingInstalledCalls.Count -eq 1 -and $installMissingInstalledCalls[0] -match '^list\|' -and $installMissingInstalledCalls -notmatch '^install\|') -Message 'InstallMissing does not reinstall an already installed app without confirmation'
+
+    $installMissingPreview = New-Scenario -Name 'install-missing-whatif' -Action 'InstallMissing' -WhatIf -TraceAllWingetCalls
+    $installMissingPreviewResult = Invoke-Scenario -Scenario $installMissingPreview
+    Assert-Condition -Condition ($installMissingPreviewResult.Output -match 'Installed-package state was not queried') -Message 'InstallMissing WhatIf does not query installed state'
+    Assert-Condition -Condition ([string]::IsNullOrWhiteSpace([string](Get-Content -LiteralPath $installMissingPreview.WingetTracePath -Raw)) -and [string]::IsNullOrWhiteSpace([string](Get-Content -LiteralPath $installMissingPreview.NativeWingetTracePath -Raw))) -Message 'InstallMissing WhatIf does not launch the fake package manager'
+
+    $missingWinget = New-Scenario -Name 'missing-winget' -Action 'InstallAll' -InputText ('N' + [Environment]::NewLine) -FakeWingetUnavailable
+    $missingWingetResult = Invoke-Scenario -Scenario $missingWinget
+    Assert-Condition -Condition ($missingWingetResult.ExitCode -eq 0 -and $missingWingetResult.Output -match 'winget.*not available|not available.*winget') -Message 'Missing WinGet is reported and safely declined'
+    Assert-Condition -Condition ([string]::IsNullOrWhiteSpace([string](Get-Content -LiteralPath $missingWinget.WingetTracePath -Raw))) -Message 'Missing WinGet does not launch a package process'
+
+    $invalidAction = New-Scenario -Name 'invalid-action' -Action 'NotARealAction'
+    $invalidActionResult = Invoke-Scenario -Scenario $invalidAction
+    Assert-Condition -Condition (($invalidActionResult.Output + $invalidActionResult.Error) -match "Cannot validate argument on parameter 'Action'") -Message 'Unsupported CLI actions fail explicitly during parameter binding'
+    Assert-Condition -Condition ([string]::IsNullOrWhiteSpace([string](Get-Content -LiteralPath $invalidAction.WingetTracePath -Raw))) -Message 'An invalid action launches no package process'
+
     $missingProfile = Join-Path $testRoot 'failed-action\missing-profile.json'
     $failedAction = New-Scenario -Name 'failed-action' -Action 'InstallProfile' -ProfilePath $missingProfile
     $failedDigest = Get-FileDigest -Path $failedAction.StatePath
@@ -431,11 +548,46 @@ try {
     Assert-Condition -Condition ($invalidQueryResult.Output -match 'Task Scheduler returned invalid XML') -Message 'Invalid scheduler output fails closed'
     Assert-NoTaskMutation -Result $invalidQueryResult -Description 'Invalid scheduler output' -BeforeDigest $invalidQueryDigest
 
-    $nonWindows = New-Scenario -Name 'non-windows' -Action 'DisableMonthlyUpdates' -SimulateNonWindows
-    $nonWindowsDigest = Get-FileDigest -Path $nonWindows.StatePath
-    $nonWindowsResult = Invoke-Scenario -Scenario $nonWindows
-    Assert-Condition -Condition ($nonWindowsResult.Output -match 'available only on Windows') -Message 'Non-Windows scheduling is reported as unavailable'
-    Assert-NoTaskMutation -Result $nonWindowsResult -Description 'Non-Windows CLI' -BeforeDigest $nonWindowsDigest
+    $sourceCliPath = Join-Path $repositoryRoot 'app-installer-cli.ps1'
+    $cliTokens = $null
+    $cliParseErrors = $null
+    $cliAst = [System.Management.Automation.Language.Parser]::ParseFile($sourceCliPath, [ref]$cliTokens, [ref]$cliParseErrors)
+    if ($cliParseErrors.Count -gt 0) {
+        throw "Cannot inspect Disable-MonthlyUpdateTask because app-installer-cli.ps1 has a parse error: $($cliParseErrors[0].Message)"
+    }
+    $disableTaskFunction = $cliAst.Find({
+            param($node)
+            $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Disable-MonthlyUpdateTask'
+        }, $true)
+    if (-not $disableTaskFunction) {
+        throw 'Disable-MonthlyUpdateTask was not found in the CLI source.'
+    }
+
+    $originalOs = [Environment]::GetEnvironmentVariable('OS', 'Process')
+    $global:NonWindowsGuardOutput = @()
+    $global:NonWindowsSchedulerQueryCount = 0
+    function global:Write-Host {
+        param([object]$Object, [object]$ForegroundColor, [object]$BackgroundColor, [switch]$NoNewline)
+        $global:NonWindowsGuardOutput += [string]$Object
+    }
+    function global:Get-MonthlyUpdateTaskQuery {
+        $global:NonWindowsSchedulerQueryCount++
+        throw 'The non-Windows scheduling guard reached the scheduler query.'
+    }
+    try {
+        $env:OS = 'TestOS'
+        . ([scriptblock]::Create($disableTaskFunction.Extent.Text))
+        $nonWindowsResult = Disable-MonthlyUpdateTask
+    }
+    finally {
+        [Environment]::SetEnvironmentVariable('OS', $originalOs, 'Process')
+        Remove-Item -LiteralPath 'Function:\Write-Host' -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath 'Function:\Get-MonthlyUpdateTaskQuery' -ErrorAction SilentlyContinue
+    }
+    Assert-Condition -Condition ($nonWindowsResult -eq $false) -Message 'Non-Windows scheduling returns refusal before scheduler access'
+    Assert-Condition -Condition (($global:NonWindowsGuardOutput -join [Environment]::NewLine) -match 'available only on Windows') -Message 'Non-Windows scheduling explains that it is unavailable'
+    Assert-Condition -Condition ($global:NonWindowsSchedulerQueryCount -eq 0) -Message 'Non-Windows scheduling never queries or changes task state'
+    Remove-Variable -Name NonWindowsGuardOutput, NonWindowsSchedulerQueryCount -Scope Global -ErrorAction SilentlyContinue
 
     $enabled = New-Scenario -Name 'confirmed-opt-in' -Action 'EnableMonthlyUpdates' -InputText ('1' + [Environment]::NewLine + 'Y' + [Environment]::NewLine)
     $enabledResult = Invoke-Scenario -Scenario $enabled
@@ -448,6 +600,10 @@ try {
         $taskDocument = New-Object System.Xml.XmlDocument
         $taskDocument.LoadXml([string]$enabledTask[0].Xml)
         $taskArgs = $taskDocument.SelectSingleNode("//*[local-name()='Exec']/*[local-name()='Arguments']").InnerText
+        $taskAuthor = $taskDocument.SelectSingleNode("//*[local-name()='RegistrationInfo']/*[local-name()='Author']").InnerText
+        $taskDescription = $taskDocument.SelectSingleNode("//*[local-name()='RegistrationInfo']/*[local-name()='Description']").InnerText
+        $actionsContext = $taskDocument.SelectSingleNode("//*[local-name()='Actions']").GetAttribute('Context')
+        $principalId = $taskDocument.SelectSingleNode("//*[local-name()='Principal']").GetAttribute('id')
         $taskRunLevel = $taskDocument.SelectSingleNode("//*[local-name()='RunLevel']").InnerText
         $taskIdentity = $taskDocument.SelectSingleNode("//*[local-name()='UserId']").InnerText
         $taskDay = $taskDocument.SelectSingleNode("//*[local-name()='ScheduleByMonth']/*[local-name()='DaysOfMonth']/*[local-name()='Day']").InnerText
@@ -455,11 +611,12 @@ try {
         $taskScriptPath = Join-Path (Join-Path (Join-Path $enabled.UserProfile 'myTech.Today\AppInstaller') 'apps') 'winget-update.ps1'
         $expectedIdentity = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
         Assert-Condition -Condition ($enabledResult.Output.Contains("Updater script: $taskScriptPath")) -Message 'Consent summary shows the installed updater script path'
-        Assert-Condition -Condition ($taskScope -match '^[A-Za-z0-9][A-Za-z0-9._ +()\-]*$' -and $taskArgs -notmatch '--all') -Message 'Task action carries only the selected winget package scope'
+        Assert-Condition -Condition ($taskScope -ceq 'Box.Box' -and $taskArgs -notmatch '--all') -Message 'Task action preserves the exact selected winget package ID'
         Assert-Condition -Condition ($taskArgs -match '(?i)(^|\s)-NoProfile\s+-File\b' -and $taskArgs -notmatch '(?i)-ExecutionPolicy\s+Bypass') -Message 'Scheduled task honors the configured PowerShell execution policy'
         Assert-Condition -Condition ($enabledResult.Output.Contains($taskScope)) -Message 'The displayed package scope matches the task action'
         Assert-Condition -Condition ($taskArgs.Contains($taskScriptPath)) -Message 'Task action targets the installed updater script'
-        Assert-Condition -Condition ($taskRunLevel -eq 'HighestAvailable' -and $taskIdentity -eq $expectedIdentity -and $taskDay -eq '15') -Message 'Task identity, privilege, and monthly date match the consent'
+        Assert-Condition -Condition ($taskAuthor -eq $expectedIdentity -and $actionsContext -eq 'Author' -and $principalId -eq 'Author' -and $taskIdentity -eq $expectedIdentity -and $taskRunLevel -eq 'HighestAvailable' -and $taskDay -eq '15') -Message 'Task identity, principal metadata, privilege, and monthly date match the consent'
+        Assert-Condition -Condition ($taskDescription -match 'myTech\.Today App Installer monthly update task; ownership=v1' -and $taskDescription.Contains($taskScope)) -Message 'Task ownership marker and selected scope remain in the task description'
         Assert-Condition -Condition ((Get-Content -LiteralPath $enabled.TracePath -Raw) -notmatch '(?i)winget update|winget install') -Message 'Scheduling does not start a package-manager update'
         Assert-Condition -Condition (@($enabledState.Tasks | Where-Object { $_.Path -match '\.pending-' }).Count -eq 0) -Message 'Validated staging task is removed after registration'
     }
