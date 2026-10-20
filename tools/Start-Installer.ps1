@@ -1,9 +1,19 @@
 #Requires -Version 5.1
 
+[CmdletBinding(SupportsShouldProcess = $true)]
+param(
+    [Parameter()]
+    [switch]$ForceCLI,
+
+    [Parameter(ValueFromRemainingArguments = $true)]
+    [AllowEmptyCollection()]
+    [string[]]$InstallerArguments = @()
+)
+
 $ErrorActionPreference = 'Stop'
 
 $startedMarker = [string]$env:APP_INSTALLER_BOOTSTRAP_STARTED_FILE
-if (-not [string]::IsNullOrWhiteSpace($startedMarker)) {
+if (-not $WhatIfPreference -and -not [string]::IsNullOrWhiteSpace($startedMarker)) {
     try {
         $tempRoot = [System.IO.Path]::GetFullPath([System.IO.Path]::GetTempPath()).TrimEnd('\') + '\'
         $resolvedMarker = [System.IO.Path]::GetFullPath($startedMarker)
@@ -19,7 +29,8 @@ $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $applicationPath = Join-Path $repositoryRoot 'app-installer.ps1'
 $compatibilityModulePath = Join-Path $repositoryRoot 'modules\InstallerCompatibility.psm1'
 $runtimeModulePath = Join-Path $repositoryRoot 'modules\InstallerRuntimeDiscovery.psm1'
-foreach ($requiredPath in @($applicationPath, $compatibilityModulePath, $runtimeModulePath)) {
+$prerequisiteModulePath = Join-Path $repositoryRoot 'modules\InstallerPrerequisitePlan.psm1'
+foreach ($requiredPath in @($applicationPath, $compatibilityModulePath, $runtimeModulePath, $prerequisiteModulePath)) {
     if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {
         [Console]::Error.WriteLine("[ERROR] Required installer startup file is missing: $requiredPath")
         exit 2
@@ -29,6 +40,7 @@ foreach ($requiredPath in @($applicationPath, $compatibilityModulePath, $runtime
 try {
     Import-Module -Name $compatibilityModulePath -Force -DisableNameChecking -ErrorAction Stop | Out-Null
     Import-Module -Name $runtimeModulePath -Force -DisableNameChecking -ErrorAction Stop | Out-Null
+    Import-Module -Name $prerequisiteModulePath -Force -DisableNameChecking -ErrorAction Stop | Out-Null
     $hostInfo = Get-InstallerHostInfo
     $hostDecision = Test-InstallerCompatibility -Component WindowsHost -HostInfo $hostInfo
     if (-not $hostDecision.IsSupported) {
@@ -36,22 +48,30 @@ try {
         exit 1
     }
 
-    $component = if (@($args | Where-Object { $_ -match '^(?i)-ForceCLI$' }).Count -gt 0) { 'WindowsCli' } else { 'WindowsGui' }
-    $decision = Invoke-InstallerRuntimeEntry -Component $component -ApplicationPath $applicationPath -ScriptArguments $args -AllowGuiCliFallback -AlwaysLaunchApplication
-    if ($decision.Action -eq 'Failure') {
-        [Console]::Error.WriteLine("[ERROR] No compatible PowerShell engine could start the Windows entry point: $($decision.Reason)")
-        if ($decision.PolicyBlocked) {
-            [Console]::Error.WriteLine('[INFO] Execution policy was not changed and no alternate engine was tried.')
-        }
+    $component = if ($ForceCLI) { 'WindowsCli' } else { 'WindowsGui' }
+    $scriptArguments = @($InstallerArguments)
+    if ($ForceCLI -and @($scriptArguments | Where-Object { $_ -match '^(?i)-ForceCLI$' }).Count -eq 0) {
+        $scriptArguments = @('-ForceCLI') + $scriptArguments
+    }
+    if ($WhatIfPreference -and @($scriptArguments | Where-Object { $_ -match '^(?i)-WhatIf$' }).Count -eq 0) {
+        $scriptArguments += '-WhatIf'
+    }
+    $flowResult = Invoke-InstallerRuntimePrerequisiteFlow -Component $component -ApplicationPath $applicationPath -ScriptArguments $scriptArguments -AllowGuiCliFallback -AlwaysLaunchApplication
+    if ($flowResult.Status -eq 'PlanOnly') {
+        [Console]::Out.WriteLine('[INFO] WhatIf completed. No runtime download, installation, elevation, or application package action was started.')
+        exit 0
+    }
+    if ($flowResult.Status -ne 'Started') {
+        [Console]::Error.WriteLine("[ERROR] The installer could not establish a compatible PowerShell runtime: $($flowResult.Reason)")
         exit 1
     }
-    if ($decision.Action -eq 'Exit') {
-        exit $decision.ExitCode
+    if ($flowResult.RuntimeDecision.Action -eq 'Exit') {
+        exit $flowResult.RuntimeDecision.ExitCode
     }
-    [Console]::Error.WriteLine('[ERROR] Runtime discovery did not start the App Installer.')
+    [Console]::Error.WriteLine('[ERROR] Runtime preflight did not start the App Installer.')
     exit 1
 }
 catch {
-    [Console]::Error.WriteLine("[ERROR] PowerShell runtime discovery failed before installer actions: $($_.Exception.Message)")
+    [Console]::Error.WriteLine('[ERROR] PowerShell runtime preflight failed before installer actions. Local paths and environment details were withheld.')
     exit 1
 }

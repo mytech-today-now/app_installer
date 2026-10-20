@@ -135,6 +135,7 @@ try {
             New-Item -ItemType Directory -Path (Join-Path $testRoot 'tools') -Force | Out-Null
             Copy-Item -LiteralPath (Join-Path $repoRoot 'modules\InstallerCompatibility.psm1') -Destination (Join-Path $testRoot 'modules')
             Copy-Item -LiteralPath (Join-Path $repoRoot 'modules\InstallerRuntimeDiscovery.psm1') -Destination (Join-Path $testRoot 'modules')
+            Copy-Item -LiteralPath (Join-Path $repoRoot 'modules\InstallerPrerequisitePlan.psm1') -Destination (Join-Path $testRoot 'modules')
             Copy-Item -LiteralPath (Join-Path $repoRoot 'tools\Start-Installer.ps1') -Destination (Join-Path $testRoot 'tools')
             Copy-Item -LiteralPath (Join-Path $repoRoot 'tools\Test-InstallerCompatibility.ps1') -Destination (Join-Path $testRoot 'tools')
             $targetScript = @'

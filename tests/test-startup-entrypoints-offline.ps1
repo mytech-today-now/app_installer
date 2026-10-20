@@ -7,6 +7,7 @@ if (-not ($env:OS -match 'Windows')) {
 }
 
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
+Import-Module -Name (Join-Path $repositoryRoot 'modules\InstallerPayload.psm1') -Force -DisableNameChecking -ErrorAction Stop | Out-Null
 $tempBase = [System.IO.Path]::GetFullPath([System.IO.Path]::GetTempPath())
 $tempRoot = [System.IO.Path]::GetFullPath((Join-Path $tempBase ('app-installer-offline-' + [guid]::NewGuid().ToString('N'))))
 $pwshPath = (Get-Command pwsh -ErrorAction Stop).Source
@@ -47,12 +48,17 @@ function Copy-IsolatedInstallerTree {
     )
 
     New-Item -ItemType Directory -Path $Destination -Force | Out-Null
-    foreach ($fileName in @('app-installer.ps1', 'app-installer-cli.ps1', 'apps-manifest.json', 'compatibility.json', 'platform-detect.ps1', 'README.md')) {
+    foreach ($fileName in @('app-installer.ps1', 'app-installer-cli.ps1', 'apps-manifest.json', 'compatibility.json', 'install.bat', 'install.sh', 'invoke-elevated-install.ps1', 'payload-manifest.json', 'platform-detect.ps1', 'README.md', 'VERSION')) {
         $source = Join-Path $repositoryRoot $fileName
         if (Test-Path -LiteralPath $source -PathType Leaf) {
             Copy-Item -LiteralPath $source -Destination $Destination -Force
         }
     }
+
+    $sourceLauncher = Join-Path $repositoryRoot 'tools\Start-Installer.ps1'
+    $destinationTools = Join-Path $Destination 'tools'
+    New-Item -ItemType Directory -Path $destinationTools -Force | Out-Null
+    Copy-Item -LiteralPath $sourceLauncher -Destination $destinationTools -Force
 
     foreach ($directoryName in @('modules', 'apps', 'profiles')) {
         $sourceDirectory = Join-Path $repositoryRoot $directoryName
@@ -74,6 +80,8 @@ function Copy-IsolatedInstallerTree {
             Remove-Item -LiteralPath $helperPath -Force
         }
     }
+
+    Write-AppInstallerPayloadIntegrity -RootPath $Destination | Out-Null
 }
 
 function Invoke-IsolatedEntrypoint {
@@ -286,13 +294,13 @@ exit /b 0
     Assert-Condition -Condition ($positiveGui.ExitCode -eq 0) -Message 'GUI starts with the verified bundled helper and exits cleanly'
     Assert-Condition -Condition (Test-Path -LiteralPath $positiveGui.UiStatusPath -PathType Leaf) -Message 'GUI form was reached with the verified helper'
     $installedGuiModules = Join-Path $positiveGui.UserProfile 'myTech.Today\AppInstaller\modules'
-    Assert-Condition -Condition ((Test-Path -LiteralPath (Join-Path $installedGuiModules 'StartupHelperTrust.psm1') -PathType Leaf) -and (Test-Path -LiteralPath (Join-Path $installedGuiModules 'ResponsiveGuiHelper.psm1') -PathType Leaf)) -Message 'GUI self-install copies both bundled startup modules'
+    Assert-Condition -Condition ((Test-Path -LiteralPath (Join-Path $installedGuiModules 'StartupHelperTrust.psm1') -PathType Leaf) -and (Test-Path -LiteralPath (Join-Path $installedGuiModules 'ResponsiveGuiHelper.psm1') -PathType Leaf) -and (Test-Path -LiteralPath (Join-Path $installedGuiModules 'InstallerPrerequisitePlan.psm1') -PathType Leaf)) -Message 'GUI self-install copies its bundled startup and prerequisite modules'
     Assert-Condition -Condition (Test-Path -LiteralPath (Join-Path (Split-Path -Parent $installedGuiModules) 'compatibility.json') -PathType Leaf) -Message 'GUI self-install copies the compatibility contract for future launches'
 
     $fallbackGui = Invoke-IsolatedEntrypoint -Mode gui -TreeRoot $fallbackTree -UserProfile (Join-Path $tempRoot 'profile-gui-fallback')
     Assert-Condition -Condition ($fallbackGui.ExitCode -eq 0) -Message 'GUI starts with the helper absent and exits cleanly'
     $fallbackModules = Join-Path $fallbackGui.UserProfile 'myTech.Today\AppInstaller\modules'
-    Assert-Condition -Condition ((Test-Path -LiteralPath (Join-Path $fallbackModules 'StartupHelperTrust.psm1') -PathType Leaf) -and -not (Test-Path -LiteralPath (Join-Path $fallbackModules 'ResponsiveGuiHelper.psm1') -PathType Leaf)) -Message 'GUI self-install preserves the missing-helper fallback state'
+    Assert-Condition -Condition ((Test-Path -LiteralPath (Join-Path $fallbackModules 'StartupHelperTrust.psm1') -PathType Leaf) -and -not (Test-Path -LiteralPath (Join-Path $fallbackModules 'ResponsiveGuiHelper.psm1') -PathType Leaf) -and (Test-Path -LiteralPath (Join-Path $fallbackModules 'InstallerPrerequisitePlan.psm1') -PathType Leaf)) -Message 'GUI self-install preserves the missing-helper fallback and copies the prerequisite planner'
     Assert-Condition -Condition (Test-Path -LiteralPath (Join-Path (Split-Path -Parent $fallbackModules) 'compatibility.json') -PathType Leaf) -Message 'GUI fallback self-install copies the compatibility contract for future launches'
     $guiStatus = if (Test-Path -LiteralPath $fallbackGui.UiStatusPath -PathType Leaf) { Get-Content -LiteralPath $fallbackGui.UiStatusPath -Raw } else { '' }
     Assert-Condition -Condition ($guiStatus -match 'FormSeen=True;FallbackVisible=True') -Message 'GUI visibly reports the fallback status and built-in responsive layout'
@@ -300,7 +308,8 @@ exit /b 0
     $cli = Invoke-IsolatedEntrypoint -Mode cli -TreeRoot $fallbackTree -UserProfile (Join-Path $tempRoot 'profile-cli')
     Assert-Condition -Condition ($cli.ExitCode -eq 0) -Message 'CLI starts offline with its optional helper absent and exits cleanly'
     Assert-Condition -Condition ($cli.Output.Contains('A required optional helper could not be verified. Installation remains available with built-in behavior.')) -Message 'CLI displays the documented built-in fallback'
-    Assert-Condition -Condition (Test-Path -LiteralPath (Join-Path $cli.UserProfile 'myTech.Today\AppInstaller\compatibility.json') -PathType Leaf) -Message 'CLI self-install copies the compatibility contract for future launches'
+    $installedCliRoot = Join-Path $cli.UserProfile 'myTech.Today\AppInstaller'
+    Assert-Condition -Condition ((Test-Path -LiteralPath (Join-Path $installedCliRoot 'compatibility.json') -PathType Leaf) -and (Test-Path -LiteralPath (Join-Path $installedCliRoot 'modules\InstallerPrerequisitePlan.psm1') -PathType Leaf)) -Message 'CLI self-install copies the compatibility contract and prerequisite planner for future launches'
 
     $forcedCli = Invoke-IsolatedEntrypoint -Mode gui-forced-cli -TreeRoot $fallbackTree -UserProfile (Join-Path $tempRoot 'profile-gui-forced-cli')
     $forcedCliOutputMatches = $forcedCli.Output.Contains('__invalid__') -and $forcedCli.Output.Contains('does not belong to the set')

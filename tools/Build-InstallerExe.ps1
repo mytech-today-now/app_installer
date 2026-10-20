@@ -35,54 +35,22 @@ $seedFullPath = [System.IO.Path]::GetFullPath((Resolve-Path -LiteralPath $SeedPa
 $outputDirectory = Split-Path -Parent $outputFullPath
 $metadataScript = Join-Path $PSScriptRoot 'Set-InstallerExeMetadata.ps1'
 $metadataSource = Join-Path $PSScriptRoot 'InstallerExecutableVersionInfo.cs'
+$payloadModulePath = Join-Path $repoRoot 'modules\InstallerPayload.psm1'
 $makecabPath = Join-Path $env:WINDIR 'System32\makecab.exe'
 $expandPath = Join-Path $env:WINDIR 'System32\expand.exe'
 
-foreach ($requiredPath in @($seedFullPath, $metadataScript, $metadataSource, $makecabPath, $expandPath)) {
+foreach ($requiredPath in @($seedFullPath, $metadataScript, $metadataSource, $payloadModulePath, $makecabPath, $expandPath)) {
     if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {
         throw "A required executable build input is missing: $requiredPath"
     }
 }
 
-$rootFiles = @(
-    'app-installer.ps1',
-    'app-installer-cli.ps1',
-    'apps-manifest.json',
-    'compatibility.json',
-    'CHANGELOG.md',
-    'install.bat',
-    'invoke-elevated-install.ps1',
-    'platform-detect.ps1',
-    'README.md',
-    'VERSION'
-)
+Import-Module -Name $payloadModulePath -Force -DisableNameChecking -ErrorAction Stop | Out-Null
+$sourcePayloadStatus = Test-AppInstallerPayload -RootPath $repoRoot
+$sourceInventory = @(Get-AppInstallerPayloadFiles -RootPath $repoRoot)
 $payloadFiles = New-Object System.Collections.Generic.List[object]
-foreach ($relativePath in $rootFiles) {
-    $sourcePath = Join-Path $repoRoot $relativePath
-    if (-not (Test-Path -LiteralPath $sourcePath -PathType Leaf)) {
-        throw "A required executable payload file is missing: $relativePath"
-    }
-    $payloadFiles.Add([PSCustomObject]@{ Source = $sourcePath; Relative = $relativePath })
-}
-
-foreach ($directoryName in @('apps', 'modules', 'profiles')) {
-    $directoryPath = Join-Path $repoRoot $directoryName
-    if (-not (Test-Path -LiteralPath $directoryPath -PathType Container)) {
-        throw "A required executable payload directory is missing: $directoryName"
-    }
-    foreach ($item in @(Get-ChildItem -LiteralPath $directoryPath -File -Recurse | Sort-Object FullName)) {
-        $relativePath = $item.FullName.Substring($repoRoot.Length).TrimStart('\')
-        $payloadFiles.Add([PSCustomObject]@{ Source = $item.FullName; Relative = $relativePath })
-    }
-}
-
-foreach ($toolName in @('Install-CompatiblePowerShell.ps1', 'Start-Installer.ps1', 'Test-InstallerCompatibility.ps1')) {
-    $relativePath = Join-Path 'tools' $toolName
-    $sourcePath = Join-Path $repoRoot $relativePath
-    if (-not (Test-Path -LiteralPath $sourcePath -PathType Leaf)) {
-        throw "A required executable launcher tool is missing: $relativePath"
-    }
-    $payloadFiles.Add([PSCustomObject]@{ Source = $sourcePath; Relative = $relativePath })
+foreach ($file in $sourceInventory) {
+    $payloadFiles.Add([PSCustomObject]@{ Source = $file.Source; Relative = $file.Path })
 }
 
 foreach ($payloadFile in $payloadFiles) {
@@ -125,9 +93,26 @@ try {
         $index++
         $stageName = 'P{0:D5}{1}' -f $index, [System.IO.Path]::GetExtension($payloadFile.Relative)
         $stagedFile = Join-Path $stagePath $stageName
+        $destinationPath = Join-Path $stagePath ($payloadFile.Relative.Replace('/', '\'))
+        $destinationDirectory = Split-Path -Parent $destinationPath
+        if (-not (Test-Path -LiteralPath $destinationDirectory -PathType Container)) {
+            New-Item -ItemType Directory -Path $destinationDirectory -Force | Out-Null
+        }
         Copy-Item -LiteralPath $payloadFile.Source -Destination $stagedFile -Force
-        $fileMap.Add([PSCustomObject]@{ StageName = $stageName; Relative = $payloadFile.Relative; Source = $payloadFile.Source })
+        Copy-Item -LiteralPath $stagedFile -Destination $destinationPath -Force
+        $fileMap.Add([PSCustomObject]@{ StageName = $stageName; Relative = $payloadFile.Relative; Source = $destinationPath })
     }
+
+    Write-AppInstallerPayloadIntegrity -RootPath $stagePath | Out-Null
+    $stagedPayloadStatus = Test-AppInstallerPayload -RootPath $stagePath -RequirePackage
+    if (-not $stagedPayloadStatus.IsValid -or $stagedPayloadStatus.Version -ne $sourcePayloadStatus.Version) {
+        throw 'The staged executable payload did not match the source version or failed integrity validation.'
+    }
+    $generatedIntegrityPath = Join-Path $stagePath 'payload-integrity.json'
+    $integrityStageName = 'P{0:D5}.json' -f ($fileMap.Count + 1)
+    $integrityStagedFile = Join-Path $stagePath $integrityStageName
+    Copy-Item -LiteralPath $generatedIntegrityPath -Destination $integrityStagedFile -Force
+    $fileMap.Add([PSCustomObject]@{ StageName = $integrityStageName; Relative = 'payload-integrity.json'; Source = $generatedIntegrityPath })
 
     $ddfLines = New-Object System.Collections.Generic.List[string]
     $ddfLines.Add('.OPTION EXPLICIT')

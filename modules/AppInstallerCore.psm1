@@ -143,11 +143,12 @@ function Initialize-InstallerDirectories {
 function Get-ApplicationRegistry {
     <#
     .SYNOPSIS
-        Loads the application registry from apps-manifest.json or returns hardcoded list.
+        Loads the complete application registry from apps-manifest.json.
     
     .DESCRIPTION
-        Attempts to load applications from apps-manifest.json first.
-        Falls back to hardcoded application list if manifest is not available.
+        Requires the complete apps-manifest.json catalog. Missing or invalid
+        catalog data is an error so callers cannot mistake a partial catalog for
+        a complete installation.
     
     .OUTPUTS
         Array of PSCustomObject representing available applications.
@@ -159,13 +160,20 @@ function Get-ApplicationRegistry {
 
     # Try to load from manifest file
     if (-not $ManifestPath) {
-        $ManifestPath = Join-Path $PSScriptRoot "..\apps-manifest.json"
+        $ManifestPath = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\apps-manifest.json'))
     }
 
-    if (Test-Path $ManifestPath) {
+    if (-not (Test-Path -LiteralPath $ManifestPath -PathType Leaf)) {
+        throw "Required application catalog is missing: $ManifestPath"
+    }
+
+    if (Test-Path -LiteralPath $ManifestPath -PathType Leaf) {
         try {
             Write-Verbose "Loading application registry from: $ManifestPath"
-            $manifest = Get-Content $ManifestPath -Raw | ConvertFrom-Json
+            $manifest = Get-Content -LiteralPath $ManifestPath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+            if ($null -eq $manifest.apps -or @($manifest.apps).Count -eq 0) {
+                throw 'The application catalog does not contain an apps collection.'
+            }
             
             # Convert manifest apps to PSCustomObject array
             $applications = @()
@@ -190,34 +198,11 @@ function Get-ApplicationRegistry {
             return $applications
         }
         catch {
-            Write-Warning "Failed to load apps-manifest.json: $_"
-            Write-Warning "Falling back to hardcoded application list"
+            throw "Failed to load the complete apps-manifest.json catalog. No fallback catalog was used. $($_.Exception.Message)"
         }
     }
 
-    # Fallback: Return hardcoded application list (subset for demonstration)
-    Write-Verbose "Using hardcoded application registry"
-    return Get-HardcodedApplicationRegistry
-}
-
-function Get-HardcodedApplicationRegistry {
-    <#
-    .SYNOPSIS
-        Returns a hardcoded application registry as fallback.
-    #>
-    [CmdletBinding()]
-    param()
-
-    # This is a subset - the full list would be too large
-    # In production, this should match the apps-manifest.json content
-    return @(
-        [PSCustomObject]@{ Name = "Google Chrome"; ScriptName = "chrome.ps1"; WingetId = "Google.Chrome"; Category = "Browsers"; Description = "Fast, secure web browser by Google"; Platform = "All" }
-        [PSCustomObject]@{ Name = "Firefox"; ScriptName = "firefox.ps1"; WingetId = "Mozilla.Firefox"; Category = "Browsers"; Description = "Open-source browser with privacy features"; Platform = "All" }
-        [PSCustomObject]@{ Name = "Visual Studio Code"; ScriptName = "vscode.ps1"; WingetId = "Microsoft.VisualStudioCode"; Category = "Development"; Description = "Powerful code editor with extensions"; Platform = "All" }
-        [PSCustomObject]@{ Name = "Git"; ScriptName = "git.ps1"; WingetId = "Git.Git"; Category = "Development"; Description = "Distributed version control system"; Platform = "All" }
-        [PSCustomObject]@{ Name = "VLC Media Player"; ScriptName = "vlc.ps1"; WingetId = "VideoLAN.VLC"; Category = "Media"; Description = "Versatile media player for all formats"; Platform = "All" }
-        [PSCustomObject]@{ Name = "7-Zip"; ScriptName = "7zip.ps1"; WingetId = "7zip.7zip"; Category = "Utilities"; Description = "High-compression file archiver"; Platform = "All" }
-    )
+    throw 'The complete application catalog became unavailable during loading. No partial catalog was used.'
 }
 
 function Select-ApplicationsByPlatform {

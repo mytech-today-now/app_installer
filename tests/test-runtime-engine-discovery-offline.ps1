@@ -305,7 +305,7 @@ try {
 
     $manifest = Get-InstallerCompatibilityManifest
     $assertedOrder = @($manifest.windowsExecutable.engineSelectionOrder)
-    Assert-Condition -Condition ($assertedOrder[0] -eq 'PowerShell Core 7.6.7' -and $assertedOrder[1] -eq 'Windows PowerShell Desktop 5.1' -and $manifest.windowsExecutable.runtimeDiscovery.automaticProvisioning -eq $false) -Message 'The manifest publishes Core-first selection and no automatic runtime provisioning.'
+    Assert-Condition -Condition ($assertedOrder[0] -eq 'PowerShell Core 7.6.7' -and $assertedOrder[1] -eq 'Windows PowerShell Desktop 5.1' -and $manifest.windowsExecutable.runtimeDiscovery.automaticProvisioning -eq $false -and $manifest.windowsExecutable.runtimeDiscovery.consentRequiredProvisioning -eq $true) -Message 'The manifest publishes Core-first selection and consent-gated runtime provisioning.'
 
     Write-Host "[OK] Runtime discovery tests passed ($assertionCount assertions)." -ForegroundColor Green
 }

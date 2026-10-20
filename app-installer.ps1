@@ -46,10 +46,13 @@
     Forces CLI mode even on Windows (useful for automation or testing)
 #>
 
-[CmdletBinding()]
+[CmdletBinding(SupportsShouldProcess = $true)]
 param(
     [Parameter(Mandatory = $false)]
     [switch]$ForceCLI,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$ValidatePayloadOnly,
 
     [Parameter(ValueFromRemainingArguments = $true)]
     [AllowEmptyCollection()]
@@ -58,13 +61,37 @@ param(
 
 #Requires -Version 5.1
 
+$script:PayloadModulePath = Join-Path $PSScriptRoot 'modules\InstallerPayload.psm1'
+if (-not (Test-Path -LiteralPath $script:PayloadModulePath -PathType Leaf)) {
+    Write-Host '[ERROR] Required payload validator module is missing. No installer action was started.' -ForegroundColor Red
+    exit 2
+}
+try {
+    Import-Module -Name $script:PayloadModulePath -Force -DisableNameChecking -ErrorAction Stop | Out-Null
+    $script:PayloadValidation = Test-AppInstallerPayload -RootPath $PSScriptRoot
+}
+catch {
+    Write-Host "[ERROR] Required App Installer payload validation failed: $($_.Exception.Message)" -ForegroundColor Red
+    exit 2
+}
+if ($ValidatePayloadOnly) {
+    Write-Output ('Payload valid: mode={0}; version={1}; files={2}; root={3}' -f $script:PayloadValidation.Mode, $script:PayloadValidation.Version, $script:PayloadValidation.FileCount, $script:PayloadValidation.RootPath)
+    return
+}
+
 $script:CompatibilityModulePath = Join-Path $PSScriptRoot 'modules\InstallerCompatibility.psm1'
+$script:PrerequisiteModulePath = Join-Path $PSScriptRoot 'modules\InstallerPrerequisitePlan.psm1'
 if (-not (Test-Path -LiteralPath $script:CompatibilityModulePath -PathType Leaf)) {
     Write-Host '[ERROR] The compatibility contract module is missing. No setup or package operation was started.' -ForegroundColor Red
     exit 1
 }
+if (-not (Test-Path -LiteralPath $script:PrerequisiteModulePath -PathType Leaf)) {
+    Write-Host '[ERROR] The shared runtime prerequisite planner is missing. No setup or package operation was started.' -ForegroundColor Red
+    exit 1
+}
 try {
     Import-Module -Name $script:CompatibilityModulePath -Force -DisableNameChecking -ErrorAction Stop | Out-Null
+    Import-Module -Name $script:PrerequisiteModulePath -Force -DisableNameChecking -ErrorAction Stop | Out-Null
 }
 catch {
     Write-Host "[ERROR] The compatibility contract could not be loaded: $($_.Exception.Message)" -ForegroundColor Red
@@ -154,6 +181,9 @@ $script:OriginalRuntimeArguments = @()
 if ($ForceCLI) {
     $script:OriginalRuntimeArguments += '-ForceCLI'
 }
+if ($WhatIfPreference) {
+    $script:OriginalRuntimeArguments += '-WhatIf'
+}
 $script:OriginalRuntimeArguments += $script:OriginalCliArguments
 
 if ($script:IsWindowsPlatform) {
@@ -171,24 +201,24 @@ if ($script:IsWindowsPlatform) {
     try {
         Import-Module -Name $runtimeModulePath -Force -DisableNameChecking -ErrorAction Stop | Out-Null
         $runtimeComponent = if ($ForceCLI) { 'WindowsCli' } else { 'WindowsGui' }
-        $runtimeDecision = Invoke-InstallerRuntimeEntry -Component $runtimeComponent -ApplicationPath $PSCommandPath -ScriptArguments $script:OriginalRuntimeArguments -AllowGuiCliFallback
+        $runtimeFlow = Invoke-InstallerRuntimePrerequisiteFlow -Component $runtimeComponent -ApplicationPath $PSCommandPath -ScriptArguments $script:OriginalRuntimeArguments -AllowGuiCliFallback
     }
     catch {
-        Write-Host "[ERROR] PowerShell runtime discovery failed before installer actions: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host '[ERROR] PowerShell runtime preflight failed before installer actions. Local paths and environment details were withheld.' -ForegroundColor Red
         exit 1
     }
 
-    if ($runtimeComponent -eq 'WindowsGui' -and $runtimeDecision.Component -eq 'WindowsCli') {
-        $guiAttempt = @($runtimeDecision.Attempts | Where-Object { $_.Candidate.Engine -eq 'Core' -or $_.Candidate.Engine -eq 'Desktop' } | Select-Object -First 1)
-        $guiReason = if ($guiAttempt.Count -gt 0) { [string]$guiAttempt[0].Reason } else { 'The GUI host capability preflight failed.' }
-        Write-Host "[INFO] GUI capability check failed. Starting the supported CLI fallback. $guiReason" -ForegroundColor Yellow
+    if ($runtimeFlow.Status -eq 'PlanOnly') {
+        Write-Host '[INFO] WhatIf completed. No runtime download, installation, elevation, or application package action was started.' -ForegroundColor Cyan
+        exit 0
     }
-    if ($runtimeDecision.Action -eq 'Failure') {
-        Write-Host "[ERROR] No compatible PowerShell engine could start the Windows entry point: $($runtimeDecision.Reason)" -ForegroundColor Red
-        if ($runtimeDecision.PolicyBlocked) {
-            Write-Host '[INFO] Execution policy was not changed and no alternate engine was tried.' -ForegroundColor Yellow
-        }
+    if ($runtimeFlow.Status -ne 'Started') {
+        Write-Host "[ERROR] The installer could not establish a compatible PowerShell runtime: $($runtimeFlow.Reason)" -ForegroundColor Red
         exit 1
+    }
+    $runtimeDecision = $runtimeFlow.RuntimeDecision
+    if ($runtimeComponent -eq 'WindowsGui' -and $runtimeDecision.Component -eq 'WindowsCli') {
+        Write-Host '[INFO] GUI requirements were not available. Starting the compatible installed PowerShell CLI.' -ForegroundColor Yellow
     }
     if ($runtimeDecision.Action -eq 'Exit') {
         exit $runtimeDecision.ExitCode
@@ -318,14 +348,6 @@ Write-Host ""
 # PowerShell 7+ Version Check - myTech.Today standard
 $script:PS7ContinueOnPS51 = $true  # Allow running on PS 5.1 with warning
 $script:PS7Silent = $false
-$script:_RepoRoot = $PSScriptRoot
-while ($script:_RepoRoot -and -not (Safe-TestPath (Join-Path $script:_RepoRoot 'scripts\Require-PowerShell7.ps1'))) {
-    $script:_RepoRoot = Split-Path $script:_RepoRoot -Parent
-}
-if ($script:_RepoRoot -and (Safe-TestPath (Join-Path $script:_RepoRoot 'scripts\Require-PowerShell7.ps1'))) {
-    . (Join-Path $script:_RepoRoot 'scripts\Require-PowerShell7.ps1')
-}
-
 #region Load Responsive GUI Helper
 
 $script:ResponsiveHelperLoaded = $false
@@ -903,14 +925,15 @@ function Add-QueueFormResizeHandler {
 
 # Script variables
 $script:ScriptVersion = '2.0.6'
-$script:OriginalScriptPath = $PSScriptRoot
+$script:OriginalScriptPath = [System.IO.Path]::GetFullPath($PSScriptRoot)
+$script:ResourceRoot = $script:OriginalScriptPath
 $script:SystemInstallPath = "$env:USERPROFILE\myTech.Today\AppInstaller"
 $script:ScriptPath = $script:SystemInstallPath
 $script:CentralLogPath = "$env:USERPROFILE\myTech.Today\logs\"
 $script:LogPath = $null
 $script:AppsPath = Join-Path $script:ScriptPath "apps"
 $script:ProfilesPath = Join-Path $script:ScriptPath "profiles"
-$script:OOShutUp10TrustModulePath = Join-Path $PSScriptRoot 'modules\OOShutUp10Trust.psm1'
+$script:OOShutUp10TrustModulePath = Join-Path $script:ResourceRoot 'modules\OOShutUp10Trust.psm1'
 $script:InstalledApps = @{}
 $script:SelectedApps = @()
 $script:IsClosing = $false  # Flag to prevent event handlers during form closing
@@ -922,7 +945,7 @@ $script:FilteredApplications = @()  # Filtered application list
 $script:InstallationQueue = @()  # Array of apps in installation queue
 $script:QueueStatePath = "$env:USERPROFILE\myTech.Today\AppInstaller\queue-state.json"  # Queue state file
 $script:QueueStateSchemaVersion = 1
-$script:QueueStateManifestPath = Join-Path $script:OriginalScriptPath 'apps-manifest.json'
+$script:QueueStateManifestPath = Join-Path $script:ResourceRoot 'apps-manifest.json'
 $script:QueueStateManifestCachePath = $null
 $script:QueueStateManifestCache = $null
 $script:QueueStateLoadStatus = 'NotLoaded'
@@ -1242,187 +1265,16 @@ $script:Applications = @(
 #region Self-Installation to System Location
 
 function Copy-ScriptToSystemLocation {
-    <#
-    .SYNOPSIS
-        Copies the installer script and all dependent files to the system location.
-
-    .DESCRIPTION
-        Ensures the installer is always available in a known system location:
-        %USERPROFILE%\myTech.Today\AppInstaller\
-
-        This allows scheduled tasks and other automation to reliably find the script
-        regardless of where it was originally run from.
-    #>
     [CmdletBinding()]
     param()
 
     try {
-        # Define paths
-        $systemPath = $script:SystemInstallPath
-        $systemAppsPath = Join-Path $systemPath "apps"
-        $systemProfilesPath = Join-Path $systemPath "profiles"
-        $sourcePath = $script:OriginalScriptPath
-        $sourceAppsPath = Join-Path $sourcePath "apps"
-        $sourceModulesPath = Join-Path $sourcePath "modules"
-        $sourceProfilesPath = Join-Path $sourcePath "profiles"
-        $systemModulesPath = Join-Path $systemPath "modules"
-
-        # Check if we're already running from the system location
-        if ($sourcePath -eq $systemPath) {
-            Write-Host "`[i] Already running from system location: $systemPath" -ForegroundColor Cyan
-
-            # Verify critical dependency files exist (self-heal if missing)
-            $criticalFiles = @("platform-detect.ps1", "apps-manifest.json")
-            $missingFiles = @()
-            foreach ($critFile in $criticalFiles) {
-                $critPath = Join-Path $systemPath $critFile
-                if (-not (Safe-TestPath $critPath)) {
-                    $missingFiles += $critFile
-                }
-            }
-
-            if ($missingFiles.Count -gt 0) {
-                Write-Host "    [!] Missing critical files: $($missingFiles -join ', ')" -ForegroundColor Yellow
-                Write-Host "    [>>] Downloading missing files from GitHub..." -ForegroundColor Yellow
-
-                $githubBase = "https://raw.githubusercontent.com/mytech-today-now/PowerShellScripts/main/app_installer"
-                foreach ($missing in $missingFiles) {
-                    $downloadUrl = "$githubBase/$missing"
-                    $targetPath = Join-Path $systemPath $missing
-                    try {
-                        Invoke-WebRequest -Uri $downloadUrl -OutFile $targetPath -UseBasicParsing -TimeoutSec 15 -ErrorAction Stop
-                        Write-Host "    [OK] Downloaded $missing" -ForegroundColor Green
-                    }
-                    catch {
-                        Write-Host "    [FAIL] Could not download $missing`: $_" -ForegroundColor Red
-                    }
-                }
-            }
-
-            # Also ensure apps directory has scripts
-            $appsDir = Join-Path $systemPath "apps"
-            if ((Safe-TestPath $appsDir) -and (Get-ChildItem -Path $appsDir -Filter "*.ps1" -File).Count -eq 0) {
-                Write-Host "    [!] Apps directory is empty, re-downloading app scripts..." -ForegroundColor Yellow
-            }
-
-            return $true
-        }
-
-        Write-Host "`n[i] Installing to system location..." -ForegroundColor Cyan
-        Write-Host "    Source: $sourcePath" -ForegroundColor Gray
-        Write-Host "    Target: $systemPath" -ForegroundColor Gray
-
-        # Create system directories if they don't exist
-        if (-not (Safe-TestPath $systemPath)) {
-            Write-Host "    [>>] Creating directory: $systemPath" -ForegroundColor Yellow
-            New-Item -Path $systemPath -ItemType Directory -Force | Out-Null
-        }
-
-        if (-not (Safe-TestPath $systemAppsPath)) {
-            Write-Host "    [>>] Creating directory: $systemAppsPath" -ForegroundColor Yellow
-            New-Item -Path $systemAppsPath -ItemType Directory -Force | Out-Null
-        }
-
-        if (-not (Safe-TestPath $systemProfilesPath)) {
-            Write-Host "    [>>] Creating directory: $systemProfilesPath" -ForegroundColor Yellow
-            New-Item -Path $systemProfilesPath -ItemType Directory -Force | Out-Null
-        }
-
-        # Copy main CLI script
-        $sourceInstallScript = Join-Path $sourcePath "app-installer-cli.ps1"
-        $targetInstallScript = Join-Path $systemPath "app-installer-cli.ps1"
-
-        if (Safe-TestPath $sourceInstallScript) {
-            Write-Host "    [>>] Copying app-installer-cli.ps1..." -ForegroundColor Yellow
-            Copy-Item -Path $sourceInstallScript -Destination $targetInstallScript -Force -ErrorAction Stop
-        }
-
-        # Copy GUI script
-        $sourceGuiScript = Join-Path $sourcePath "app-installer.ps1"
-        $targetGuiScript = Join-Path $systemPath "app-installer.ps1"
-
-        if (Safe-TestPath $sourceGuiScript) {
-            Write-Host "    [>>] Copying app-installer.ps1..." -ForegroundColor Yellow
-            Copy-Item -Path $sourceGuiScript -Destination $targetGuiScript -Force -ErrorAction Stop
-        }
-
-        # Copy bundled modules, including the startup helper trust verifier and GUI helper.
-        if (Safe-TestPath $sourceModulesPath) {
-            Write-Host "    [>>] Copying modules directory..." -ForegroundColor Yellow
-
-            if (-not (Safe-TestPath $systemModulesPath)) {
-                New-Item -Path $systemModulesPath -ItemType Directory -Force | Out-Null
-            }
-
-            Copy-Item -Path (Join-Path $sourceModulesPath '*') -Destination $systemModulesPath -Recurse -Force -ErrorAction Stop
-            Write-Host "    [OK] Copied modules directory" -ForegroundColor Green
-        }
-
-        # Copy all app scripts from apps\ folder
-        if (Safe-TestPath $sourceAppsPath) {
-            Write-Host "    [>>] Copying app scripts..." -ForegroundColor Yellow
-            $appScripts = Get-ChildItem -Path $sourceAppsPath -Filter "*.ps1" -File
-
-            foreach ($script in $appScripts) {
-                $targetScript = Join-Path $systemAppsPath $script.Name
-                Copy-Item -Path $script.FullName -Destination $targetScript -Force -ErrorAction Stop
-            }
-
-            Write-Host "    [OK] Copied $($appScripts.Count) app scripts" -ForegroundColor Green
-        }
-
-        # Copy platform detection module and manifest (required by app scripts)
-        $requiredFiles = @("platform-detect.ps1", "apps-manifest.json", "compatibility.json")
-        foreach ($reqFile in $requiredFiles) {
-            $sourceReq = Join-Path $sourcePath $reqFile
-            $targetReq = Join-Path $systemPath $reqFile
-
-            if (Safe-TestPath $sourceReq) {
-                Write-Host "    [>>] Copying $reqFile..." -ForegroundColor Yellow
-                Copy-Item -Path $sourceReq -Destination $targetReq -Force -ErrorAction Stop
-            }
-        }
-
-        # Copy documentation files (optional but helpful)
-        $docFiles = @("CHANGELOG.md", "README.md")
-        foreach ($docFile in $docFiles) {
-            $sourceDoc = Join-Path $sourcePath $docFile
-            $targetDoc = Join-Path $systemPath $docFile
-
-            if (Safe-TestPath $sourceDoc) {
-                Copy-Item -Path $sourceDoc -Destination $targetDoc -Force -ErrorAction SilentlyContinue
-            }
-        }
-
-        # Copy profiles directory (if it exists)
-        if (Safe-TestPath $sourceProfilesPath) {
-            Write-Host "    [>>] Copying profiles directory..." -ForegroundColor Yellow
-
-            if (-not (Safe-TestPath $systemProfilesPath)) {
-                New-Item -Path $systemProfilesPath -ItemType Directory -Force | Out-Null
-            }
-
-            Copy-Item -Path (Join-Path $sourceProfilesPath '*') -Destination $systemProfilesPath -Recurse -Force -ErrorAction Stop
-            Write-Host "    [OK] Copied profiles directory" -ForegroundColor Green
-        }
-        else {
-            Write-Host "    [i] No profiles directory found at source: $sourceProfilesPath" -ForegroundColor DarkGray
-        }
-
-        Write-Host "    [OK] Installation to system location complete!" -ForegroundColor Green
-        Write-Host "    Location: $systemPath" -ForegroundColor Gray
-
+        $result = Copy-AppInstallerPayload -SourceRoot $script:OriginalScriptPath -DestinationRoot $script:SystemInstallPath
+        Write-Host ("    [OK] Complete payload {0}: {1} ({2} files, version {3})" -f $result.Status, $result.Path, $result.FileCount, $result.Version) -ForegroundColor Green
         return $true
     }
     catch {
-        Write-Host "    [X] Failed to copy to system location: $_" -ForegroundColor Red
-        Write-Host "    [i] Continuing with current location..." -ForegroundColor Yellow
-
-        # Fall back to original location
-        $script:ScriptPath = $script:OriginalScriptPath
-        $script:AppsPath = Join-Path $script:ScriptPath "apps"
-        $script:ProfilesPath = Join-Path $script:ScriptPath "profiles"
-
+        Write-Host ("    [X] Complete payload installation failed: {0}" -f $_.Exception.Message) -ForegroundColor Red
         return $false
     }
 }
@@ -1433,6 +1285,9 @@ Write-Host "|         myTech.Today Application Installer GUI v$($script:ScriptVe
 Write-Host "+===================================================================+" -ForegroundColor Cyan
 
 $copiedToSystem = Copy-ScriptToSystemLocation
+if (-not $copiedToSystem) {
+    throw 'The complete application payload could not be installed. No catalog or application action was started.'
+}
 Write-Host ""  # Blank line for spacing
 
 # Update script paths to use system location
@@ -1441,6 +1296,9 @@ if ($copiedToSystem) {
     $script:AppsPath = Join-Path $script:ScriptPath "apps"
     $script:ProfilesPath = Join-Path $script:ScriptPath "profiles"
 }
+$script:ResourceRoot = $script:ScriptPath
+$script:OOShutUp10TrustModulePath = Join-Path $script:ResourceRoot 'modules\OOShutUp10Trust.psm1'
+$script:QueueStateManifestPath = Join-Path $script:ResourceRoot 'apps-manifest.json'
 
 #endregion Self-Installation to System Location
 
@@ -1767,7 +1625,7 @@ function Install-WingetOnWindows10 {
     Write-Log "Verifying WinGet bootstrap requirements on Windows 10" -Level INFO
 
     try {
-        $bootstrapModulePath = Join-Path $PSScriptRoot 'modules\WingetBootstrap.psm1'
+        $bootstrapModulePath = Join-Path $script:ResourceRoot 'modules\WingetBootstrap.psm1'
         if (-not (Safe-TestPath $bootstrapModulePath)) {
             throw 'Bootstrap verifier module is unavailable.'
         }
@@ -3126,7 +2984,7 @@ function Install-Application {
             }
 
             if (-not (Get-Command -Name 'Invoke-AppScript' -Module 'AppInstallerCore' -ErrorAction SilentlyContinue)) {
-                $coreModulePath = Join-Path $PSScriptRoot 'modules\AppInstallerCore.psm1'
+                $coreModulePath = Join-Path $script:ResourceRoot 'modules\AppInstallerCore.psm1'
                 if (-not (Safe-TestPath $coreModulePath)) {
                     throw 'The shared custom-script result helper is unavailable.'
                 }

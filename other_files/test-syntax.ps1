@@ -10,6 +10,7 @@ $scriptPaths = @(
     (Join-Path $PSScriptRoot '..\modules\WingetBootstrap.psm1'),
     (Join-Path $PSScriptRoot '..\modules\InstallerCompatibility.psm1'),
     (Join-Path $PSScriptRoot '..\modules\InstallerRuntimeDiscovery.psm1'),
+    (Join-Path $PSScriptRoot '..\modules\InstallerPrerequisitePlan.psm1'),
     (Join-Path $PSScriptRoot '..\tools\Install-CompatiblePowerShell.ps1'),
     (Join-Path $PSScriptRoot '..\tools\Start-Installer.ps1'),
     (Join-Path $PSScriptRoot '..\tools\Test-InstallerCompatibility.ps1'),

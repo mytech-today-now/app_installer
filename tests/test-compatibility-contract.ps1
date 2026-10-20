@@ -155,13 +155,17 @@ try {
         }
         Assert-Condition -Condition ($guiPrerequisite.threadApartment -eq 'STA') -Message 'Both GUI engines require an STA UI thread.'
     }
-    Assert-Condition -Condition ($readme.Contains('original CLI arguments') -and $readme.Contains('does not install a runtime')) -Message 'README documents single CLI fallback with argument preservation and no runtime provisioning.'
+    Assert-Condition -Condition ($readme.Contains('original CLI arguments') -and $readme.Contains('explicit consent') -and $readme.Contains('does not change PATH')) -Message 'README documents the CLI fallback and the consent-gated current-user runtime plan.'
     foreach ($obsoleteClaim in @('Windows 10 (1809+)', 'Windows Server 2016+', 'PowerShell 7.2+')) {
         Assert-Condition -Condition (-not $readme.Contains($obsoleteClaim)) -Message ("README no longer claims unbounded or retired support: {0}" -f $obsoleteClaim)
     }
     Assert-Condition -Condition (-not $manifest.windowsExecutable.bundledPowerShellRuntime -and $manifest.windowsExecutable.entryPoint -eq 'install.bat') -Message 'The EXE contract records its launcher and confirms it does not bundle a PowerShell runtime.'
-    Assert-Condition -Condition ($manifest.windowsExecutable.engineSelectionOrder.Count -eq 2 -and $manifest.windowsExecutable.runtimeDiscovery.automaticProvisioning -eq $false -and $manifest.windowsExecutable.runtimeDiscovery.pathSearch -eq $false) -Message 'The EXE candidate order, fixed-path policy, and no-provisioning behavior are sourced from the contract.'
+    Assert-Condition -Condition ($manifest.windowsExecutable.engineSelectionOrder.Count -eq 2 -and $manifest.windowsExecutable.runtimeDiscovery.automaticProvisioning -eq $false -and $manifest.windowsExecutable.runtimeDiscovery.consentRequiredProvisioning -eq $true -and $manifest.windowsExecutable.runtimeDiscovery.pathSearch -eq $false) -Message 'The EXE candidate order, fixed-path policy, and consent-gated provisioning behavior are sourced from the contract.'
     Assert-Condition -Condition ($manifest.windowsExecutable.runtimeDiscovery.candidateLocations -contains '%SystemRoot%\Sysnative\WindowsPowerShell\v1.0\powershell.exe') -Message 'The runtime contract documents the 64-bit Windows PowerShell path for a 32-bit bootstrap process.'
+    Assert-Condition -Condition ($manifest.windowsExecutable.runtimeDiscovery.candidateLocations -contains '%LOCALAPPDATA%\Programs\myTech.Today\AppInstaller\PowerShell\7.6.7\pwsh.exe') -Message 'The runtime contract documents the version-pinned current-user PowerShell location.'
+    $runtimeProvisioning = $manifest.windowsExecutable.runtimeDiscovery.provisioning
+    Assert-Condition -Condition ($runtimeProvisioning.version -eq $manifest.engines.powerShellCore.version -and $runtimeProvisioning.artifactName -eq 'PowerShell-7.6.7-win-x64.zip' -and $runtimeProvisioning.source -eq 'https://github.com/PowerShell/PowerShell/releases/download/v7.6.7/PowerShell-7.6.7-win-x64.zip' -and $runtimeProvisioning.sha256 -eq 'D2F952EBDBF24386CB8923553AA58E41A846DB35A6155EA04C58142A4B16DBB7') -Message 'Runtime provisioning is pinned to the contract PowerShell version, official x64 ZIP, and published SHA-256 digest.'
+    Assert-Condition -Condition ($runtimeProvisioning.installScope -eq 'current-user' -and $runtimeProvisioning.requiresAdministrator -eq $false -and $runtimeProvisioning.modifiesPath -eq $false -and $runtimeProvisioning.modifiesDefaultEngine -eq $false -and $runtimeProvisioning.signer -eq 'Microsoft Corporation') -Message 'The runtime plan uses a signed current-user install without changing PATH or the default engine.'
 
     $guiSource = Get-Content -LiteralPath (Join-Path $repositoryRoot 'app-installer.ps1') -Raw
     $cliSource = Get-Content -LiteralPath (Join-Path $repositoryRoot 'app-installer-cli.ps1') -Raw
@@ -175,6 +179,8 @@ try {
     Assert-Condition -Condition ($cliSource.IndexOf('Test-InstallerCompatibility -Component $cliComponent') -lt $cliSource.IndexOf('$platformDetectPath')) -Message 'The CLI gate runs before platform setup and package-manager checks.'
     Assert-Condition -Condition ($batchSource.Contains('tools\Start-Installer.ps1') -and $startSource.Contains('Test-InstallerCompatibility -Component WindowsHost')) -Message 'The executable bootstrap verifies the Windows host before runtime selection or installer startup.'
     Assert-Condition -Condition (-not $batchSource.Contains('Install-CompatiblePowerShell.ps1') -and -not $batchSource.Contains('winget install') -and -not $batchSource.Contains('where pwsh')) -Message 'The executable launcher neither installs PowerShell nor selects an arbitrary PATH command.'
+    Assert-Condition -Condition ($batchSource.IndexOf('set "APP_INSTALLER_WHATIF="') -ge 0 -and $batchSource.IndexOf('set "APP_INSTALLER_WHATIF="') -lt $batchSource.IndexOf('type nul > "%BOOTSTRAP_STATUS_FILE%"')) -Message 'The batch launcher routes WhatIf before creating temporary bootstrap files.'
+    Assert-Condition -Condition ($startSource.Contains('if (-not $WhatIfPreference -and -not [string]::IsNullOrWhiteSpace($startedMarker))') -and $startSource.Contains('Invoke-InstallerRuntimePrerequisiteFlow')) -Message 'The shared launcher suppresses its startup marker during WhatIf.'
     $runtimeSourceLower = $runtimeSource.ToLowerInvariant()
     Assert-Condition -Condition ($runtimeSourceLower.Contains('get-appxpackage -name ''microsoft.powershell''') -and $runtimeSourceLower.Contains('powershellcore\installedversions') -and $runtimeSourceLower.Contains('app paths\pwsh.exe')) -Message 'Runtime discovery checks registered PowerShell and Microsoft.PowerShell package locations.'
     Assert-Condition -Condition ($runtimeSource.Contains('WaitForExit($TimeoutSeconds * 1000)') -and $runtimeSource.Contains('Application parse preflight failed')) -Message 'Runtime probes use a finite timeout and parse the target entry point before launch.'
@@ -182,8 +188,8 @@ try {
     $elevationInvocationStart = $elevatedSource.IndexOf("if (`$MyInvocation.InvocationName -ne '.')")
     $elevationInvocation = if ($elevationInvocationStart -ge 0) { $elevatedSource.Substring($elevationInvocationStart) } else { '' }
     Assert-Condition -Condition ($elevationInvocation.IndexOf('Test-InstallerCompatibility -Component WindowsHost') -ge 0 -and $elevationInvocation.IndexOf('Test-InstallerCompatibility -Component WindowsHost') -lt $elevationInvocation.IndexOf('Invoke-ElevatedInstall -Arguments')) -Message 'The elevation helper verifies the host before requesting elevation.'
-    Assert-Condition -Condition ($provisionSource.IndexOf('Test-InstallerCompatibility -Component WindowsHost') -lt $provisionSource.IndexOf('& winget install')) -Message 'Runtime provisioning verifies the host before invoking WinGet.'
-    Assert-Condition -Condition ($provisionSource.Contains('$manifest.engines.powerShellCore.version')) -Message 'Runtime provisioning reads its version from the compatibility manifest.'
+    Assert-Condition -Condition ($provisionSource.IndexOf('Test-InstallerCompatibility -Component WindowsHost') -lt $provisionSource.IndexOf('Invoke-InstallerRuntimePrerequisiteFlow') -and $provisionSource.Contains('Invoke-InstallerRuntimePrerequisiteFlow')) -Message 'Runtime provisioning delegates to the shared compatibility preflight and consent flow.'
+    Assert-Condition -Condition ($provisionSource.Contains('No application package action was started') -and -not $provisionSource.Contains('& winget install')) -Message 'The optional runtime helper stops before application actions and does not bypass the pinned provisioning path.'
 
     Write-Host "[OK] Compatibility contract checks passed ($checkCount assertions)." -ForegroundColor Green
 }

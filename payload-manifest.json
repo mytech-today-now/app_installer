@@ -1,0 +1,124 @@
+{
+  "formatVersion": 1,
+  "productVersionFile": "VERSION",
+  "generatedIntegrityFile": "payload-integrity.json",
+  "requiredFiles": [
+    "app-installer.ps1",
+    "app-installer-cli.ps1",
+    "apps-manifest.json",
+    "compatibility.json",
+    "install.bat",
+    "install.sh",
+    "invoke-elevated-install.ps1",
+    "payload-manifest.json",
+    "platform-detect.ps1",
+    "tools/Start-Installer.ps1",
+    "VERSION"
+  ],
+  "fileSets": [
+    {
+      "path": "apps",
+      "extensions": [
+        ".ps1"
+      ]
+    },
+    {
+      "path": "modules",
+      "extensions": [
+        ".ps1",
+        ".psm1"
+      ]
+    },
+    {
+      "path": "profiles",
+      "extensions": [
+        ".json"
+      ],
+      "fileNames": [
+        "profile-business-analyst.json",
+        "profile-content-creator.json",
+        "profile-data-analyst.json",
+        "profile-developer.json",
+        "profile-film-maker.json",
+        "profile-gamer.json",
+        "profile-graphic-designer.json",
+        "profile-hacker.json",
+        "profile-home-office.json",
+        "profile-household-management.json",
+        "profile-it-technician.json",
+        "profile-kids-account.json",
+        "profile-less-google.json",
+        "profile-less-microsoft.json",
+        "profile-music-producer.json",
+        "profile-secure-privacy-general.json",
+        "profile-smb-management-operations.json",
+        "profile-streamer.json",
+        "profile-student-academic.json",
+        "profile-system-administrator.json",
+        "profile-ux-ui-designer.json",
+        "profile-video-editor.json"
+      ]
+    }
+  ],
+  "features": {
+    "cli": [
+      "app-installer-cli.ps1",
+      "apps-manifest.json",
+      "compatibility.json",
+      "modules/AppInstallerCore.psm1",
+      "modules/InstallerCompatibility.psm1",
+      "modules/InstallerPayload.psm1",
+      "modules/InstallerPrerequisitePlan.psm1",
+      "modules/InstallerRuntimeDiscovery.psm1",
+      "modules/WingetBootstrap.psm1",
+      "platform-detect.ps1"
+    ],
+    "gui": [
+      "app-installer.ps1",
+      "app-installer-cli.ps1",
+      "apps-manifest.json",
+      "compatibility.json",
+      "modules/AppInstallerCore.psm1",
+      "modules/InstallerCompatibility.psm1",
+      "modules/InstallerPayload.psm1",
+      "modules/InstallerPrerequisitePlan.psm1",
+      "modules/InstallerRuntimeDiscovery.psm1",
+      "modules/OOShutUp10Trust.psm1",
+      "modules/StartupHelperTrust.psm1",
+      "modules/WingetBootstrap.psm1",
+      "platform-detect.ps1"
+    ]
+  },
+  "exclusions": {
+    "directoryNames": [
+      ".git",
+      "tests",
+      "test",
+      "test-fixtures",
+      "fixtures",
+      "logs",
+      "log",
+      "temp",
+      "tmp",
+      "node_modules",
+      "example",
+      "examples",
+      "dev",
+      "development"
+    ],
+    "fileNamePrefixes": [
+      ".env"
+    ],
+    "extensions": [
+      ".log",
+      ".tmp",
+      ".bak",
+      ".exe",
+      ".dll",
+      ".pfx",
+      ".p12",
+      ".pem",
+      ".key"
+    ]
+  }
+}

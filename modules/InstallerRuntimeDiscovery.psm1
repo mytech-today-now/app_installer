@@ -132,6 +132,9 @@ function Test-InstallerRuntimeAllowedRoot {
                 $roots.Add([System.IO.Path]::GetFullPath($root).TrimEnd('\'))
             }
         }
+        if ($Source -eq 'AppInstallerManaged' -and -not [string]::IsNullOrWhiteSpace([string]$env:LOCALAPPDATA)) {
+            $roots.Add([System.IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA 'Programs\myTech.Today\AppInstaller\PowerShell')).TrimEnd('\'))
+        }
         if ($Source -eq 'StorePackage' -and -not [string]::IsNullOrWhiteSpace([string]$env:ProgramFiles)) {
             $roots.Add([System.IO.Path]::GetFullPath((Join-Path $env:ProgramFiles 'WindowsApps')).TrimEnd('\'))
         }
@@ -304,6 +307,10 @@ function Get-InstallerRuntimeCandidates {
     if (-not [string]::IsNullOrWhiteSpace([string]$env:LOCALAPPDATA)) {
         $corePaths += [PSCustomObject]@{ Path = (Join-Path $env:LOCALAPPDATA 'Programs\PowerShell\7\pwsh.exe'); Source = 'CoreCurrentUser' }
         $corePaths += [PSCustomObject]@{ Path = (Join-Path $env:LOCALAPPDATA 'Microsoft\PowerShell\pwsh.exe'); Source = 'CoreCurrentUser' }
+        $coreVersion = [string]$Manifest.engines.powerShellCore.version
+        if (-not [string]::IsNullOrWhiteSpace($coreVersion)) {
+            $corePaths += [PSCustomObject]@{ Path = (Join-Path $env:LOCALAPPDATA ('Programs\myTech.Today\AppInstaller\PowerShell\{0}\pwsh.exe' -f $coreVersion)); Source = 'AppInstallerManaged' }
+        }
     }
     foreach ($path in $corePaths) {
         Add-InstallerRuntimeCandidate -Candidates $candidates -Path $path.Path -Engine Core -Source $path.Source

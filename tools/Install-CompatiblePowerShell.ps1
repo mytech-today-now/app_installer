@@ -5,11 +5,15 @@ param()
 
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$modulePath = Join-Path $repoRoot 'modules\InstallerCompatibility.psm1'
+$compatibilityModulePath = Join-Path $repoRoot 'modules\InstallerCompatibility.psm1'
+$runtimeModulePath = Join-Path $repoRoot 'modules\InstallerRuntimeDiscovery.psm1'
+$prerequisiteModulePath = Join-Path $repoRoot 'modules\InstallerPrerequisitePlan.psm1'
 $manifestPath = Join-Path $repoRoot 'compatibility.json'
 
 try {
-    Import-Module -Name $modulePath -Force -DisableNameChecking -ErrorAction Stop | Out-Null
+    Import-Module -Name $compatibilityModulePath -Force -DisableNameChecking -ErrorAction Stop | Out-Null
+    Import-Module -Name $runtimeModulePath -Force -DisableNameChecking -ErrorAction Stop | Out-Null
+    Import-Module -Name $prerequisiteModulePath -Force -DisableNameChecking -ErrorAction Stop | Out-Null
     $manifest = Get-InstallerCompatibilityManifest -Path $manifestPath
     $hostInfo = Get-InstallerHostInfo
     $hostDecision = Test-InstallerCompatibility -Component WindowsHost -HostInfo $hostInfo
@@ -18,31 +22,22 @@ try {
         exit 1
     }
 
-    $currentEngine = Test-InstallerCompatibility -Component WindowsCli -HostInfo $hostInfo
-    if ($currentEngine.IsSupported) {
-        Write-Host '[OK] A compatible PowerShell engine is already active. No runtime was installed.' -ForegroundColor Green
+    $flowResult = Invoke-InstallerRuntimePrerequisiteFlow -Component WindowsCli -ApplicationPath $PSCommandPath
+    if ($flowResult.Status -eq 'PlanOnly') {
+        Write-Host '[INFO] WhatIf completed. No runtime download, installation, or elevation was started.' -ForegroundColor Cyan
         exit 0
     }
-
-    if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
-        Write-Host "[ERROR] No compatible PowerShell engine is available and WinGet is not installed. $($manifest.recovery.engine)" -ForegroundColor Red
+    if ($flowResult.Status -ne 'Started') {
+        Write-Host "[ERROR] PowerShell runtime preflight did not complete: $($flowResult.Reason)" -ForegroundColor Red
         exit 1
     }
-
-    $version = [string]$manifest.engines.powerShellCore.version
-    if ($PSCmdlet.ShouldProcess("PowerShell $version", 'Install the compatible Windows runtime with WinGet')) {
-        Write-Host "[INFO] Installing PowerShell $version after host compatibility was verified." -ForegroundColor Cyan
-        & winget install --id Microsoft.PowerShell --source winget --version $version --scope user --accept-source-agreements --accept-package-agreements --disable-interactivity
-        $installExitCode = $LASTEXITCODE
-        if ($installExitCode -ne 0) {
-            Write-Host "[ERROR] WinGet could not install PowerShell $version. Exit code: $installExitCode" -ForegroundColor Red
-            exit 1
-        }
+    if ($flowResult.RuntimeDecision.Action -eq 'Exit') {
+        exit $flowResult.RuntimeDecision.ExitCode
     }
-
+    Write-Host '[OK] A compatible PowerShell engine was selected and revalidated. No application package action was started.' -ForegroundColor Green
     exit 0
 }
 catch {
-    Write-Host "[ERROR] Compatible PowerShell provisioning failed: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host '[ERROR] Compatible PowerShell provisioning failed before application package actions. Local paths and environment details were withheld.' -ForegroundColor Red
     exit 1
 }
