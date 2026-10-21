@@ -96,6 +96,7 @@ try {
     $instructions = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'instructions.html')
     $help = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'app-installer.ps1')
     $batch = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'install.bat')
+    $starter = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'tools\Start-Installer.ps1')
     $shell = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'install.sh')
     $scheduledUpdater = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'app-installer-cli.ps1')
     $ooshutupHelper = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'modules\OOShutUp10Trust.psm1')
@@ -118,6 +119,8 @@ try {
     Assert-Condition -Condition (($batch + $shell + $help) -notmatch '(?im)Set-ExecutionPolicy\b') -Message 'The documented launch path does not write PowerShell policy settings.'
     Assert-Condition -Condition (($instructions -notmatch '(?im)Set-ExecutionPolicy\b') -and (($readme + $instructions) -notmatch '(?im)(?:powershell|pwsh)(?:\.exe)?\s+[^\r\n]*\s+-ExecutionPolicy\b')) -Message 'User documentation does not recommend writing policy settings or passing a process policy override.'
     Assert-Condition -Condition ($batch -match '(?s)-NoProfile\s+-File[^\r\n]*%\*') -Message 'The Windows launcher still invokes the script directly and forwards arguments.'
+    Assert-Condition -Condition ($batch -match '(?i)if not exist "%~dp0app-installer\.ps1" if not exist "%~dp0app-installer-cli\.ps1"') -Message 'The Windows launcher accepts a GUI or CLI entry script without requiring both.'
+    Assert-Condition -Condition ($starter -match '\$applicationPath\s*=\s*if\s*\(\$ForceCLI\)\s*\{\s*\$cliApplicationPath\s*\}\s*else\s*\{\s*\$guiApplicationPath\s*\}') -Message 'Explicit CLI mode selects app-installer-cli.ps1 for shared runtime discovery.'
     Assert-Condition -Condition ($shell -match '(?s)-NoProfile\s+-File[^\r\n]*"\$@"') -Message 'The POSIX launcher still invokes the script directly and forwards arguments.'
     Assert-Condition -Condition ($batch -match '(?i)if not exist "%~dp0app-installer\.ps1"' -and $shell -match '(?i)\[\[ ! -f "\$SCRIPT_DIR/app-installer-cli\.ps1" \]\]') -Message 'Both wrappers fail clearly when their target script is missing.'
     Assert-Condition -Condition ($readme.Contains('Get-AuthenticodeSignature') -and $readme.Contains($signingGuide)) -Message 'README documents Authenticode verification and links to Microsoft signing guidance.'

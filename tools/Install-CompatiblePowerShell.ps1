@@ -16,7 +16,7 @@ try {
     Import-Module -Name $prerequisiteModulePath -Force -DisableNameChecking -ErrorAction Stop | Out-Null
     $manifest = Get-InstallerCompatibilityManifest -Path $manifestPath
     $hostInfo = Get-InstallerHostInfo
-    $hostDecision = Test-InstallerCompatibility -Component WindowsHost -HostInfo $hostInfo
+    $hostDecision = Get-InstallerHostPreflight -Component WindowsHost -HostInfo $hostInfo
     if (-not $hostDecision.IsSupported) {
         Write-Host $hostDecision.Message -ForegroundColor Red
         exit 1

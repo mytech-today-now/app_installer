@@ -1,0 +1,127 @@
+name: Publish Versioned Unsigned Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: app-installer-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate_release_tag:
+    if: ${{ github.event.repository.private == false }}
+    runs-on: windows-2025
+    timeout-minutes: 10
+    steps:
+      - name: Check out the tagged source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          clean: true
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Require a protected semantic-version tag
+        shell: powershell
+        env:
+          RELEASE_REF_PROTECTED: ${{ github.ref_protected }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:GITHUB_REF_TYPE -cne 'tag') {
+              throw 'The release workflow requires a tag ref.'
+          }
+          if ($env:RELEASE_REF_PROTECTED -cne 'true') {
+              throw 'The release tag must be protected by a GitHub ruleset or tag protection rule.'
+          }
+
+      - name: Validate tag against VERSION and script metadata
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $pwsh = (Get-Command pwsh.exe -ErrorAction Stop).Source
+          & $pwsh -NoProfile -File .\tools\Test-InstallerReleaseTag.ps1 -TagName $env:GITHUB_REF_NAME
+          if ($LASTEXITCODE -ne 0) {
+              exit $LASTEXITCODE
+          }
+
+  compatibility:
+    needs: validate_release_tag
+    if: ${{ github.event.repository.private == false }}
+    uses: ./.github/workflows/windows-build-compatibility.yml
+    with:
+      validate_release_tag: true
+
+  publish_release:
+    needs:
+      - validate_release_tag
+      - compatibility
+    if: ${{ github.event.repository.private == false && needs.validate_release_tag.result == 'success' && needs.compatibility.result == 'success' }}
+    runs-on: windows-2025
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - name: Check out the validated tagged source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          clean: true
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Build, prepare, and publish the validated release
+        shell: powershell
+        env:
+          RELEASE_API_TOKEN: ${{ github.token }}
+          RELEASE_REPOSITORY: ${{ github.repository }}
+          RELEASE_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          RELEASE_REF_PROTECTED: ${{ github.ref_protected }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_SOURCE_COMMIT: ${{ github.sha }}
+          RELEASE_WORKFLOW_NAME: ${{ github.workflow }}
+          RELEASE_RUN_ID: ${{ github.run_id }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $pwsh = (Get-Command pwsh.exe -ErrorAction Stop).Source
+          $actualPowerShell = [string]::Join('', @(& $pwsh -NoProfile -Command '$PSVersionTable.PSVersion.ToString()')).Trim()
+          if ($LASTEXITCODE -ne 0 -or $actualPowerShell -cne '7.6.7') {
+              throw ('PowerShell Core 7.6.7 is required for release packaging; found {0}.' -f $actualPowerShell)
+          }
+
+          & $pwsh -NoProfile -File .\tools\Test-InstallerReleaseTag.ps1 -TagName $env:RELEASE_TAG
+          if ($LASTEXITCODE -ne 0) {
+              exit $LASTEXITCODE
+          }
+
+          & $pwsh -NoProfile -File .\tools\Build-InstallerExe.ps1 -Confirm:$false
+          if ($LASTEXITCODE -ne 0) {
+              exit $LASTEXITCODE
+          }
+
+          $assetDirectory = Join-Path $env:RUNNER_TEMP ('app-installer-release-' + $env:RELEASE_RUN_ID)
+          & $pwsh -NoProfile -File .\tools\New-InstallerReleaseAssets.ps1 `
+              -RepositoryRoot . `
+              -TagName $env:RELEASE_TAG `
+              -SourceCommit $env:RELEASE_SOURCE_COMMIT `
+              -DefaultBranch $env:RELEASE_DEFAULT_BRANCH `
+              -WorkflowName $env:RELEASE_WORKFLOW_NAME `
+              -RunId $env:RELEASE_RUN_ID `
+              -PassedEnginesCsv 'Desktop-5.1,Core-7.6.7' `
+              -OutputDirectory $assetDirectory
+          if ($LASTEXITCODE -ne 0) {
+              exit $LASTEXITCODE
+          }
+
+          & $pwsh -NoProfile -File .\tools\Publish-InstallerRelease.ps1 `
+              -RepositoryRoot . `
+              -Repository $env:RELEASE_REPOSITORY `
+              -TagName $env:RELEASE_TAG `
+              -SourceCommit $env:RELEASE_SOURCE_COMMIT `
+              -DefaultBranch $env:RELEASE_DEFAULT_BRANCH `
+              -AssetsDirectory $assetDirectory
+          if ($LASTEXITCODE -ne 0) {
+              exit $LASTEXITCODE
+          }

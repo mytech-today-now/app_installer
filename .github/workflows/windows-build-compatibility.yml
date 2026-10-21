@@ -1,0 +1,183 @@
+name: Windows Build and PowerShell Compatibility
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      publish_artifact:
+        description: Upload the versioned unsigned EXE and provenance for three days
+        required: true
+        default: false
+        type: boolean
+  workflow_call:
+    inputs:
+      validate_release_tag:
+        description: Validate the caller tag against VERSION before building
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-build-compatibility:
+    name: Windows build and ${{ matrix.engine }}
+    if: ${{ github.event.repository.private == false }}
+    runs-on: windows-2025
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        engine:
+          - Desktop-5.1
+          - Core-7.6.7
+    steps:
+      - name: Checkout a clean source tree
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          clean: true
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Confirm the standard Windows Server 2025 build host
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $os = Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction Stop
+          if ([int]$os.BuildNumber -ne 26100 -or [int]$os.ProductType -ne 3) {
+              throw ('Expected the standard Windows Server 2025 build host (build 26100, product type 3); found build {0}, product type {1}.' -f $os.BuildNumber, $os.ProductType)
+          }
+          Write-Host '[OK] Build host is Windows Server 2025 x64 build 26100.'
+
+      - name: Confirm Windows PowerShell Desktop 5.1
+        if: ${{ matrix.engine == 'Desktop-5.1' }}
+        shell: powershell
+        run: |
+          if ($PSVersionTable.PSEdition -ne 'Desktop' -or $PSVersionTable.PSVersion.Major -ne 5 -or $PSVersionTable.PSVersion.Minor -ne 1) {
+              throw ('[UNAVAILABLE] Windows PowerShell Desktop 5.1 is required; found {0} {1}.' -f $PSVersionTable.PSEdition, $PSVersionTable.PSVersion)
+          }
+          Write-Host ('[OK] Windows PowerShell {0} {1}.' -f $PSVersionTable.PSEdition, $PSVersionTable.PSVersion)
+
+      - name: Confirm pinned PowerShell Core 7.6.7
+        if: ${{ matrix.engine == 'Core-7.6.7' }}
+        shell: powershell
+        run: |
+          $pwsh = Get-Command pwsh.exe -ErrorAction SilentlyContinue
+          if ($null -eq $pwsh) {
+              throw '[UNAVAILABLE] PowerShell Core 7.6.7 is required but pwsh.exe is not present on the standard runner.'
+          }
+          $version = @(& $pwsh.Source -NoProfile -Command '$PSVersionTable.PSVersion.ToString()')
+          $versionExitCode = $LASTEXITCODE
+          $actualVersion = [string]::Join('', $version).Trim()
+          if ($versionExitCode -ne 0 -or $actualVersion -cne '7.6.7') {
+              throw ('[UNAVAILABLE] PowerShell Core 7.6.7 is required; found {0}.' -f $actualVersion)
+          }
+          Write-Host ('[OK] PowerShell Core {0} at {1}.' -f $actualVersion, $pwsh.Source)
+
+      - name: Validate the semantic release tag
+        if: ${{ matrix.engine == 'Core-7.6.7' && inputs.validate_release_tag }}
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $pwsh = (Get-Command pwsh.exe -ErrorAction Stop).Source
+          & $pwsh -NoProfile -File .\tools\Test-InstallerReleaseTag.ps1 -TagName $env:GITHUB_REF_NAME
+          if ($LASTEXITCODE -ne 0) {
+              exit $LASTEXITCODE
+          }
+
+      - name: Build the unsigned versioned executable and provenance
+        if: ${{ matrix.engine == 'Core-7.6.7' }}
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $pwsh = (Get-Command pwsh.exe -ErrorAction Stop).Source
+          & $pwsh -NoProfile -File .\tools\Build-InstallerExe.ps1 -Confirm:$false
+          if ($LASTEXITCODE -ne 0) {
+              exit $LASTEXITCODE
+          }
+
+          $configuration = Get-Content -LiteralPath .\tools\installer-exe-build.json -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+          if ([string]$configuration.artifact.identity -cne 'app-installer-versioned-release-v1') {
+              throw 'The build configuration does not identify the current versioned release artifact.'
+          }
+          $versionModule = Join-Path $PWD.Path 'tools\InstallerExecutableBuild.psm1'
+          Import-Module -Name $versionModule -Force -DisableNameChecking -ErrorAction Stop | Out-Null
+          $versionContract = Test-InstallerExeVersionContract `
+              -VersionText (Get-Content -LiteralPath .\VERSION -Raw -ErrorAction Stop) `
+              -GuiSource (Get-Content -LiteralPath .\app-installer.ps1 -Raw -ErrorAction Stop) `
+              -CliSource (Get-Content -LiteralPath .\app-installer-cli.ps1 -Raw -ErrorAction Stop)
+          if (-not $versionContract.IsValid) {
+              throw ('The build version contract is invalid: {0}' -f ($versionContract.Errors -join ' '))
+          }
+          $expectedName = ([string]$configuration.artifact.outputNamePattern).Replace('{guiVersion}', [string]$versionContract.GuiVersion)
+          $outputDirectory = ([string]$configuration.artifact.defaultOutputDirectory).Replace('/', '\')
+          if ([string]::IsNullOrWhiteSpace($outputDirectory) -or [System.IO.Path]::IsPathRooted($outputDirectory) -or $outputDirectory.Split([char[]]@('\', '/')) -contains '..') {
+              throw 'The configured executable output directory is unsafe.'
+          }
+          $manifestCandidates = @(Get-ChildItem -LiteralPath (Join-Path $PWD.Path $outputDirectory) -Filter '*.exe.build.json' -File -ErrorAction Stop)
+          if ($manifestCandidates.Count -ne 1) {
+              throw ('Expected exactly one builder manifest, found {0}.' -f $manifestCandidates.Count)
+          }
+          $manifestPath = $manifestCandidates[0].FullName
+          $manifest = Get-Content -LiteralPath $manifestPath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+          if ([string]$manifest.artifact.identity -cne [string]$configuration.artifact.identity -or
+              [string]$manifest.artifact.fileName -cne $expectedName) {
+              throw 'The builder manifest does not identify the configured current versioned artifact.'
+          }
+          $executablePath = Join-Path (Join-Path $PWD.Path $outputDirectory) ([string]$manifest.artifact.fileName)
+          if (-not (Test-Path -LiteralPath $executablePath -PathType Leaf) -or
+              [System.IO.Path]::GetFullPath($manifestPath) -cne [System.IO.Path]::GetFullPath($executablePath + '.build.json')) {
+              throw 'The manifest-listed executable or its adjacent provenance file is missing.'
+          }
+          $revision = @(& git rev-parse --verify HEAD)
+          if ($LASTEXITCODE -ne 0 -or [string]::Join('', $revision).Trim() -cne [string]$manifest.source.revision) {
+              throw 'The provenance revision does not match the checked out source commit.'
+          }
+          if (-not [bool]$manifest.source.worktreeClean) {
+              throw 'The build provenance reports a modified checkout.'
+          }
+          $artifactHash = (Get-FileHash -LiteralPath $executablePath -Algorithm SHA256 -ErrorAction Stop).Hash.ToLowerInvariant()
+          if ([string]$manifest.artifact.architecture -cne 'X64' -or
+              [string]$manifest.artifact.authenticodeStatus -cne 'NotSigned' -or
+              [string]$manifest.artifact.sha256 -notmatch '^[0-9a-f]{64}$' -or
+              [string]$manifest.artifact.sha256 -cne $artifactHash) {
+              throw 'The built artifact does not match the unsigned x64 provenance contract.'
+          }
+          $relativeArtifactPath = Join-Path $outputDirectory ([string]$manifest.artifact.fileName)
+          $relativeManifestPath = $relativeArtifactPath + '.build.json'
+          Add-Content -LiteralPath $env:GITHUB_ENV -Value ('APP_INSTALLER_ARTIFACT_PATH={0}' -f $relativeArtifactPath.Replace('\', '/')) -Encoding Ascii
+          Add-Content -LiteralPath $env:GITHUB_ENV -Value ('APP_INSTALLER_BUILD_MANIFEST_PATH={0}' -f $relativeManifestPath.Replace('\', '/')) -Encoding Ascii
+          Write-Host ('[OK] Built manifest-listed {0}; SHA-256 {1}.' -f [System.IO.Path]::GetFileName($executablePath), $manifest.artifact.sha256)
+
+      - name: Run syntax and offline regression checks
+        shell: powershell
+        env:
+          APP_INSTALLER_CI_ENGINE: ${{ matrix.engine }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & .\tests\Invoke-CIRegressionSuite.ps1 -Engine $env:APP_INSTALLER_CI_ENGINE
+          if ($LASTEXITCODE -ne 0) {
+              exit $LASTEXITCODE
+          }
+
+      - name: Publish versioned unsigned artifact and provenance
+        if: ${{ matrix.engine == 'Core-7.6.7' && github.event_name == 'workflow_dispatch' && inputs.publish_artifact }}
+        uses: actions/upload-artifact@c2acdedd35a8824a1552c7137f8c18288c3ea469
+        with:
+          name: app-installer-unsigned-${{ github.run_id }}
+          path: |
+            ${{ env.APP_INSTALLER_ARTIFACT_PATH }}
+            ${{ env.APP_INSTALLER_BUILD_MANIFEST_PATH }}
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 3

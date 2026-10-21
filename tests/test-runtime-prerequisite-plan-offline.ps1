@@ -12,6 +12,7 @@ $manifest = Get-InstallerCompatibilityManifest
 $applicationPath = Join-Path $repositoryRoot 'app-installer-cli.ps1'
 $hostInfo = [PSCustomObject]@{
     Platform = 'Windows'
+    ProductFamily = 'WindowsClient'
     DisplayVersion = '26H2'
     BuildNumber = 26300
     ProductType = 'WinNT'
@@ -19,6 +20,8 @@ $hostInfo = [PSCustomObject]@{
     EditionId = 'Core'
     Architecture = 'X64'
     DotNetFrameworkRelease = 533325
+    MetadataAvailable = $true
+    MetadataReasonCode = ''
     IsAdministrator = $false
 }
 $tempRoot = [System.IO.Path]::GetFullPath((Join-Path ([System.IO.Path]::GetTempPath()) ('App Installer Prerequisite ' + [guid]::NewGuid().ToString('N'))))
@@ -205,6 +208,59 @@ try {
     Assert-Condition -Condition ($unsupportedPlan.Action -eq 'Blocked' -and $null -eq $unsupportedPlan.Provisioning) -Message 'An unsupported host is blocked before any runtime provisioning plan is offered.'
     $unsupportedWhatIf = Invoke-InstallerRuntimePrerequisiteFlow -Component WindowsGui -ApplicationPath $applicationPath -CandidateRecords @() -AllowTestCandidates -HostInfo $unsupportedHost -Manifest $manifest -WhatIf
     Assert-Condition -Condition ($unsupportedWhatIf.Status -eq 'Blocked') -Message 'GUI WhatIf preserves an unsupported-host block instead of reporting a successful preview.'
+
+    $blockedOperationCases = @(
+        [PSCustomObject]@{ Name = 'Windows 10'; Host = ($hostInfo | ConvertTo-Json -Depth 5 | ConvertFrom-Json); ReasonCode = 'WINDOWS_RELEASE_UNSUPPORTED'; Manifest = $manifest },
+        [PSCustomObject]@{ Name = 'Windows Server'; Host = ($hostInfo | ConvertTo-Json -Depth 5 | ConvertFrom-Json); ReasonCode = 'WINDOWS_NOT_CLIENT'; Manifest = $manifest },
+        [PSCustomObject]@{ Name = 'x86'; Host = ($hostInfo | ConvertTo-Json -Depth 5 | ConvertFrom-Json); ReasonCode = 'WINDOWS_ARCHITECTURE_UNSUPPORTED'; Manifest = $manifest },
+        [PSCustomObject]@{ Name = 'ARM64'; Host = ($hostInfo | ConvertTo-Json -Depth 5 | ConvertFrom-Json); ReasonCode = 'WINDOWS_ARCHITECTURE_UNSUPPORTED'; Manifest = $manifest },
+        [PSCustomObject]@{ Name = 'unknown architecture'; Host = ($hostInfo | ConvertTo-Json -Depth 5 | ConvertFrom-Json); ReasonCode = 'WINDOWS_ARCHITECTURE_UNKNOWN'; Manifest = $manifest },
+        [PSCustomObject]@{ Name = 'OS metadata failure'; Host = ($hostInfo | ConvertTo-Json -Depth 5 | ConvertFrom-Json); ReasonCode = 'WINDOWS_METADATA_UNAVAILABLE'; Manifest = $manifest }
+    )
+    $mismatchedManifest = $manifest | ConvertTo-Json -Depth 20 | ConvertFrom-Json
+    $mismatchedManifest.windowsExecutable.runtimeDiscovery.provisioning.architecture = 'Arm64'
+    $blockedOperationCases += [PSCustomObject]@{ Name = 'artifact architecture mismatch'; Host = ($hostInfo | ConvertTo-Json -Depth 5 | ConvertFrom-Json); ReasonCode = 'PACKAGE_ARCHITECTURE_MISMATCH'; Manifest = $mismatchedManifest }
+
+    foreach ($case in $blockedOperationCases) {
+        switch ($case.Name) {
+            'Windows 10' { $case.Host.DisplayVersion = '22H2'; $case.Host.BuildNumber = 19045 }
+            'Windows Server' { $case.Host.ProductType = 'LanmanNT'; $case.Host.ProductFamily = 'WindowsServer'; $case.Host.InstallationType = 'Server'; $case.Host.EditionId = 'ServerDatacenter' }
+            'x86' { $case.Host.Architecture = 'X86' }
+            'ARM64' { $case.Host.Architecture = 'Arm64' }
+            'unknown architecture' { $case.Host.Architecture = 'Unknown' }
+            'OS metadata failure' { $case.Host.MetadataAvailable = $false; $case.Host.MetadataReasonCode = 'WINDOWS_METADATA_UNAVAILABLE' }
+        }
+
+        $operationCounts = [ordered]@{ Winget = 0; Probe = 0; Discover = 0; Consent = 0; Download = 0; Installer = 0; Elevation = 0; Launch = 0 }
+        $blockedTempRoot = Join-Path $tempRoot ('blocked-' + [guid]::NewGuid().ToString('N'))
+        $blockedFlow = Invoke-InstallerRuntimePrerequisiteFlow -Component WindowsCli -ApplicationPath $applicationPath -CandidateRecords @($core) -AllowTestCandidates -HostInfo $case.Host -Manifest $case.Manifest -ProvisioningTempRoot $blockedTempRoot -WingetAvailabilityProbe {
+            $script:operationCounts.Winget++
+            return $true
+        } -ProbeInvoker {
+            $script:operationCounts.Probe++
+            New-ProbeResult -Probe $coreProbe
+        } -CandidateDiscoverer {
+            $script:operationCounts.Discover++
+            @()
+        } -ConsentInvoker {
+            $script:operationCounts.Consent++
+            return $true
+        } -DownloadInvoker {
+            $script:operationCounts.Download++
+            [PSCustomObject]@{ Success = $true }
+        } -InstallerInvoker {
+            $script:operationCounts.Installer++
+            [PSCustomObject]@{ Success = $true; CandidatePath = ''; RebootRequired = $false }
+        } -ElevationInvoker {
+            $script:operationCounts.Elevation++
+            [PSCustomObject]@{ Success = $true }
+        } -LaunchInvoker {
+            $script:operationCounts.Launch++
+            [PSCustomObject]@{ Started = $true; ExitCode = 0; Reason = '' }
+        }
+        $totalBlockedOperations = ($operationCounts.Values | Measure-Object -Sum).Sum
+        Assert-Condition -Condition ($blockedFlow.Status -eq 'Blocked' -and $blockedFlow.Plan.HostPreflight.ReasonCode -eq $case.ReasonCode -and $totalBlockedOperations -eq 0 -and -not [System.IO.Directory]::Exists($blockedTempRoot)) -Message ("Unsupported {0} host blocks downloader, installer, elevation, WinGet, probes, launch, and persistent runtime files." -f $case.Name)
+    }
 
     $emptyPlan = Get-InstallerPrerequisitePlan -Component WindowsCli -ApplicationPath $applicationPath -CandidateRecords @() -AllowTestCandidates -HostInfo $hostInfo -Manifest $manifest
     Assert-Condition -Condition ($emptyPlan.Action -eq 'Provision' -and $emptyPlan.Provisioning.InstallScope -eq 'current-user' -and -not $emptyPlan.Provisioning.RequiresAdministrator -and -not $emptyPlan.Provisioning.ModifiesPath -and -not $emptyPlan.Provisioning.ModifiesDefaultEngine) -Message 'A standard user receives a pinned current-user plan without PATH or default-engine changes.'

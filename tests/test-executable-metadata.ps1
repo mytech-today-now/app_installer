@@ -1,4 +1,5 @@
-# Offline version-resource checks for the current unsigned IExpress package.
+# Offline version-resource checks for the pinned legacy IExpress seed.
+# This is seed metadata evidence, not validation of the current versioned release output.
 # No executable is launched and no installation workflow is run.
 #Requires -Version 5.1
 
@@ -21,20 +22,61 @@ elseif (-not [System.IO.Path]::IsPathRooted($ExecutablePath)) {
     $ExecutablePath = Join-Path $repositoryRoot $ExecutablePath
 }
 $exePath = [System.IO.Path]::GetFullPath($ExecutablePath)
-$versionText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'VERSION') -Raw
-$versionMatch = [regex]::Match($versionText, '(?m)^\*\*GUI Version:\*\*\s*([0-9]+\.[0-9]+\.[0-9]+)\s*$')
-if (-not $versionMatch.Success) {
-    throw 'GUI version was not present in VERSION.'
+$buildConfigurationPath = Join-Path $repositoryRoot 'tools\installer-exe-build.json'
+$buildConfiguration = Get-Content -LiteralPath $buildConfigurationPath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+$metadataScriptPath = Join-Path $repositoryRoot 'tools\Set-InstallerExeMetadata.ps1'
+$metadataHost = if ($PSVersionTable.PSEdition -eq 'Core') {
+    (Get-Process -Id $PID -ErrorAction Stop).Path
+}
+else {
+    Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
+}
+function Invoke-MetadataToolForGuardTest {
+    param([string[]]$Arguments)
+
+    $previousErrorActionPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        $output = @(& $metadataHost @Arguments 2>&1)
+        $exitCode = $LASTEXITCODE
+        return [PSCustomObject]@{ ExitCode = $exitCode; Output = $output }
+    }
+    finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
 }
 
-$expectedVersion = $versionMatch.Groups[1].Value + '.0'
+$missingArgumentsAttempt = Invoke-MetadataToolForGuardTest -Arguments @('-NoProfile', '-File', $metadataScriptPath)
+if ($missingArgumentsAttempt.ExitCode -eq 0) {
+    throw 'The metadata tool must require explicit input and output paths.'
+}
+
+foreach ($legacyArtifact in @($buildConfiguration.legacyArtifacts)) {
+    $legacyPath = [System.IO.Path]::GetFullPath((Join-Path $repositoryRoot ([string]$legacyArtifact.path)))
+    $legacyHashBefore = (Get-FileHash -LiteralPath $legacyPath -Algorithm SHA256 -ErrorAction Stop).Hash
+    $blockedOutputAttempt = Invoke-MetadataToolForGuardTest -Arguments @('-NoProfile', '-File', $metadataScriptPath, '-InputPath', $legacyPath, '-OutputPath', $legacyPath, '-WhatIf')
+    $legacyHashAfter = (Get-FileHash -LiteralPath $legacyPath -Algorithm SHA256 -ErrorAction Stop).Hash
+    if ($blockedOutputAttempt.ExitCode -eq 0 -or $legacyHashAfter -cne $legacyHashBefore) {
+        throw ('The metadata tool did not fail closed for legacy output {0}.' -f [string]$legacyArtifact.path)
+    }
+}
+
+$versionText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'VERSION') -Raw
+$versionModulePath = Join-Path $repositoryRoot 'tools\InstallerExecutableBuild.psm1'
+Import-Module -Name $versionModulePath -Force -DisableNameChecking -ErrorAction Stop | Out-Null
+$versionContract = Test-InstallerExeVersionContract -VersionText $versionText -GuiSource (Get-Content -LiteralPath (Join-Path $repositoryRoot 'app-installer.ps1') -Raw -ErrorAction Stop) -CliSource (Get-Content -LiteralPath (Join-Path $repositoryRoot 'app-installer-cli.ps1') -Raw -ErrorAction Stop) -ReadmeText (Get-Content -LiteralPath (Join-Path $repositoryRoot 'README.md') -Raw -ErrorAction Stop)
+if (-not $versionContract.IsValid) {
+    throw ('Executable version inputs are inconsistent: {0}' -f ($versionContract.Errors -join ' '))
+}
+
+$expectedVersion = [string]$versionContract.GuiVersion + '.0'
 $fileVersion = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($exePath)
 $signature = Get-AuthenticodeSignature -FilePath $exePath
 $contract = Get-Content -LiteralPath (Join-Path $repositoryRoot 'compatibility.json') -Raw | ConvertFrom-Json
 $releaseNames = @($contract.windowsClient.releases | ForEach-Object { 'Windows 11 {0} build {1}' -f $_.displayVersion, $_.build })
 
-if ($fileVersion.FileVersion -ne $expectedVersion) {
-    throw "Executable FileVersion '$($fileVersion.FileVersion)' did not match '$expectedVersion'."
+if ($fileVersion.FileVersion -ne $expectedVersion -or $fileVersion.ProductVersion -ne $expectedVersion) {
+    throw "Executable FileVersion '$($fileVersion.FileVersion)' or ProductVersion '$($fileVersion.ProductVersion)' did not match '$expectedVersion'."
 }
 if ($fileVersion.ProductName -ne 'myTech.Today App Installer') {
     throw "Unexpected executable ProductName '$($fileVersion.ProductName)'."
@@ -101,4 +143,4 @@ finally {
     }
 }
 
-Write-Host "[OK] Unsigned executable $expectedVersion metadata and embedded support contract match compatibility.json." -ForegroundColor Green
+Write-Host "[OK] Pinned legacy seed metadata $expectedVersion and embedded support contract match compatibility.json; metadata writes reject both legacy paths." -ForegroundColor Green

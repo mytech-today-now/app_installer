@@ -291,7 +291,7 @@ try {
     $stageFailureText = ''
     try {
         try {
-            Copy-AppInstallerPayload -SourceRoot $packageRoot -DestinationRoot $failedInstallRoot | Out-Null
+            Copy-AppInstallerPayload -SourceRoot $packageRoot -DestinationRoot $failedInstallRoot -Operation Upgrade -Confirm:$false | Out-Null
         }
         catch {
             $stageCommitBlocked = $true
@@ -342,9 +342,13 @@ try {
         if ($asciiInspectionRoot -match '[^\x20-\x7E]') {
             throw 'The Windows cabinet inspection scratch path must be ASCII because Expand.exe does not preserve Unicode command-line paths.'
         }
-        $executablePath = Join-Path $buildDirectory 'install-GUI.exe'
+        $buildConfigurationPath = Join-Path $repositoryRoot 'tools\installer-exe-build.json'
+        $buildConfiguration = Get-Content -LiteralPath $buildConfigurationPath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+        $guiVersion = Get-AppInstallerPayloadVersion -RootPath $repositoryRoot
+        $executableName = ([string]$buildConfiguration.artifact.outputNamePattern).Replace('{guiVersion}', $guiVersion)
+        $executablePath = Join-Path $buildDirectory $executableName
         & (Join-Path $repositoryRoot 'tools\Build-InstallerExe.ps1') -OutputPath $executablePath -Confirm:$false
-        Assert-PayloadCondition -Condition (Test-Path -LiteralPath $executablePath -PathType Leaf) -Message 'The Windows builder must produce the requested executable.'
+        Assert-PayloadCondition -Condition ((Test-Path -LiteralPath $executablePath -PathType Leaf) -and [System.IO.Path]::GetFileName($executablePath) -ceq $executableName) -Message 'The Windows builder must produce the configured versioned executable.'
 
         if (-not ('InstallerExecutableVersionInfo' -as [type])) {
             Add-Type -Path (Join-Path $repositoryRoot 'tools\InstallerExecutableVersionInfo.cs') -ErrorAction Stop

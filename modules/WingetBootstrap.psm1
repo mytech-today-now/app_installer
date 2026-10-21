@@ -1,5 +1,10 @@
 #Requires -Version 5.1
 
+$compatibilityModulePath = Join-Path $PSScriptRoot 'InstallerCompatibility.psm1'
+if (-not (Get-Command -Name 'Test-InstallerWindows10WinGetBootstrapHost' -ErrorAction SilentlyContinue)) {
+    Import-Module -Name $compatibilityModulePath -Force -DisableNameChecking -ErrorAction Stop | Out-Null
+}
+
 function Get-WingetBootstrapHostArchitecture {
     [CmdletBinding()]
     param(
@@ -27,32 +32,14 @@ function Test-WingetBootstrapWindows10Client {
     [CmdletBinding()]
     param()
 
-    if ([System.Environment]::OSVersion.Platform -ne [System.PlatformID]::Win32NT) {
-        return $false
-    }
-
-    $osVersion = [System.Environment]::OSVersion.Version
-    if ($osVersion.Major -ne 10 -or $osVersion.Build -ge 22000) {
-        return $false
-    }
-
-    $currentVersionKey = $null
     try {
-        $currentVersionKey = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey('SOFTWARE\Microsoft\Windows NT\CurrentVersion')
-        if ($null -eq $currentVersionKey) {
-            return $false
-        }
-
-        $installationType = [string]$currentVersionKey.GetValue('InstallationType', '')
-        return [string]::Equals($installationType, 'Client', [System.StringComparison]::OrdinalIgnoreCase)
+        $hostInfo = Get-InstallerHostInfo
+        $capability = Test-InstallerWindows10WinGetBootstrapHost -HostInfo $hostInfo
+        $appPreflight = Get-InstallerHostPreflight -Component WindowsHost -HostInfo $hostInfo
+        return [bool]($capability.IsSupported -and $appPreflight.IsSupported)
     }
     catch {
         return $false
-    }
-    finally {
-        if ($null -ne $currentVersionKey) {
-            $currentVersionKey.Dispose()
-        }
     }
 }
 

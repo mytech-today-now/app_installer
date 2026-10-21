@@ -1,0 +1,142 @@
+{
+  "schemaVersion": 1,
+  "artifact": {
+    "identity": "app-installer-versioned-release-v1",
+    "format": "Unsigned IExpress self-extracting package",
+    "entryPoint": "install.bat",
+    "architecture": "X64",
+    "bundledPowerShellRuntime": false,
+    "defaultOutputDirectory": "builds/generated",
+    "outputNamePattern": "AppInstaller-{guiVersion}-win-x64.exe"
+  },
+  "legacyArtifacts": [
+    {
+      "path": "builds/install-GUI.exe",
+      "gitTracked": true,
+      "identity": "legacy-iexpress-seed",
+      "format": "IExpress package",
+      "fileVersion": "2.0.6.0",
+      "productName": "myTech.Today App Installer",
+      "machine": "X64",
+      "sha256": "D24CAF70EB50CAD3F54F5CF11F8FF2D961D8090F929B0AB820CD2F9D9376AA86",
+      "authenticodeStatus": "NotSigned",
+      "releaseEligible": false,
+      "provenanceStatus": "unknown",
+      "addedCommit": "81952a64201bbadf4418922953890497157db669",
+      "lastChangedCommit": "96b07b97894988a00660d967c53d4623a3e83115",
+      "currentRole": "Pinned launcher seed used to produce current versioned builds. The original seed creation recipe and any historical distribution path are unknown.",
+      "runtimeRequirement": "Repository documentation describes the package as requiring compatible installed PowerShell. The original seed payload was not revalidated during this review."
+    },
+    {
+      "path": "builds/new/install-gui.exe",
+      "gitTracked": true,
+      "identity": "unverified-legacy-executable",
+      "format": "unknown",
+      "fileVersion": "11.00.26100.1 (WinBuild.160101.0800)",
+      "productName": "Internet Explorer",
+      "companyName": "Microsoft Corporation",
+      "machine": "X64",
+      "sha256": "C4020D50334AA923226A0655E5797EF329C1C8B7C69B263125B94840610E50AC",
+      "authenticodeStatus": "NotSigned",
+      "releaseEligible": false,
+      "provenanceStatus": "unknown",
+      "addedCommit": "737cb1c01964a0743c4eb815e46fcfde4a3e15a8",
+      "lastChangedCommit": "737cb1c01964a0743c4eb815e46fcfde4a3e15a8",
+      "currentRole": "No current repository consumer or reproducible source recipe was found. File version resources identify Internet Explorer but do not establish origin or contents.",
+      "runtimeRequirement": "Unknown. Do not infer prerequisites from the filename or version resources."
+    }
+  ],
+  "host": {
+    "windowsBuilds": [
+      26100,
+      26300
+    ],
+    "architecture": "X64",
+    "powerShell": {
+      "edition": "Core",
+      "version": "7.6.7",
+      "fileVersion": "7.6.7.500",
+      "sha256": "FA2C8BB1E35CDD62AD15CD06A1D8F2C5961E9725A9BFA1E7CFD2C322F49E9619",
+      "signatureStatus": "Valid",
+      "signerSubject": "CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+      "distributionUrl": "https://github.com/PowerShell/PowerShell/releases/download/v7.6.7/PowerShell-7.6.7-win-x64.zip",
+      "distributionSha256": "D2F952EBDBF24386CB8923553AA58E41A846DB35A6155EA04C58142A4B16DBB7"
+    },
+    "dotnetRuntime": {
+      "version": "10.0.13",
+      "source": "https://github.com/dotnet/core/blob/main/release-notes/10.0/10.0.13/release.json",
+      "installer": "https://builds.dotnet.microsoft.com/dotnet/Runtime/10.0.13/dotnet-runtime-10.0.13-win-x64.exe",
+      "installerSha512": "44da78e619ae23e352e81fbc3a5803d78b1375dff89c176dd17a884d4e42e17850bb7adb78c799ca15b2127b67529395df1143976e33f6c8157f53bfc5a42e62",
+      "runtimeFiles": [
+        {
+          "path": "shared/Microsoft.NETCore.App/10.0.13/coreclr.dll",
+          "fileVersion": "10,0,1326,50504 @Commit: 4099f83977f4d29604a9aeb971fb0a7bc1d5f699",
+          "sha256": "18EED8C40D05FC455BE95D12CC77EACF379265063B15CA84BD7A11CF29078A22",
+          "signerSubject": "CN=.NET, O=Microsoft Corporation, L=Redmond, S=Washington, C=US"
+        },
+        {
+          "path": "host/fxr/10.0.13/hostfxr.dll",
+          "fileVersion": "10,0,1326,50504 @Commit: 4099f83977f4d29604a9aeb971fb0a7bc1d5f699",
+          "sha256": "2E6BF792D54303A54467102FD873A7D7A993F828E8D19C040E13E428E5F2D9C8",
+          "signerSubject": "CN=.NET, O=Microsoft Corporation, L=Redmond, S=Washington, C=US"
+        },
+        {
+          "path": "shared/Microsoft.NETCore.App/10.0.13/hostpolicy.dll",
+          "fileVersion": "10,0,1326,50504 @Commit: 4099f83977f4d29604a9aeb971fb0a7bc1d5f699",
+          "sha256": "90F9826F48E6416902199DEE0FA1954536FE4C5191F5FD44B1BC6DE623EB99C8",
+          "signerSubject": "CN=.NET, O=Microsoft Corporation, L=Redmond, S=Washington, C=US"
+        },
+        {
+          "path": "shared/Microsoft.NETCore.App/10.0.13/System.Private.CoreLib.dll",
+          "fileVersion": "10.0.1326.50504",
+          "sha256": "0A175CDD09067C52F8B2477CFCEBF894B2F926D7302E55AE76FC921529662C7B",
+          "signerSubject": "CN=.NET, O=Microsoft Corporation, L=Redmond, S=Washington, C=US"
+        }
+      ]
+    },
+    "compiler": {
+      "name": "Microsoft Roslyn bundled with PowerShell",
+      "version": "5.0.25.56712",
+      "dotnetSdkRequired": false,
+      "assemblies": [
+        {
+          "name": "Microsoft.CodeAnalysis.dll",
+          "sha256": "0C5159274EF1790BEEF54DD796B51933D2B9C05A5568F968ACCF32A3CBF6D0C0",
+          "signerSubject": "CN=Microsoft 3rd Party Application Component, O=Microsoft Corporation, L=Redmond, S=Washington, C=US"
+        },
+        {
+          "name": "Microsoft.CodeAnalysis.CSharp.dll",
+          "sha256": "9DA18199A80C5892FE84F67F4FCE159A06259EBF9D3B73DF036B28249DBBB31F",
+          "signerSubject": "CN=Microsoft 3rd Party Application Component, O=Microsoft Corporation, L=Redmond, S=Washington, C=US"
+        }
+      ]
+    }
+  },
+  "packager": {
+    "makeCab": {
+      "relativePath": "System32/makecab.exe",
+      "fileVersion": "5.00 (WinBuild.160101.0800)",
+      "sha256": "070A98B4F7C03F99048A10F490D5916A9A98417E0D0DE2C414C76B3DD00CB35E",
+      "signerSubject": "CN=Microsoft Windows, O=Microsoft Corporation, L=Redmond, S=Washington, C=US"
+    },
+    "expand": {
+      "relativePath": "System32/expand.exe",
+      "fileVersion": "5.00 (WinBuild.160101.0800)",
+      "sha256": "E5CD2D9536B0729CE90368DCE9D923DCCFA6F75F2996E31BB349E6A75A2AA897",
+      "signerSubject": "CN=Microsoft Windows, O=Microsoft Corporation, L=Redmond, S=Washington, C=US"
+    }
+  },
+  "seed": {
+    "relativePath": "builds/install-GUI.exe",
+    "sha256": "D24CAF70EB50CAD3F54F5CF11F8FF2D961D8090F929B0AB820CD2F9D9376AA86",
+    "fileVersion": "2.0.6.0",
+    "machine": "X64",
+    "signatureStatus": "NotSigned"
+  },
+  "reproducibility": {
+    "cabinetFileTimestamp": "2000-01-01T12:00:00 local",
+    "sourceRevisionRequired": true,
+    "buildTimestampRecorded": false,
+    "inventorySort": "ordinal-ignore-case"
+  }
+}

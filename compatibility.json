@@ -1,6 +1,6 @@
 {
   "contractVersion": 1,
-  "lastReviewed": "2026-10-19",
+  "lastReviewed": "2026-10-20",
   "windowsClient": {
     "productType": "WinNT",
     "installationType": "Client",
@@ -25,7 +25,12 @@
       "boundaryTests": "tests/test-compatibility-contract.ps1",
       "currentWindowsRunner": "Windows 11 26H2 build 26300, Home, x64",
       "runtimeTests": "tests/test-compatibility-runtime-current-host.ps1",
-      "lifecycleSource": "https://learn.microsoft.com/en-us/windows/release-health/supported-versions-windows-client"
+      "lifecycleSource": "https://learn.microsoft.com/en-us/windows/release-health/supported-versions-windows-client",
+      "dotNetFrameworkSource": "https://learn.microsoft.com/en-us/dotnet/framework/get-started/system-requirements",
+      "windowsPowerShellSource": "https://learn.microsoft.com/en-us/powershell/scripting/install/installing-windows-powershell?view=powershell-7.6",
+      "powerShellSource": "https://learn.microsoft.com/en-us/powershell/scripting/install/powershell-support-lifecycle?view=powershell-7.6",
+      "powerShellReleaseSource": "https://github.com/PowerShell/PowerShell/releases/tag/v7.6.7",
+      "winGetSource": "https://learn.microsoft.com/en-us/windows/package-manager/winget/"
     },
     "unsupportedFamilies": [
       {
@@ -34,15 +39,15 @@
       },
       {
         "name": "Windows Server",
-        "reason": "Server editions are not verified for the App Installer package workflow."
+        "reason": "No Server SKU is in the verified App Installer matrix. Microsoft documents WinGet on Windows Server 2025 with Desktop Experience only, but the App Installer package workflow has not been verified on Server."
       },
       {
         "name": "Windows on ARM64 or x86",
         "reason": "Only the x64 Windows client path has an available verification runner."
       },
       {
-        "name": "Windows 11 26H1, preview, and later feature releases",
-        "reason": "Only the explicitly listed generally available releases are included in this contract."
+        "name": "Windows 11 26H1, preview, and future feature releases",
+        "reason": "Only Windows 11 25H2 and 26H2 x64 client rows are included in this verified contract. Review the host, runtime, GUI, and package workflow before adding another release."
       }
     ]
   },
@@ -103,6 +108,7 @@
       "provisioning": {
         "engine": "Core",
         "version": "7.6.7",
+        "architecture": "X64",
         "artifactName": "PowerShell-7.6.7-win-x64.zip",
         "source": "https://github.com/PowerShell/PowerShell/releases/download/v7.6.7/PowerShell-7.6.7-win-x64.zip",
         "sha256": "D2F952EBDBF24386CB8923553AA58E41A846DB35A6155EA04C58142A4B16DBB7",
@@ -143,6 +149,23 @@
       "verification": "System.Windows.Forms, System.Drawing, and System.Web must load, with the Forms and Drawing assembly major versions matching Windows Desktop runtime 10."
     },
     "cli": "No additional App Installer runtime beyond the selected PowerShell engine."
+  },
+  "optionalPackageManagers": {
+    "winget": {
+      "requiredForHostSupport": false,
+      "supportedSystems": "Windows 11 and Windows Server 2025 with Desktop Experience. Windows Server 2022 and earlier are not supported by WinGet.",
+      "serverProductWorkflowVerified": false,
+      "legacyBootstrap": {
+        "productType": "WinNT",
+        "installationType": "Client",
+        "minimumBuildInclusive": 17763,
+        "maximumBuildExclusive": 22000,
+        "architecture": "X64",
+        "currentMatrixReachable": false,
+        "reason": "The supported App Installer matrix excludes Windows 10, so startup must not bootstrap WinGet on the legacy Windows 10 path."
+      },
+      "source": "https://learn.microsoft.com/en-us/windows/package-manager/winget/"
+    }
   },
   "nonWindowsCli": {
     "platformScope": "Keep the OS and package-manager filters in platform-detect.ps1 unchanged.",

@@ -32,7 +32,7 @@
                      CLI: Windows PowerShell 5.1 or PowerShell Core 7.6.7
                      macOS/Linux: PowerShell Core 7.6.7 (redirects to CLI mode)
     Copyright      : (c) 2025 myTech.Today. All rights reserved.
-    Version        : 2.0.0
+    Version        : 2.0.6
 
 .LINK
     https://github.com/mytech-today-now/app_installer
@@ -60,6 +60,7 @@ param(
 )
 
 #Requires -Version 5.1
+$script:ScriptVersion = '2.0.6'
 
 $script:PayloadModulePath = Join-Path $PSScriptRoot 'modules\InstallerPayload.psm1'
 if (-not (Test-Path -LiteralPath $script:PayloadModulePath -PathType Leaf)) {
@@ -132,7 +133,7 @@ function Safe-TestPath {
 #region Early Platform Detection and GUI Availability Check
 
 Write-Host "`n=== myTech.Today Application Installer ===" -ForegroundColor Cyan
-Write-Host "Version: 2.0.0" -ForegroundColor Gray
+Write-Host "Version: $script:ScriptVersion" -ForegroundColor Gray
 Write-Host ""
 
 # Detect platform - PowerShell 7+ has $IsWindows, $IsMacOS, $IsLinux
@@ -187,7 +188,7 @@ if ($WhatIfPreference) {
 $script:OriginalRuntimeArguments += $script:OriginalCliArguments
 
 if ($script:IsWindowsPlatform) {
-    $hostCompatibility = Test-InstallerCompatibility -Component WindowsHost -HostInfo $script:CompatibilityHostInfo
+    $hostCompatibility = Get-InstallerHostPreflight -Component WindowsHost -HostInfo $script:CompatibilityHostInfo
     if (-not $hostCompatibility.IsSupported) {
         Write-Host $hostCompatibility.Message -ForegroundColor Red
         exit 1
@@ -924,7 +925,6 @@ function Add-QueueFormResizeHandler {
 #endregion Dynamic Form Resizing Helper Functions
 
 # Script variables
-$script:ScriptVersion = '2.0.6'
 $script:OriginalScriptPath = [System.IO.Path]::GetFullPath($PSScriptRoot)
 $script:ResourceRoot = $script:OriginalScriptPath
 $script:SystemInstallPath = "$env:USERPROFILE\myTech.Today\AppInstaller"
@@ -1269,8 +1269,19 @@ function Copy-ScriptToSystemLocation {
     param()
 
     try {
-        $result = Copy-AppInstallerPayload -SourceRoot $script:OriginalScriptPath -DestinationRoot $script:SystemInstallPath
+        $result = Copy-AppInstallerPayload -SourceRoot $script:OriginalScriptPath -DestinationRoot $script:SystemInstallPath -Operation Repair
         Write-Host ("    [OK] Complete payload {0}: {1} ({2} files, version {3})" -f $result.Status, $result.Path, $result.FileCount, $result.Version) -ForegroundColor Green
+        $profilePreservations = @($result.PreservedFiles | Where-Object { $_.reason -eq 'user-profile-retained-at-original-path' })
+        if ($profilePreservations.Count -gt 0) {
+            Write-Host ("    [INFO] Retained {0} existing profile file(s) at their original paths." -f $profilePreservations.Count) -ForegroundColor Cyan
+        }
+        $codePreservations = @($result.PreservedFiles | Where-Object { $_.reason -eq 'local-change-to-owned-file' })
+        foreach ($preservedFile in $codePreservations) {
+            Write-Host ("    [WARNING] Local file changes were copied from {0} to {1} before repair." -f $preservedFile.originalPath, $preservedFile.preservedPath) -ForegroundColor Yellow
+        }
+        if ($result.CleanupStatus -eq 'Retained') {
+            Write-Host ("    [WARNING] Previous install cleanup failed. The previous payload remains at: {0}. {1}" -f $result.BackupPath, $result.CleanupError) -ForegroundColor Yellow
+        }
         return $true
     }
     catch {
@@ -1613,11 +1624,13 @@ function Install-WingetOnWindows10 {
     [CmdletBinding()]
     param()
 
-    $osVersion = [System.Environment]::OSVersion.Version
-    $isWindows10 = $osVersion.Major -eq 10 -and $osVersion.Build -lt 22000
-
-    if (-not $isWindows10) {
-        Write-Log "Not running on Windows 10, skipping winget installation" -Level INFO
+    $bootstrapHostInfo = $script:CompatibilityHostInfo
+    if (-not $bootstrapHostInfo) {
+        $bootstrapHostInfo = Get-InstallerHostInfo
+    }
+    $bootstrapCapability = Test-InstallerWindows10WinGetBootstrapHost -HostInfo $bootstrapHostInfo
+    if (-not $bootstrapCapability.IsSupported) {
+        Write-Log "WinGet bootstrap not eligible ($($bootstrapCapability.ReasonCode)); no bootstrap was started" -Level INFO
         return $false
     }
 
@@ -1687,11 +1700,13 @@ function Ensure-WingetAvailable {
         return $true
     }
 
-    # Check if running on Windows 10
-    $osVersion = [System.Environment]::OSVersion.Version
-    $isWindows10 = $osVersion.Major -eq 10 -and $osVersion.Build -lt 22000
+    $bootstrapHostInfo = $script:CompatibilityHostInfo
+    if (-not $bootstrapHostInfo) {
+        $bootstrapHostInfo = Get-InstallerHostInfo
+    }
+    $bootstrapCapability = Test-InstallerWindows10WinGetBootstrapHost -HostInfo $bootstrapHostInfo
 
-    if ($isWindows10) {
+    if ($bootstrapCapability.IsSupported) {
         Write-Output "winget not found. Attempting to install on Windows 10..." -Color ([System.Drawing.Color]::Yellow)
         $installed = Install-WingetOnWindows10
 
@@ -1704,7 +1719,7 @@ function Ensure-WingetAvailable {
         }
     }
     else {
-        Write-Output "winget not found. Please install 'App Installer' from Microsoft Store." -Color ([System.Drawing.Color]::Red)
+        Write-Output "winget not found ($($bootstrapCapability.ReasonCode)). Please install App Installer using a supported Windows method." -Color ([System.Drawing.Color]::Red)
         return $false
     }
 }

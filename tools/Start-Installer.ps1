@@ -26,15 +26,22 @@ if (-not $WhatIfPreference -and -not [string]::IsNullOrWhiteSpace($startedMarker
 }
 
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
-$applicationPath = Join-Path $repositoryRoot 'app-installer.ps1'
+$guiApplicationPath = Join-Path $repositoryRoot 'app-installer.ps1'
+$cliApplicationPath = Join-Path $repositoryRoot 'app-installer-cli.ps1'
+$applicationPath = if ($ForceCLI) { $cliApplicationPath } else { $guiApplicationPath }
 $compatibilityModulePath = Join-Path $repositoryRoot 'modules\InstallerCompatibility.psm1'
 $runtimeModulePath = Join-Path $repositoryRoot 'modules\InstallerRuntimeDiscovery.psm1'
 $prerequisiteModulePath = Join-Path $repositoryRoot 'modules\InstallerPrerequisitePlan.psm1'
-foreach ($requiredPath in @($applicationPath, $compatibilityModulePath, $runtimeModulePath, $prerequisiteModulePath)) {
+foreach ($requiredPath in @($compatibilityModulePath, $runtimeModulePath, $prerequisiteModulePath)) {
     if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {
         [Console]::Error.WriteLine("[ERROR] Required installer startup file is missing: $requiredPath")
         exit 2
     }
+}
+if (-not (Test-Path -LiteralPath $applicationPath -PathType Leaf)) {
+    $entryPointName = if ($ForceCLI) { 'CLI' } else { 'GUI' }
+    [Console]::Error.WriteLine("[ERROR] The requested $entryPointName application entry script is missing: $applicationPath")
+    exit 2
 }
 
 try {
@@ -42,7 +49,7 @@ try {
     Import-Module -Name $runtimeModulePath -Force -DisableNameChecking -ErrorAction Stop | Out-Null
     Import-Module -Name $prerequisiteModulePath -Force -DisableNameChecking -ErrorAction Stop | Out-Null
     $hostInfo = Get-InstallerHostInfo
-    $hostDecision = Test-InstallerCompatibility -Component WindowsHost -HostInfo $hostInfo
+    $hostDecision = Get-InstallerHostPreflight -Component WindowsHost -HostInfo $hostInfo
     if (-not $hostDecision.IsSupported) {
         [Console]::Error.WriteLine($hostDecision.Message)
         exit 1
@@ -50,8 +57,8 @@ try {
 
     $component = if ($ForceCLI) { 'WindowsCli' } else { 'WindowsGui' }
     $scriptArguments = @($InstallerArguments)
-    if ($ForceCLI -and @($scriptArguments | Where-Object { $_ -match '^(?i)-ForceCLI$' }).Count -eq 0) {
-        $scriptArguments = @('-ForceCLI') + $scriptArguments
+    if ($ForceCLI) {
+        $scriptArguments = @($scriptArguments | Where-Object { $_ -notmatch '^(?i)-ForceCLI$' })
     }
     if ($WhatIfPreference -and @($scriptArguments | Where-Object { $_ -match '^(?i)-WhatIf$' }).Count -eq 0) {
         $scriptArguments += '-WhatIf'

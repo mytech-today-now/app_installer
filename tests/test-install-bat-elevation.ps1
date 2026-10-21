@@ -125,7 +125,11 @@ exit /b %ERRORLEVEL%
         $process.Kill()
         [void]$process.WaitForExit(5000)
         $outputAtTimeout = Get-TestOutput -Path $outputPath
-        throw "The isolated cmd.exe scenario '$Name' did not exit within 20 seconds. Output so far: $($outputAtTimeout.Trim())"
+        $statusAtTimeout = Get-TestOutput -Path $statusPath
+        $errorPath = Join-Path $TestRoot ($Name + '-bootstrap.err')
+        $errorAtTimeout = Get-TestOutput -Path $errorPath
+        $bootstrapFiles = @(Get-ChildItem -LiteralPath $TestRoot -Filter 'app-installer-bootstrap-*' -File -ErrorAction SilentlyContinue | ForEach-Object { '{0}={1}' -f $_.Name, (Get-Content -LiteralPath $_.FullName -Raw) }) -join '; '
+        throw "The isolated cmd.exe scenario '$Name' did not exit within 20 seconds. Output so far: $($outputAtTimeout.Trim()). Status: $($statusAtTimeout.Trim()). Bootstrap error: $($errorAtTimeout.Trim()). Temporary state: $bootstrapFiles"
     }
 
     $argumentLog = @()
@@ -152,7 +156,9 @@ function Invoke-HelperScenario {
         [Parameter(Mandatory = $true)][string]$TestRoot,
         [Parameter(Mandatory = $true)][string]$Name,
         [Parameter(Mandatory = $true)][string]$HelperCopy,
-        [Parameter(Mandatory = $true)][AllowEmptyCollection()][string[]]$Arguments,
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][AllowEmptyString()][string[]]$Arguments,
+        [string]$TargetPath,
+        [switch]$MissingTarget,
         [int]$ChildExitCode = 0,
         [int]$ChildDelaySeconds = 0,
         [string]$StartMode = 'normal',
@@ -163,6 +169,7 @@ function Invoke-HelperScenario {
     $childOutputPath = Join-Path $TestRoot ($Name + '-child-output.txt')
     $childBatchPath = Join-Path $TestRoot ($Name + '-child.bat')
     $runnerPath = Join-Path $TestRoot ($Name + '-helper-runner.ps1')
+    $startParametersPath = Join-Path $TestRoot ($Name + '-start-parameters.json')
 
     $childBatch = @"
 @echo off
@@ -183,6 +190,7 @@ function Start-Process {
     param(
         [string]$FilePath,
         [string]$ArgumentList,
+        [string]$WorkingDirectory,
         [string]$Verb,
         [switch]$PassThru
     )
@@ -196,17 +204,21 @@ function Start-Process {
     if ($env:FAKE_START_MODE -eq 'fail') {
         throw ([System.IO.FileNotFoundException]::new('Simulated elevated child launch failure.'))
     }
+    $startParameters = [PSCustomObject]@{ FilePath = $FilePath; WorkingDirectory = $WorkingDirectory; ArgumentList = $ArgumentList }
+    [System.IO.File]::WriteAllText($env:FAKE_START_PARAMETERS_LOG, ($startParameters | ConvertTo-Json -Compress), [System.Text.Encoding]::UTF8)
 
     $processInfo = New-Object System.Diagnostics.ProcessStartInfo
     $processInfo.FileName = $FilePath
     $processInfo.Arguments = if ($null -eq $ArgumentList) { '' } else { $ArgumentList }
+    $processInfo.WorkingDirectory = $WorkingDirectory
     $processInfo.UseShellExecute = $true
     return [System.Diagnostics.Process]::Start($processInfo)
 }
 
 $forwardedArguments = @((ConvertFrom-Json -InputObject $env:FAKE_ARGUMENTS_JSON))
 . $env:FAKE_HELPER_PATH
-$helperArguments = @($env:FAKE_CHILD_BATCH_PATH) + $forwardedArguments
+$targetPath = if ($env:FAKE_CHILD_TARGET_PATH) { $env:FAKE_CHILD_TARGET_PATH } else { $env:FAKE_CHILD_BATCH_PATH }
+$helperArguments = @($targetPath) + $forwardedArguments
 $helperExitCode = Invoke-ElevatedInstall -Arguments $helperArguments
 exit $helperExitCode
 '@
@@ -227,6 +239,11 @@ exit $helperExitCode
     $processInfo.EnvironmentVariables['FAKE_CHILD_ARGS_LOG'] = $childLogPath
     $processInfo.EnvironmentVariables['FAKE_CHILD_OUTPUT_LOG'] = $childOutputPath
     $processInfo.EnvironmentVariables['FAKE_START_MODE'] = $StartMode
+    $processInfo.EnvironmentVariables['FAKE_START_PARAMETERS_LOG'] = $startParametersPath
+    $processInfo.EnvironmentVariables['FAKE_EXE_ARGS_LOG'] = Join-Path $TestRoot ($Name + '-exe-arguments.txt')
+    $processInfo.EnvironmentVariables['FAKE_EXE_PATH_LOG'] = Join-Path $TestRoot ($Name + '-exe-path.txt')
+    $processInfo.EnvironmentVariables['FAKE_EXE_OUTPUT_LOG'] = Join-Path $TestRoot ($Name + '-exe-output.txt')
+    $processInfo.EnvironmentVariables['FAKE_CHILD_TARGET_PATH'] = if ($MissingTarget) { Join-Path $TestRoot 'missing target.exe' } elseif ($TargetPath) { $TargetPath } else { '' }
 
     $process = New-Object System.Diagnostics.Process
     $process.StartInfo = $processInfo
@@ -264,6 +281,10 @@ exit $helperExitCode
         Output         = $standardOutput + $standardError
         ChildArguments = Get-TestOutput -Path $childLogPath
         ChildOutput    = Get-TestOutput -Path $childOutputPath
+        ExecutableArguments = Get-TestOutput -Path $processInfo.EnvironmentVariables['FAKE_EXE_ARGS_LOG']
+        ExecutablePath = Get-TestOutput -Path $processInfo.EnvironmentVariables['FAKE_EXE_PATH_LOG']
+        ExecutableOutput = Get-TestOutput -Path $processInfo.EnvironmentVariables['FAKE_EXE_OUTPUT_LOG']
+        StartParameters = Get-TestOutput -Path $startParametersPath
         RunnerPath     = $runnerPath
     }
     $process.Dispose()
@@ -279,9 +300,11 @@ try {
     $batch = Get-Content -Raw -LiteralPath $batchPath
     $helper = Get-Content -Raw -LiteralPath $helperPath
     Assert-Condition -Condition ($batch -match '(?s)"%PWSH_EXE%"\s+-NoProfile\s+-File\s+"%STARTER_PATH%"\s+%\*') -Message 'The executable starts the shared -File launcher and forwards the original argument tail.'
+    Assert-Condition -Condition ($batch -match '(?i)if not exist "%~dp0app-installer\.ps1" if not exist "%~dp0app-installer-cli\.ps1"') -Message 'The setup entry accepts a CLI-only source tree as well as a GUI source tree.'
     Assert-Condition -Condition ($batch -match '(?i)CLASSIFY_BOOTSTRAP' -and $batch -match '(?i)BOOTSTRAP_STATUS_FILE') -Message 'The executable distinguishes a launcher that started from a preferred executable that could not start.'
     Assert-Condition -Condition ($batch -notmatch '(?i)invoke-elevated-install\.ps1|Install-CompatiblePowerShell\.ps1|winget install|ExecutionPolicy\s+Bypass|Set-ExecutionPolicy') -Message 'The executable neither elevates nor provisions PowerShell nor changes policy during engine discovery.'
-    Assert-Condition -Condition ($helper -match "Verb\s+=\s+'RunAs'" -and $helper -match 'PassThru\s+=\s+\$true' -and $helper -match 'WaitForExit\(\$timeoutMilliseconds\)') -Message 'The helper requests RunAs, retains the process handle, and has a bounded wait.'
+    Assert-Condition -Condition ($helper -match "Verb\s+=\s+'RunAs'" -and $helper -match 'PassThru\s+=\s+\$true' -and $helper -match 'WaitForExit\(\$timeoutMilliseconds\)' -and $helper -match 'WorkingDirectory\s*=\s*\(Get-Location\s+-PSProvider\s+FileSystem\)\.ProviderPath') -Message 'The helper requests RunAs, retains the process handle, preserves the working directory, and has a bounded wait.'
+    Assert-Condition -Condition ($helper -match 'Test-Path\s+-LiteralPath\s+\$targetPath\s+-PathType\s+Leaf' -and $helper -notmatch '(?i)WindowStyle\s*=\s*Hidden|RedirectStandard(Input|Output|Error)') -Message 'The helper rejects missing targets and leaves the elevated console visible without redirecting its streams.'
     Assert-Condition -Condition ($helper -notmatch '(?i)ExecutionPolicy\s+Bypass|Set-ExecutionPolicy') -Message 'The elevation helper does not weaken execution policy or write policy settings.'
 
     $systemTemp = [System.IO.Path]::GetFullPath([System.IO.Path]::GetTempPath()).TrimEnd('\') + '\'
@@ -327,6 +350,22 @@ public static class FakeLaunchers
         string executablePath = Process.GetCurrentProcess().MainModule.FileName;
         string executableName = Path.GetFileNameWithoutExtension(executablePath);
         string mode = Environment.GetEnvironmentVariable("FAKE_MODE") ?? "";
+
+        string executableArgumentsLog = Environment.GetEnvironmentVariable("FAKE_EXE_ARGS_LOG");
+        if (!String.IsNullOrEmpty(executableArgumentsLog))
+        {
+            string[] encodedArguments = Array.ConvertAll(args, argument => "ARG:" + Convert.ToBase64String(Encoding.UTF8.GetBytes(argument)));
+            File.WriteAllLines(executableArgumentsLog, encodedArguments, Encoding.ASCII);
+            string executablePathLog = Environment.GetEnvironmentVariable("FAKE_EXE_PATH_LOG");
+            if (!String.IsNullOrEmpty(executablePathLog)) File.WriteAllText(executablePathLog, executablePath, Encoding.UTF8);
+            string executableOutputLog = Environment.GetEnvironmentVariable("FAKE_EXE_OUTPUT_LOG");
+            if (!String.IsNullOrEmpty(executableOutputLog)) File.WriteAllText(executableOutputLog, "FAKE EXE STDOUT\r\nFAKE EXE STDERR\r\n", Encoding.UTF8);
+            Console.WriteLine("FAKE EXE STDOUT");
+            Console.Error.WriteLine("FAKE EXE STDERR");
+            int executableExitCode = 0;
+            Int32.TryParse(Environment.GetEnvironmentVariable("FAKE_CHILD_EXIT_CODE"), out executableExitCode);
+            return executableExitCode;
+        }
 
         if (HasArgumentFile(args, "Start-Installer.ps1"))
         {
@@ -393,6 +432,9 @@ public static class FakeLaunchers
         Copy-Item -LiteralPath $fakeLauncherOutputPath -Destination (Join-Path $testRoot 'pwsh.exe')
         Copy-Item -LiteralPath $fakeLauncherOutputPath -Destination (Join-Path $testRoot 'net.exe')
         Copy-Item -LiteralPath $fakeLauncherOutputPath -Destination (Join-Path $testRoot 'winget.exe')
+        $unicodeName = ([string][char]0x6771) + [char]0x4EAC
+        $fakeApplicationExePath = Join-Path $testRoot ('fake application {0}.exe' -f $unicodeName)
+        Copy-Item -LiteralPath $fakeLauncherOutputPath -Destination $fakeApplicationExePath
 
         $fakeCoreDirectory = Join-Path $testRoot 'PowerShell\7'
         New-Item -ItemType Directory -Path $fakeCoreDirectory -Force | Out-Null
@@ -453,6 +495,24 @@ exit $exitCode
         $noEngineResult = Invoke-BatchScenario -TestRoot $testRoot -Name 'no-engine' -RawArguments '' -Mode 'success' -ExitCode 0 -NoWindowsPowerShell
         Assert-Condition -Condition ($noEngineResult.ExitCode -eq 1 -and $noEngineResult.Output -match '(?i)No PowerShell executable could start the runtime discovery launcher' -and -not $noEngineResult.WingetInvoked -and -not (Test-Path -LiteralPath (Join-Path $testRoot 'no-engine-launcher-arguments.txt'))) -Message 'The executable entry path fails closed when neither supported bootstrap engine is available.'
 
+        $guiEntryPath = Join-Path $testRoot 'app-installer.ps1'
+        $cliEntryPath = Join-Path $testRoot 'app-installer-cli.ps1'
+        $savedGuiEntryPath = Join-Path $testRoot 'app-installer-gui.saved'
+        Move-Item -LiteralPath $guiEntryPath -Destination $savedGuiEntryPath
+        Write-TestFile -Path $cliEntryPath -Content '# Offline CLI placeholder.'
+        try {
+            $cliOnlyResult = Invoke-BatchScenario -TestRoot $testRoot -Name 'cli-entry-only' -RawArguments '-ForceCLI --profile "CLI-only Path"' -Mode 'success' -ExitCode 0
+            Assert-Condition -Condition ($cliOnlyResult.ExitCode -eq 0 -and $cliOnlyResult.Output -notmatch '(?i)App Installer script was not found') -Message 'The setup wrapper accepts a CLI-only source tree.'
+            Remove-Item -LiteralPath $cliEntryPath -Force
+            $missingEntriesResult = Invoke-BatchScenario -TestRoot $testRoot -Name 'missing-entry-files' -RawArguments '' -Mode 'success' -ExitCode 0
+            Assert-Condition -Condition ($missingEntriesResult.ExitCode -eq 2 -and $missingEntriesResult.Output -match '(?i)App Installer script was not found' -and -not (Test-Path -LiteralPath (Join-Path $testRoot 'missing-entry-files-launcher-arguments.txt'))) -Message 'The setup wrapper distinguishes missing application scripts before starting a runtime.'
+        }
+        finally {
+            Remove-Item -LiteralPath $cliEntryPath -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath $guiEntryPath -Force -ErrorAction SilentlyContinue
+            Move-Item -LiteralPath $savedGuiEntryPath -Destination $guiEntryPath
+        }
+
         $testHelperCopy = Join-Path $testRoot 'invoke-elevated-install.ps1'
         Copy-Item -LiteralPath $helperPath -Destination $testHelperCopy
 
@@ -477,6 +537,18 @@ exit $exitCode
 
         $helperStartFailure = Invoke-HelperScenario -TestRoot $testRoot -Name 'helper-start-failure' -HelperCopy $testHelperCopy -Arguments @() -StartMode 'fail'
         Assert-Condition -Condition ($helperStartFailure.ExitCode -eq 2 -and $helperStartFailure.Output -match '(?i)Could not start the elevated App Installer') -Message 'The helper reports and rejects an elevated child-start failure.'
+
+        $helperMissingTarget = Invoke-HelperScenario -TestRoot $testRoot -Name 'helper-missing-target' -HelperCopy $testHelperCopy -Arguments @() -MissingTarget
+        Assert-Condition -Condition ($helperMissingTarget.ExitCode -eq 2 -and $helperMissingTarget.Output -match '(?i)elevated installer target was not found' -and -not $helperMissingTarget.StartParameters) -Message 'The helper distinguishes a missing elevated target before requesting UAC.'
+
+        $unicodeExecutableArguments = @('--profile', 'Design "Review"', 'C:\Projects\Path With Space\trailing\', (($unicodeName) + ' & 100%'), '')
+        $helperExecutable = Invoke-HelperScenario -TestRoot $testRoot -Name 'helper-unicode-exe' -HelperCopy $testHelperCopy -Arguments $unicodeExecutableArguments -TargetPath $fakeApplicationExePath -ChildExitCode 29
+        $receivedExecutableArguments = @(Get-Content -LiteralPath (Join-Path $testRoot 'helper-unicode-exe-exe-arguments.txt') | ForEach-Object {
+            [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String(([string]$_).Substring(4)))
+        })
+        $receivedStartParameters = ConvertFrom-Json -InputObject $helperExecutable.StartParameters
+        Assert-Condition -Condition ($helperExecutable.ExitCode -eq 29 -and ($receivedExecutableArguments -join '|') -eq ($unicodeExecutableArguments -join '|') -and $helperExecutable.ExecutablePath -like ('*fake application {0}.exe' -f $unicodeName)) -Message 'The helper starts a Unicode-path EXE directly, preserves quoted, empty, spaced, and Unicode arguments, and returns its exact result.'
+        Assert-Condition -Condition ([string]$receivedStartParameters.FilePath -eq $fakeApplicationExePath -and [string]$receivedStartParameters.WorkingDirectory -eq $testRoot -and $helperExecutable.ExecutableOutput -match 'FAKE EXE STDOUT' -and $helperExecutable.ExecutableOutput -match 'FAKE EXE STDERR') -Message 'The elevated EXE receives the original working directory and its output remains available to the child.'
 
         $timedHelperCopy = Join-Path $testRoot 'invoke-elevated-install-timeout.ps1'
         $timedHelper = $helper.Replace('$timeoutMilliseconds = 14400000', '$timeoutMilliseconds = 1000')

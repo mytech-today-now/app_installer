@@ -36,11 +36,23 @@ function New-TestHostInfo {
         [string]$InstallationType = 'Client',
         [string]$EditionId = 'Core',
         [string]$Architecture = 'X64',
-        [int]$DotNetFrameworkRelease = 533325
+        [int]$DotNetFrameworkRelease = 533325,
+        [bool]$MetadataAvailable = $true
     )
+
+    $productFamily = if ($ProductType -eq 'WinNT' -and $InstallationType -eq 'Client') {
+        'WindowsClient'
+    }
+    elseif ($ProductType -in @('LanmanNT', 'ServerNT') -and $InstallationType -match '^Server') {
+        'WindowsServer'
+    }
+    else {
+        'Unknown'
+    }
 
     return [PSCustomObject]@{
         Platform = $Platform
+        ProductFamily = $productFamily
         DisplayVersion = $DisplayVersion
         BuildNumber = $BuildNumber
         ProductType = $ProductType
@@ -48,6 +60,8 @@ function New-TestHostInfo {
         EditionId = $EditionId
         Architecture = $Architecture
         DotNetFrameworkRelease = $DotNetFrameworkRelease
+        MetadataAvailable = $MetadataAvailable
+        MetadataReasonCode = if ($MetadataAvailable) { '' } else { 'WINDOWS_METADATA_UNAVAILABLE' }
     }
 }
 
@@ -69,9 +83,15 @@ try {
         [PSCustomObject]@{ Name = 'Windows 11 26H2 Pro x64'; Host = (New-TestHostInfo -EditionId 'Professional'); Date = [datetime]'2026-10-17'; Expected = $true },
         [PSCustomObject]@{ Name = 'Windows 11 24H2'; Host = (New-TestHostInfo -DisplayVersion '24H2' -BuildNumber 26100); Date = [datetime]'2026-10-17'; Expected = $false },
         [PSCustomObject]@{ Name = 'Windows 10 22H2'; Host = (New-TestHostInfo -DisplayVersion '22H2' -BuildNumber 19045); Date = [datetime]'2026-10-17'; Expected = $false },
+        [PSCustomObject]@{ Name = 'Windows 10 1809 WinGet minimum'; Host = (New-TestHostInfo -DisplayVersion '1809' -BuildNumber 17763); Date = [datetime]'2026-10-17'; Expected = $false },
+        [PSCustomObject]@{ Name = 'Windows 10 build before WinGet minimum'; Host = (New-TestHostInfo -DisplayVersion '1803' -BuildNumber 17134); Date = [datetime]'2026-10-17'; Expected = $false },
         [PSCustomObject]@{ Name = 'Windows 11 x86'; Host = (New-TestHostInfo -DisplayVersion '25H2' -BuildNumber 26200 -Architecture 'X86'); Date = [datetime]'2026-10-17'; Expected = $false },
         [PSCustomObject]@{ Name = 'Windows 11 ARM64'; Host = (New-TestHostInfo -Architecture 'Arm64'); Date = [datetime]'2026-10-17'; Expected = $false },
-        [PSCustomObject]@{ Name = 'Windows Server 2025'; Host = (New-TestHostInfo -ProductType 'LanmanNT' -InstallationType 'Server'); Date = [datetime]'2026-10-17'; Expected = $false },
+        [PSCustomObject]@{ Name = 'Windows 11 unknown architecture'; Host = (New-TestHostInfo -Architecture 'Unknown'); Date = [datetime]'2026-10-17'; Expected = $false },
+        [PSCustomObject]@{ Name = 'Windows metadata unavailable'; Host = (New-TestHostInfo -MetadataAvailable $false); Date = [datetime]'2026-10-17'; Expected = $false },
+        [PSCustomObject]@{ Name = 'Windows Server 2025 Desktop Experience'; Host = (New-TestHostInfo -DisplayVersion '24H2' -BuildNumber 26100 -ProductType 'LanmanNT' -InstallationType 'Server' -EditionId 'ServerDatacenter'); Date = [datetime]'2026-10-17'; Expected = $false },
+        [PSCustomObject]@{ Name = 'Windows Server 2025 Server Core'; Host = (New-TestHostInfo -DisplayVersion '24H2' -BuildNumber 26100 -ProductType 'ServerNT' -InstallationType 'Server Core' -EditionId 'ServerStandardCore'); Date = [datetime]'2026-10-17'; Expected = $false },
+        [PSCustomObject]@{ Name = 'Windows Server 2022'; Host = (New-TestHostInfo -DisplayVersion '21H2' -BuildNumber 20348 -ProductType 'LanmanNT' -InstallationType 'Server' -EditionId 'ServerStandard'); Date = [datetime]'2026-10-17'; Expected = $false },
         [PSCustomObject]@{ Name = 'Windows 11 Enterprise edition'; Host = (New-TestHostInfo -EditionId 'Enterprise'); Date = [datetime]'2026-10-17'; Expected = $false },
         [PSCustomObject]@{ Name = 'Windows 11 26H1'; Host = (New-TestHostInfo -DisplayVersion '26H1' -BuildNumber 28000); Date = [datetime]'2026-10-17'; Expected = $false },
         [PSCustomObject]@{ Name = 'Windows 11 future release'; Host = (New-TestHostInfo -DisplayVersion '27H2' -BuildNumber 26400); Date = [datetime]'2026-10-17'; Expected = $false },
@@ -84,6 +104,54 @@ try {
     foreach ($case in $hostCases) {
         $actual = Test-InstallerCompatibility -Component WindowsHost -HostInfo $case.Host -Date $case.Date
         Assert-Condition -Condition ($actual.IsSupported -eq $case.Expected) -Message ("Windows host boundary: {0}" -f $case.Name)
+    }
+
+    $unknownArchitecture = Test-InstallerCompatibility -Component WindowsHost -HostInfo (New-TestHostInfo -Architecture 'Unknown') -Date ([datetime]'2026-10-17')
+    Assert-Condition -Condition (-not $unknownArchitecture.IsSupported -and $unknownArchitecture.ReasonCode -eq 'WINDOWS_ARCHITECTURE_UNKNOWN') -Message 'Unknown Windows architecture has a stable fail-closed reason.'
+    $missingMetadata = Test-InstallerCompatibility -Component WindowsHost -HostInfo (New-TestHostInfo -MetadataAvailable $false) -Date ([datetime]'2026-10-17')
+    Assert-Condition -Condition (-not $missingMetadata.IsSupported -and $missingMetadata.ReasonCode -eq 'WINDOWS_METADATA_UNAVAILABLE') -Message 'Unavailable Windows release or product metadata has a stable fail-closed reason.'
+
+    $legacyWinGetHost = New-TestHostInfo -DisplayVersion '22H2' -BuildNumber 19045
+    $legacyWinGetCapability = Test-InstallerWindows10WinGetBootstrapHost -HostInfo $legacyWinGetHost
+    $legacyHostPreflight = Get-InstallerHostPreflight -Component WindowsHost -HostInfo $legacyWinGetHost -Date ([datetime]'2026-10-17') -WingetAvailabilityProbe { throw 'Unsupported Windows 10 must not probe WinGet.' }
+    Assert-Condition -Condition ($legacyWinGetCapability.IsSupported -and -not $legacyHostPreflight.IsSupported -and $legacyHostPreflight.ReasonCode -eq 'WINDOWS_RELEASE_UNSUPPORTED') -Message 'WinGet bootstrap eligibility remains separate from App Installer OS support.'
+    $legacyWinGetBelowMinimum = Test-InstallerWindows10WinGetBootstrapHost -HostInfo (New-TestHostInfo -DisplayVersion '1803' -BuildNumber 17134)
+    Assert-Condition -Condition (-not $legacyWinGetBelowMinimum.IsSupported -and $legacyWinGetBelowMinimum.ReasonCode -eq 'WINDOWS10_WINGET_BOOTSTRAP_UNSUPPORTED') -Message 'The legacy WinGet bootstrap rejects Windows 10 builds before 17763.'
+    $legacyWinGetArm64 = Test-InstallerWindows10WinGetBootstrapHost -HostInfo (New-TestHostInfo -DisplayVersion '22H2' -BuildNumber 19045 -Architecture 'Arm64')
+    Assert-Condition -Condition (-not $legacyWinGetArm64.IsSupported -and $legacyWinGetArm64.ReasonCode -eq 'WINDOWS_ARCHITECTURE_UNSUPPORTED') -Message 'The legacy WinGet bootstrap rejects ARM64 instead of selecting x64 dependencies.'
+    $currentWindows11Bootstrap = Test-InstallerWindows10WinGetBootstrapHost -HostInfo (New-TestHostInfo)
+    Assert-Condition -Condition (-not $currentWindows11Bootstrap.IsSupported -and $currentWindows11Bootstrap.ReasonCode -eq 'WINDOWS10_WINGET_BOOTSTRAP_UNSUPPORTED') -Message 'The legacy Windows 10 WinGet bootstrap is not selected on supported Windows 11.'
+
+    $wingetProbeCount = 0
+    $supportedPreflight = Get-InstallerHostPreflight -Component WindowsHost -HostInfo (New-TestHostInfo) -Date ([datetime]'2026-10-17') -WingetAvailabilityProbe {
+        $script:wingetProbeCount++
+        return $false
+    }
+    Assert-Condition -Condition ($supportedPreflight.IsSupported -and $supportedPreflight.ProductFamily -eq 'WindowsClient' -and $supportedPreflight.DisplayVersion -eq '26H2' -and $supportedPreflight.BuildNumber -eq 26300 -and $supportedPreflight.SelectedPackageArchitecture -eq 'X64') -Message 'A supported preflight records the client release, build, family, and selected x64 runtime artifact.'
+    Assert-Condition -Condition ($supportedPreflight.RuntimeRequirements.Gui.WindowsPowerShell.minimumRelease -eq 461808 -and $supportedPreflight.RuntimeRequirements.Gui.PowerShellCore.runtimeMajor -eq 10) -Message 'The host preflight records the required .NET Framework and Windows Desktop runtime capabilities.'
+    Assert-Condition -Condition ($wingetProbeCount -eq 1 -and $supportedPreflight.WinGet.Status -eq 'Unavailable' -and $supportedPreflight.WinGet.RequiredForHostSupport -eq $false) -Message 'Missing optional WinGet is reported without rejecting a supported Windows host.'
+
+    $mismatchedPreflight = Get-InstallerHostPreflight -Component WindowsHost -HostInfo (New-TestHostInfo) -Date ([datetime]'2026-10-17') -RuntimeArtifactArchitecture 'Arm64' -WingetAvailabilityProbe {
+        $script:wingetProbeCount++
+        return $true
+    }
+    Assert-Condition -Condition (-not $mismatchedPreflight.IsSupported -and $mismatchedPreflight.ReasonCode -eq 'PACKAGE_ARCHITECTURE_MISMATCH' -and $null -eq $mismatchedPreflight.SelectedPackageArchitecture -and $wingetProbeCount -eq 1) -Message 'A mismatched runtime artifact is rejected before optional package-manager discovery.'
+
+    $preflightBlockCases = @(
+        [PSCustomObject]@{ Name = 'Windows 10'; Host = $legacyWinGetHost; ReasonCode = 'WINDOWS_RELEASE_UNSUPPORTED' },
+        [PSCustomObject]@{ Name = 'Windows Server'; Host = (New-TestHostInfo -ProductType 'LanmanNT' -InstallationType 'Server' -EditionId 'ServerDatacenter'); ReasonCode = 'WINDOWS_NOT_CLIENT' },
+        [PSCustomObject]@{ Name = 'x86 host'; Host = (New-TestHostInfo -Architecture 'X86'); ReasonCode = 'WINDOWS_ARCHITECTURE_UNSUPPORTED' },
+        [PSCustomObject]@{ Name = 'ARM64 host'; Host = (New-TestHostInfo -Architecture 'Arm64'); ReasonCode = 'WINDOWS_ARCHITECTURE_UNSUPPORTED' },
+        [PSCustomObject]@{ Name = 'unknown architecture'; Host = (New-TestHostInfo -Architecture 'Unknown'); ReasonCode = 'WINDOWS_ARCHITECTURE_UNKNOWN' },
+        [PSCustomObject]@{ Name = 'OS metadata failure'; Host = (New-TestHostInfo -MetadataAvailable $false); ReasonCode = 'WINDOWS_METADATA_UNAVAILABLE' }
+    )
+    foreach ($case in $preflightBlockCases) {
+        $probeCountBefore = $wingetProbeCount
+        $blockedPreflight = Get-InstallerHostPreflight -Component WindowsHost -HostInfo $case.Host -Date ([datetime]'2026-10-17') -WingetAvailabilityProbe {
+            $script:wingetProbeCount++
+            return $true
+        }
+        Assert-Condition -Condition (-not $blockedPreflight.IsSupported -and $blockedPreflight.ReasonCode -eq $case.ReasonCode -and $blockedPreflight.WinGet.Status -eq 'NotChecked' -and $null -eq $blockedPreflight.SelectedPackageArchitecture -and $wingetProbeCount -eq $probeCountBefore) -Message ("Unsupported preflight blocks WinGet probing and artifact selection: {0}" -f $case.Name)
     }
 
     $engineCases = @(
@@ -107,6 +175,9 @@ try {
     $desktopEngine = New-TestEngineInfo -Edition 'Desktop' -Version '5.1.0'
     $coreEngine = New-TestEngineInfo -Edition 'Core' -Version '7.6.7'
     $oldCoreEngine = New-TestEngineInfo -Edition 'Core' -Version '7.6.6'
+
+    $linuxPreflight = Get-InstallerHostPreflight -Component CrossPlatformCli -HostInfo (New-TestHostInfo -Platform 'Linux') -EngineInfo $coreEngine -Date ([datetime]'2026-10-17')
+    Assert-Condition -Condition ($linuxPreflight.IsSupported -and $linuxPreflight.Requirement -eq 'PowerShell Core 7.6.7 on an operating system supported by that PowerShell release.' -and $null -eq $linuxPreflight.SelectedPackageArchitecture -and $null -eq $linuxPreflight.RuntimeArtifactArchitecture -and $linuxPreflight.WinGet.Status -eq 'NotApplicable') -Message 'The cross-platform CLI preflight reports its PowerShell requirement without Windows artifact or WinGet fields.'
 
     $desktopGui = Test-InstallerCompatibility -Component WindowsGui -HostInfo $windowsHost -EngineInfo $desktopEngine -Date ([datetime]'2026-10-17') -WindowsFormsAvailable $true -ProcessArchitecture X64 -ApartmentState STA
     Assert-Condition -Condition ($desktopGui.IsSupported -and $desktopGui.ReasonCode -eq 'COMPATIBILITY_SUPPORTED') -Message 'Windows PowerShell 5.1 enables the GUI only after its full capability contract passes.'
@@ -156,6 +227,7 @@ try {
         Assert-Condition -Condition ($guiPrerequisite.threadApartment -eq 'STA') -Message 'Both GUI engines require an STA UI thread.'
     }
     Assert-Condition -Condition ($readme.Contains('original CLI arguments') -and $readme.Contains('explicit consent') -and $readme.Contains('does not change PATH')) -Message 'README documents the CLI fallback and the consent-gated current-user runtime plan.'
+    Assert-Condition -Condition ($readme.Contains('Optional for host support') -and $readme.Contains('every Server SKU remains outside the support matrix') -and $readme.Contains('If WinGet is missing')) -Message 'README separates optional WinGet availability from Windows host support and documents unverified Server package workflows.'
     foreach ($obsoleteClaim in @('Windows 10 (1809+)', 'Windows Server 2016+', 'PowerShell 7.2+')) {
         Assert-Condition -Condition (-not $readme.Contains($obsoleteClaim)) -Message ("README no longer claims unbounded or retired support: {0}" -f $obsoleteClaim)
     }
@@ -164,8 +236,12 @@ try {
     Assert-Condition -Condition ($manifest.windowsExecutable.runtimeDiscovery.candidateLocations -contains '%SystemRoot%\Sysnative\WindowsPowerShell\v1.0\powershell.exe') -Message 'The runtime contract documents the 64-bit Windows PowerShell path for a 32-bit bootstrap process.'
     Assert-Condition -Condition ($manifest.windowsExecutable.runtimeDiscovery.candidateLocations -contains '%LOCALAPPDATA%\Programs\myTech.Today\AppInstaller\PowerShell\7.6.7\pwsh.exe') -Message 'The runtime contract documents the version-pinned current-user PowerShell location.'
     $runtimeProvisioning = $manifest.windowsExecutable.runtimeDiscovery.provisioning
-    Assert-Condition -Condition ($runtimeProvisioning.version -eq $manifest.engines.powerShellCore.version -and $runtimeProvisioning.artifactName -eq 'PowerShell-7.6.7-win-x64.zip' -and $runtimeProvisioning.source -eq 'https://github.com/PowerShell/PowerShell/releases/download/v7.6.7/PowerShell-7.6.7-win-x64.zip' -and $runtimeProvisioning.sha256 -eq 'D2F952EBDBF24386CB8923553AA58E41A846DB35A6155EA04C58142A4B16DBB7') -Message 'Runtime provisioning is pinned to the contract PowerShell version, official x64 ZIP, and published SHA-256 digest.'
+    Assert-Condition -Condition ($runtimeProvisioning.version -eq $manifest.engines.powerShellCore.version -and $runtimeProvisioning.architecture -eq $manifest.windowsClient.architecture -and $runtimeProvisioning.artifactName -eq 'PowerShell-7.6.7-win-x64.zip' -and $runtimeProvisioning.source -eq 'https://github.com/PowerShell/PowerShell/releases/download/v7.6.7/PowerShell-7.6.7-win-x64.zip' -and $runtimeProvisioning.sha256 -eq 'D2F952EBDBF24386CB8923553AA58E41A846DB35A6155EA04C58142A4B16DBB7') -Message 'Runtime provisioning selects the matching contract x64 artifact and published SHA-256 digest.'
     Assert-Condition -Condition ($runtimeProvisioning.installScope -eq 'current-user' -and $runtimeProvisioning.requiresAdministrator -eq $false -and $runtimeProvisioning.modifiesPath -eq $false -and $runtimeProvisioning.modifiesDefaultEngine -eq $false -and $runtimeProvisioning.signer -eq 'Microsoft Corporation') -Message 'The runtime plan uses a signed current-user install without changing PATH or the default engine.'
+    Assert-Condition -Condition (-not $manifest.optionalPackageManagers.winget.requiredForHostSupport -and $manifest.optionalPackageManagers.winget.legacyBootstrap.currentMatrixReachable -eq $false -and $manifest.optionalPackageManagers.winget.legacyBootstrap.architecture -eq 'X64') -Message 'WinGet remains optional, and the legacy bootstrap target cannot bypass the current Windows support matrix.'
+    foreach ($sourceName in @('lifecycleSource', 'dotNetFrameworkSource', 'windowsPowerShellSource', 'powerShellSource', 'powerShellReleaseSource', 'winGetSource')) {
+        Assert-Condition -Condition (-not [string]::IsNullOrWhiteSpace([string]$manifest.windowsClient.verification.$sourceName)) -Message ("The compatibility contract records an official source for {0}." -f $sourceName)
+    }
 
     $guiSource = Get-Content -LiteralPath (Join-Path $repositoryRoot 'app-installer.ps1') -Raw
     $cliSource = Get-Content -LiteralPath (Join-Path $repositoryRoot 'app-installer-cli.ps1') -Raw
@@ -173,11 +249,13 @@ try {
     $elevatedSource = Get-Content -LiteralPath (Join-Path $repositoryRoot 'invoke-elevated-install.ps1') -Raw
     $provisionSource = Get-Content -LiteralPath (Join-Path $repositoryRoot 'tools\Install-CompatiblePowerShell.ps1') -Raw
     $runtimeSource = Get-Content -LiteralPath (Join-Path $repositoryRoot 'modules\InstallerRuntimeDiscovery.psm1') -Raw
+    $prerequisitePlanSource = Get-Content -LiteralPath (Join-Path $repositoryRoot 'modules\InstallerPrerequisitePlan.psm1') -Raw
+    $wingetBootstrapSource = Get-Content -LiteralPath (Join-Path $repositoryRoot 'modules\WingetBootstrap.psm1') -Raw
     $startSource = Get-Content -LiteralPath (Join-Path $repositoryRoot 'tools\Start-Installer.ps1') -Raw
-    Assert-Condition -Condition ($guiSource.IndexOf('Test-InstallerCompatibility -Component WindowsHost') -lt $guiSource.IndexOf('Test-InstallerGuiCapability -HostInfo')) -Message 'The supported Windows host check runs before GUI capability detection.'
+    Assert-Condition -Condition ($guiSource.IndexOf('Get-InstallerHostPreflight -Component WindowsHost') -lt $guiSource.IndexOf('Test-InstallerGuiCapability -HostInfo')) -Message 'The supported Windows host preflight runs before GUI capability detection.'
     Assert-Condition -Condition ($guiSource.IndexOf('Test-InstallerGuiCapability -HostInfo') -lt $guiSource.IndexOf('Import-Module -Name $trustModulePath')) -Message 'The full GUI capability gate runs before GUI helper loading.'
-    Assert-Condition -Condition ($cliSource.IndexOf('Test-InstallerCompatibility -Component $cliComponent') -lt $cliSource.IndexOf('$platformDetectPath')) -Message 'The CLI gate runs before platform setup and package-manager checks.'
-    Assert-Condition -Condition ($batchSource.Contains('tools\Start-Installer.ps1') -and $startSource.Contains('Test-InstallerCompatibility -Component WindowsHost')) -Message 'The executable bootstrap verifies the Windows host before runtime selection or installer startup.'
+    Assert-Condition -Condition ($cliSource.IndexOf('Get-InstallerHostPreflight -Component $cliComponent') -lt $cliSource.IndexOf('$platformDetectPath')) -Message 'The CLI host preflight runs before platform setup and package-manager checks.'
+    Assert-Condition -Condition ($batchSource.Contains('tools\Start-Installer.ps1') -and $startSource.Contains('Get-InstallerHostPreflight -Component WindowsHost')) -Message 'The executable bootstrap verifies the Windows host before runtime selection or installer startup.'
     Assert-Condition -Condition (-not $batchSource.Contains('Install-CompatiblePowerShell.ps1') -and -not $batchSource.Contains('winget install') -and -not $batchSource.Contains('where pwsh')) -Message 'The executable launcher neither installs PowerShell nor selects an arbitrary PATH command.'
     Assert-Condition -Condition ($batchSource.IndexOf('set "APP_INSTALLER_WHATIF="') -ge 0 -and $batchSource.IndexOf('set "APP_INSTALLER_WHATIF="') -lt $batchSource.IndexOf('type nul > "%BOOTSTRAP_STATUS_FILE%"')) -Message 'The batch launcher routes WhatIf before creating temporary bootstrap files.'
     Assert-Condition -Condition ($startSource.Contains('if (-not $WhatIfPreference -and -not [string]::IsNullOrWhiteSpace($startedMarker))') -and $startSource.Contains('Invoke-InstallerRuntimePrerequisiteFlow')) -Message 'The shared launcher suppresses its startup marker during WhatIf.'
@@ -187,9 +265,11 @@ try {
     Assert-Condition -Condition ($runtimeSource.Contains('APP_INSTALLER_RUNTIME_HANDOFF_PATH') -and $runtimeSource.Contains('No alternate engine was attempted')) -Message 'The runtime handoff avoids recursion and reports execution policy blocks without trying another engine.'
     $elevationInvocationStart = $elevatedSource.IndexOf("if (`$MyInvocation.InvocationName -ne '.')")
     $elevationInvocation = if ($elevationInvocationStart -ge 0) { $elevatedSource.Substring($elevationInvocationStart) } else { '' }
-    Assert-Condition -Condition ($elevationInvocation.IndexOf('Test-InstallerCompatibility -Component WindowsHost') -ge 0 -and $elevationInvocation.IndexOf('Test-InstallerCompatibility -Component WindowsHost') -lt $elevationInvocation.IndexOf('Invoke-ElevatedInstall -Arguments')) -Message 'The elevation helper verifies the host before requesting elevation.'
-    Assert-Condition -Condition ($provisionSource.IndexOf('Test-InstallerCompatibility -Component WindowsHost') -lt $provisionSource.IndexOf('Invoke-InstallerRuntimePrerequisiteFlow') -and $provisionSource.Contains('Invoke-InstallerRuntimePrerequisiteFlow')) -Message 'Runtime provisioning delegates to the shared compatibility preflight and consent flow.'
+    Assert-Condition -Condition ($elevationInvocation.IndexOf('Get-InstallerHostPreflight -Component WindowsHost') -ge 0 -and $elevationInvocation.IndexOf('Get-InstallerHostPreflight -Component WindowsHost') -lt $elevationInvocation.IndexOf('Invoke-ElevatedInstall -Arguments')) -Message 'The elevation helper verifies the host before requesting elevation.'
+    Assert-Condition -Condition ($provisionSource.IndexOf('Get-InstallerHostPreflight -Component WindowsHost') -lt $provisionSource.IndexOf('Invoke-InstallerRuntimePrerequisiteFlow') -and $provisionSource.Contains('Invoke-InstallerRuntimePrerequisiteFlow')) -Message 'Runtime provisioning delegates to the shared compatibility preflight and consent flow.'
     Assert-Condition -Condition ($provisionSource.Contains('No application package action was started') -and -not $provisionSource.Contains('& winget install')) -Message 'The optional runtime helper stops before application actions and does not bypass the pinned provisioning path.'
+    Assert-Condition -Condition ($prerequisitePlanSource.IndexOf('Get-InstallerHostPreflight -Component WindowsHost') -lt $prerequisitePlanSource.IndexOf('Resolve-InstallerRuntime -Component $Component') -and $prerequisitePlanSource.Contains('$provisioning.architecture -ceq $selectedArchitecture')) -Message 'Runtime candidate probing and artifact planning follow host and artifact architecture validation.'
+    Assert-Condition -Condition (-not $guiSource.Contains('[System.Environment]::OSVersion') -and -not $cliSource.Contains('[System.Environment]::OSVersion') -and -not $wingetBootstrapSource.Contains('[System.Environment]::OSVersion')) -Message 'Windows and legacy WinGet bootstrap gates use shared registry metadata instead of Environment.OSVersion.'
 
     Write-Host "[OK] Compatibility contract checks passed ($checkCount assertions)." -ForegroundColor Green
 }

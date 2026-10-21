@@ -8,6 +8,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), wit
 
 ### Added
 
+- Added install ownership manifests and offline install, upgrade, repair, rollback, and retained-data uninstall coverage for the user-scoped EXE payload.
+- Added an executable lifecycle management command with dry-run support and explicit keep-data and remove-owned-files options.
+- Added protected semantic-version GitHub releases for the unsigned x64 EXE, with SHA-256, builder provenance, compatibility and payload metadata, and test evidence.
+- Added fixture-driven release asset and publication checks for tag/version gates, unsigned output, duplicate releases, checksum accuracy, and draft-only failure handling.
+- Added pinned Windows executable build tooling with versioned output, source and toolchain provenance, an explicit payload inventory, and clean-copy reproducibility checks.
+- Added explicit identities and output guards for tracked legacy executables so the versioned release process cannot overwrite or publish them.
 - Added opt-in monthly Windows update scheduling for explicitly selected winget package IDs, with task ownership checks, confirmation, and rollback when replacement fails.
 - Added offline regression coverage for execution-policy handling, startup trust checks, package-manager arguments and results, monthly updates, and elevation handoff.
 - Added offline fake-download and fake-process coverage for immutable remote helper verification, rejected content, forwarded arguments, policy-blocked launches, and native exit status.
@@ -20,6 +26,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), wit
 
 ### Changed
 
+- Defined the GUI version in VERSION as the executable, file-resource, artifact-name, and tag version while preserving the CLI's separate version.
+- Self-install now preserves unowned files, user profiles, and inherited ACLs, detects changed owned files, and reports preserved code or retained rollback paths.
+- Legacy migration preserves files absent from the incoming package, and uninstall fails closed when no valid ownership hash baseline exists.
 - Top-level setup launchers, the monthly update task, and the verified O&O child runner use direct `-NoProfile -File` launches without a process-level policy override, while preserving child exit results. A detected O&O policy block returns failure and displays sanitized recovery guidance without changing policy.
 - The Windows executable launches the shared runtime resolver, which prefers the contracted PowerShell Core version, falls back to Windows PowerShell before application work, and does not provision a runtime.
 - GUI and CLI package-manager calls use validated executable paths and argument arrays, and report dependency or update outcomes without masking failures.

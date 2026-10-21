@@ -69,15 +69,21 @@ function Invoke-ElevatedInstall {
     param(
         [Parameter(Mandatory = $true)]
         [AllowEmptyCollection()]
+        [AllowEmptyString()]
         [string[]]$Arguments
     )
 
     if ($Arguments.Count -lt 1 -or [string]::IsNullOrWhiteSpace($Arguments[0])) {
-        [Console]::Error.WriteLine('[ERROR] The batch installer path was not supplied; elevation could not be started.')
+        [Console]::Error.WriteLine('[ERROR] The installer target path was not supplied; elevation could not be started.')
         return 2
     }
 
-    $batchPath = $Arguments[0]
+    $targetPath = $Arguments[0]
+    if (-not (Test-Path -LiteralPath $targetPath -PathType Leaf)) {
+        [Console]::Error.WriteLine(("[ERROR] The elevated installer target was not found: {0}" -f $targetPath))
+        return 2
+    }
+
     $installerArguments = @()
     if ($Arguments.Count -gt 1) {
         $installerArguments = @($Arguments | Select-Object -Skip 1)
@@ -87,11 +93,13 @@ function Invoke-ElevatedInstall {
         ConvertTo-WindowsCommandLineArgument -Argument $_
     }) -join ' '
 
+    $workingDirectory = (Get-Location -PSProvider FileSystem).ProviderPath
     $startParameters = @{
-        FilePath     = $batchPath
-        Verb         = 'RunAs'
-        PassThru     = $true
-        ErrorAction  = 'Stop'
+        FilePath         = $targetPath
+        WorkingDirectory = $workingDirectory
+        Verb             = 'RunAs'
+        PassThru         = $true
+        ErrorAction      = 'Stop'
     }
     if ($argumentLine.Length -gt 0) {
         $startParameters.ArgumentList = $argumentLine
@@ -157,7 +165,7 @@ if ($MyInvocation.InvocationName -ne '.') {
     try {
         Import-Module -Name $compatibilityModulePath -Force -DisableNameChecking -ErrorAction Stop | Out-Null
         $hostInfo = Get-InstallerHostInfo
-        $hostDecision = Test-InstallerCompatibility -Component WindowsHost -HostInfo $hostInfo
+        $hostDecision = Get-InstallerHostPreflight -Component WindowsHost -HostInfo $hostInfo
         if (-not $hostDecision.IsSupported) {
             [Console]::Error.WriteLine($hostDecision.Message)
             exit 1

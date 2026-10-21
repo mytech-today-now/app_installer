@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-10-20
+goal: Publish verifiable, version-matched unsigned release assets without
+  signing, paid services, or tag creation.

@@ -49,6 +49,11 @@ tools/*
 !tools/Set-InstallerExeMetadata.ps1
 !tools/Test-InstallerCompatibility.ps1
 !tools/Build-InstallerExe.ps1
+!tools/InstallerExecutableBuild.psm1
+!tools/installer-exe-build.json
+
+# Generated executable build outputs
+/builds/generated/
 
 # Local Beads workspace files
 /.dolt/

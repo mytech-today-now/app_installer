@@ -185,13 +185,18 @@ The single compatibility source is [`compatibility.json`](compatibility.json). I
 - **Operating system:** Windows 11 25H2 build 26200 or Windows 11 26H2 build 26300, Home or Pro, x64. The release must still be within its end-of-servicing date in `compatibility.json`.
 - **Windows PowerShell:** Desktop edition 5.1. It supports the GUI and CLI. The GUI requires .NET Framework 4.7.2 or later, registry release value 461808 or later.
 - **PowerShell Core:** Version 7.6.7. It supports the CLI. The GUI also requires Windows Desktop runtime 10 and successful loads of `System.Windows.Forms`, `System.Drawing`, and `System.Web`.
+- **Host preflight:** One shared result records the Windows product family, release, build, edition, host architecture, GUI runtime requirements, WinGet availability, and selected PowerShell artifact architecture. It rejects unavailable OS metadata and any host or artifact architecture mismatch before runtime provisioning or package setup.
+- **WinGet:** Optional for host support. If WinGet is missing, the host and CLI preflight remain valid and the CLI reports the missing package manager before package actions. Microsoft documents WinGet on Windows 11 and Windows Server 2025 with Desktop Experience, but this App Installer release has no verified Server package workflow, so every Server SKU remains outside the support matrix. Windows Server 2022 and earlier do not have WinGet support.
+- **Legacy WinGet bootstrap:** The old bootstrap path is scoped to Windows 10 x64 client builds 17763 through 21999. Windows 10 is outside the current App Installer matrix, so this path is not eligible during supported startup. It does not make WinGet availability equivalent to OS or runtime support.
+- **Runtime artifact architecture:** The only provisioned runtime artifact is PowerShell Core 7.6.7 for Windows x64. The preflight selects it only for a supported x64 host and blocks an unknown host architecture or artifact mismatch. It never chooses an x64 archive for x86 or ARM64.
 - **GUI startup gate:** Before loading GUI-only helpers or constructing a form, the installer validates the Windows release, PowerShell edition and version, x64 process architecture, STA apartment, runtime prerequisite, and required assemblies. If GUI capability is unavailable and the supported CLI can run, it starts the CLI once with the original CLI arguments and returns the CLI process exit code. The capability check reports status; provisioning is a separate consent-gated step. In GUI mode, `-WhatIf` reports the preflight result and exits without opening the GUI. CLI mode retains the CLI's dry-run preview.
-- **Launcher behavior:** The EXE is an unsigned IExpress package and does not bundle PowerShell. The shared runtime discovery checks fixed PowerShell installation locations, registered PowerShell Core installations, and the current-user Microsoft.PowerShell package registration. It prefers PowerShell Core 7.6.7, then Windows PowerShell 5.1, and validates edition, exact version, x64 process architecture, startup, and the shared GUI capability gate before opening the installer. A safe preflight failure can move to the next compatible engine. Once the installer starts, it never retries the install workflow in another engine. The launcher does not search PATH.
+- **Launcher behavior:** `install.bat` is the source-script setup entry point. It starts the shared runtime resolver, which checks fixed PowerShell installation locations, registered PowerShell Core installations, and the current-user Microsoft.PowerShell package registration. For GUI mode it prefers PowerShell Core 7.6.7 when its GUI requirements pass, then Windows PowerShell 5.1. Use `-ForceCLI` to select `app-installer-cli.ps1` directly; CLI mode accepts Windows PowerShell 5.1 or PowerShell Core 7.6.7. A safe preflight failure can move to the next compatible engine. Once the installer starts, it never retries application work in another engine. The resolver does not search PATH.
+- **Executable distribution:** When a release has been published, use only its versioned `AppInstaller-<GUI-version>-win-x64.exe` asset together with the matching checksum and release manifest. The current package is an unsigned IExpress launcher and does not bundle PowerShell. The tracked legacy executables described below are not current release downloads.
 - **Unsupported:** Windows 10, Windows Server, Enterprise and Education editions, x86, ARM64, Windows releases absent from the matrix, and PowerShell versions outside the listed engine contract. The launcher exits before package-manager calls or persistent changes and prints the minimum requirement and recovery steps.
 - **Optional runtime installation:** Startup checks every discovered PowerShell candidate and its required CLI or GUI capabilities before offering provisioning. If no installed candidate can run the CLI, the installer presents the exact plan and asks for explicit consent before offering a current-user PowerShell Core 7.6.7 ZIP install from the GitHub release URL and SHA-256 pin in `compatibility.json`. The ZIP is verified before extraction, and the extracted executable is signature-checked and revalidated from its exact path before launch. The install does not require administrator privileges and does not change PATH, the default engine, or another PowerShell installation. GUI-only capability gaps use an already compatible CLI when available. If no PowerShell engine can start the preflight launcher, install.bat prints the pinned source and recovery steps without downloading or installing anything. Preview the provisioning decision with `powershell.exe -NoProfile -File .\tools\Install-CompatiblePowerShell.ps1 -WhatIf`; rerun without `-WhatIf` to review the plan and decide whether to proceed.
-- **Verification:** `tests/test-compatibility-contract.ps1` covers OS, edition, architecture, engine, runtime, and end-of-servicing boundaries with mocked metadata. The local runner is Windows 11 26H2 x64 with both listed engines. Executable metadata and cabinet resource replacement are covered by `tests/test-executable-metadata.ps1` and `tests/test-executable-resource-update.ps1`.
+- **Verification:** `tests/test-compatibility-contract.ps1` covers OS, edition, architecture, engine, runtime, and end-of-servicing boundaries with mocked metadata. `tests/test-executable-metadata.ps1` inspects the pinned legacy IExpress seed and confirms metadata writes reject both tracked legacy paths. `tests/test-executable-build.ps1` validates the generated versioned executable and its provenance; `tests/test-executable-resource-update.ps1` tests cabinet replacement on a temporary seed copy.
 
-Microsoft sources: [supported Windows client versions](https://learn.microsoft.com/en-us/windows/release-health/supported-versions-windows-client), [.NET Framework system requirements](https://learn.microsoft.com/en-us/dotnet/framework/get-started/system-requirements), [PowerShell support lifecycle](https://learn.microsoft.com/en-us/powershell/scripting/install/powershell-support-lifecycle?view=powershell-7.6), and the [PowerShell 7.6.7 release](https://github.com/PowerShell/PowerShell/releases/tag/v7.6.7).
+Microsoft sources: [supported Windows client versions](https://learn.microsoft.com/en-us/windows/release-health/supported-versions-windows-client), [.NET Framework system requirements](https://learn.microsoft.com/en-us/dotnet/framework/get-started/system-requirements), [Windows PowerShell](https://learn.microsoft.com/en-us/powershell/scripting/install/installing-windows-powershell?view=powershell-7.6), [PowerShell 7 support lifecycle](https://learn.microsoft.com/en-us/powershell/scripting/install/powershell-support-lifecycle?view=powershell-7.6), [PowerShell 7.6.7 release assets](https://github.com/PowerShell/PowerShell/releases/tag/v7.6.7), and [WinGet availability and system requirements](https://learn.microsoft.com/en-us/windows/package-manager/winget/).
 
 ### macOS
 - **Operating system and PowerShell:** Use a macOS version listed for PowerShell 7.6.7 in Microsoft's support lifecycle.
@@ -219,53 +224,126 @@ docker build -f Dockerfile.cli -t app-installer-cli .
 
 ### Building the Windows executable
 
-On Windows, rebuild the embedded cabinet in the existing unsigned IExpress launcher stub, then write version metadata from `VERSION` and `compatibility.json`. The builder requires PowerShell, MakeCab, Expand, and the existing `builds/install-GUI.exe` template:
+The reproducible build follows the unsigned x64 IExpress contract in `compatibility.json`. It uses the checked-in `builds/install-GUI.exe` as a pinned launcher seed and writes a separate versioned output under `builds/generated/`. It never replaces either checked-in executable. Run it from a clean or reviewed source checkout on Windows 11 build 26300 x64 or Windows Server 2025 build 26100 x64 with PowerShell Core 7.6.7, the pinned .NET runtime 10.0.13, and the exact MakeCab and Expand versions recorded in `tools/installer-exe-build.json`:
 
 ```powershell
-pwsh -NoProfile -File .\tools\Build-InstallerExe.ps1 -OutputPath .\builds\install-GUI.exe
+pwsh -NoProfile -File .\tools\Build-InstallerExe.ps1
 ```
+
+The default output is `builds/generated/AppInstaller-<GUI-version>-win-x64.exe`, with an adjacent `.build.json` provenance file. `.gitignore` excludes `builds/generated/`, so a local build does not become a checked-in or published release. Pass `-OutputPath` to choose another destination while keeping the versioned filename. Either tracked legacy executable path is rejected as an output, even if that file is absent. Existing artifacts and provenance files are never overwritten. `-WhatIf` runs the pinned source and toolchain preflight without creating output files.
+
+`tools/installer-exe-build.json` pins the host, PowerShell distribution, .NET runtime files, Roslyn compiler assemblies, MakeCab, Expand, and IExpress seed by version, SHA-256, and signer where applicable. To acquire a missing prerequisite, use only the official URLs in that file. Verify the PowerShell archive against `distributionSha256` before extraction, then verify the extracted `pwsh.exe` hash and Microsoft signature. Verify the .NET runtime installer against `installerSha512` and its Authenticode signature before installing it. MakeCab and Expand are Windows components and are checked by hash and Microsoft signature. The builder does not download or install build dependencies. Roslyn is included in the pinned PowerShell distribution, so a separate .NET SDK is not required. The provenance file records the source commit and worktree status, hashes of build inputs, toolchain observations, payload manifest and inventory hashes, payload file lengths and hashes, output SHA-256, x64 architecture, and unsigned status. It omits build timestamps and uses fixed cabinet file timestamps.
+
+Windows Server 2025 is listed here only as a build host for the standard GitHub Actions windows-2025 runner. It remains outside the App Installer runtime support matrix in compatibility.json. The build still stops if the pinned PowerShell, .NET, Roslyn, MakeCab, Expand, or seed observations differ.
+
+### Legacy executable inventory
+
+Both tracked executable files remain unchanged. Their file hashes and roles are recorded in `tools/installer-exe-build.json`; neither path is eligible as current build output or a release asset.
+
+| Tracked file | Repository evidence | Role and support |
+| --- | --- | --- |
+| `builds/install-GUI.exe` | Added in Git commit `81952a64201bbadf4418922953890497157db669`, last changed in `96b07b97894988a00660d967c53d4623a3e83115`. File version `2.0.6.0`, product `myTech.Today App Installer`, SHA-256 `D24CAF70EB50CAD3F54F5CF11F8FF2D961D8090F929B0AB820CD2F9D9376AA86`. | Pinned IExpress launcher seed used by the current reproducible build. The original seed source and any historical distribution path are unknown. It is not a supported current download. Existing documentation describes a compatible installed PowerShell prerequisite, but the original seed payload was not revalidated during this review. |
+| `builds/new/install-gui.exe` | Added in Git commit `737cb1c01964a0743c4eb815e46fcfde4a3e15a8`. File version resources say `11.00.26100.1 (WinBuild.160101.0800)`, product `Internet Explorer`, company `Microsoft Corporation`, SHA-256 `C4020D50334AA923226A0655E5797EF329C1C8B7C69B263125B94840610E50AC`. | No current repository consumer or reproducible source recipe was found. The executable format, original source, runtime requirements, and external distribution status are unknown. It is not an App Installer release asset. |
+
+No removal is planned. Keep `builds/install-GUI.exe` as the pinned seed until a reviewed replacement has established provenance and passes clean-build reproducibility checks. Before removing either file, confirm remote release history and external consumer references; local Git history alone does not establish that either artifact was never distributed. The second file remains preserved and release-ineligible while its origin and runtime requirements are unknown.
+
+The supported release package is the versioned artifact generated by `tools/Build-InstallerExe.ps1` and selected with its adjacent `.build.json` provenance. Its release assets include the `.sha256` sidecar and `.release.json` manifest. It is an unsigned IExpress launcher, not a standalone PowerShell runtime. It requires a supported Windows 11 Home or Pro x64 release and a compatible PowerShell engine. The GUI requires Windows PowerShell 5.1 with .NET Framework 4.7.2 or PowerShell Core 7.6.7 with Windows Desktop runtime 10. A local generated file is build output, not evidence that a GitHub release was published.
+
+### GitHub Actions build and compatibility checks
+
+The workflow at .github/workflows/windows-build-compatibility.yml runs on pull requests targeting main and pushes to main using the standard x64 windows-2025 runner. Its two-engine matrix checks Windows PowerShell Desktop 5.1 and PowerShell Core 7.6.7, builds the unsigned versioned EXE from a clean checkout, and runs selected offline regression checks. A missing or unexpected PowerShell version fails its matrix leg. The current-host runtime test is reported as not run because the GitHub runner is Windows Server, outside the Windows client runtime matrix.
+
+The repository is public, so standard GitHub-hosted runners are free. The job also skips if the repository is private. Artifact upload is available only from a manual run and defaults off. It includes the versioned unsigned EXE and adjacent .build.json provenance file for three days. GitHub Free includes 500 MB of artifact and package storage combined; current storage use is not available to this workflow, so upload only when the owner has sufficient included storage.
+
+### Versioned unsigned GitHub releases
+
+**Release version mapping:** GUI 2.0.6 / CLI 2.0.2
+
+VERSION is the canonical current version source. Its GUI entry defines the executable product version, stable release tag, four-part Windows file version, and versioned artifact name. The CLI entry remains independently versioned. Both script headers and startup banners show their respective script versions, and the release manifest records both values. Prerelease and build-metadata versions are not supported by the current release workflow.
+
+`.github/workflows/versioned-unsigned-release.yml` runs only for pushed tags beginning with `v`. The validator accepts only exact stable `vMAJOR.MINOR.PATCH` tags and requires the version to equal the GUI version in `VERSION`; the GUI and CLI script versions must both match their entries in that file. The release is one unsigned x64 GUI package named `AppInstaller-<GUI-version>-win-x64.exe`. The pipeline publishes its `.exe.sha256` sidecar, adjacent `.exe.build.json` builder provenance, and `AppInstaller-<GUI-version>-win-x64.release.json` release manifest. The release notes are published in the GitHub release body.
+
+The tag must be protected by a GitHub ruleset or tag protection rule, point to a commit on the repository default branch, and still resolve to the commit that triggered the workflow. The workflow requires the tagged commit's workflow files to match the current default branch because `GITHUB_TOKEN` cannot be granted workflow-write permission. Configure and review tag protection before the first release. The release caller reuses the two-engine compatibility workflow, then rebuilds with the same pinned builder after both jobs pass. It does not store an intermediate Actions artifact.
+
+The validation and test jobs have `contents: read`; only the final publishing job has `contents: write`. It uses the automatically provided `github.token`, creates a draft, uploads the exact asset allowlist, and publishes the draft only after every upload succeeds. It never creates or pushes tags, signs the EXE, or overwrites an existing release. A failed upload can leave an unpublished draft that must be removed or repaired before retrying the same tag.
+
+The release manifest records the GUI and CLI versions, source tag and commit, build toolchain, compatibility contract and digest, full payload inventory, x64 target, and successful Windows PowerShell 5.1 and PowerShell Core 7.6.7 jobs. Release notes list the supported Windows and PowerShell matrix, prerequisites, GUI and CLI commands, known limits, and recovery steps. The EXE does not bundle PowerShell.
+
+The repository is public and the workflow uses the standard x64 `windows-2025` runner, so GitHub documents standard hosted runner minutes as free for public repositories. This release workflow does not store Actions artifacts; public GitHub release assets have no total size or bandwidth quota, subject to GitHub's per-file asset limit. The separate manual CI artifact upload remains subject to the account's Actions storage quota. See [GitHub Actions billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions), [GitHub-hosted runners](https://docs.github.com/en/actions/reference/runners/github-hosted-runners), and [GitHub release asset quotas](https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases#storage-and-bandwidth-quotas).
+
+The `.sha256` file detects byte changes only when the expected digest is obtained through a trusted release channel. It does not authenticate the publisher or replace an Authenticode signature. The EXE is intentionally unsigned; Windows SmartScreen or security software may warn. Do not disable security controls to run it. If the digest differs, discard the file and download it again from the trusted release page.
+
+`tests/test-executable-build.ps1` builds twice from isolated clean source copies and compares the executable SHA-256 values. The resulting package remains unsigned and does not bundle PowerShell, so it requires a compatible installed PowerShell runtime at launch. It follows the current `compatibility.json` contract and is not a standalone executable.
 
 `payload-manifest.json` is the runtime payload allowlist. It names both entry points, launchers, shared modules, the application catalog, all app scripts, and the shipped default profiles. The profile filenames are enumerated so user-exported profiles are not bundled. The builder excludes development directories, tests, fixtures, logs, temporary files, local secrets, and unrelated binaries.
 
 The builder creates `payload-integrity.json` inside the cabinet. It records the GUI and CLI versions, manifest hash, and SHA-256 plus byte length for every listed runtime file. Startup validates this metadata and the full catalog before loading the GUI or CLI. Missing or invalid payload files stop startup; the CLI does not substitute its old shortened catalog. These hashes detect incomplete or damaged packages and do not authenticate the unsigned executable.
 
-Runtime resources resolve from the directory containing the running entry script. The Windows bootstrap resolves `install.bat` and `tools/Start-Installer.ps1` from the extracted executable payload. Self-install copies the validated payload into the current user's `%USERPROFILE%\myTech.Today\AppInstaller` directory using a staged directory replacement. It keeps `queue-state.json`, its recovery backup, and user-created profile JSON files there. Logs remain under `%USERPROFILE%\myTech.Today\logs`. The CLI uses the corresponding per-user application-data paths on macOS and Linux. No runtime resource is resolved from the caller's current directory.
+Runtime resources resolve from the directory containing the running entry script. The Windows bootstrap resolves `install.bat` and `tools/Start-Installer.ps1` from the extracted executable payload. The EXE is an unsigned IExpress launcher, not a machine installer. GUI startup validates and installs the payload in the current user's `%USERPROFILE%\myTech.Today\AppInstaller` directory. The CLI uses the corresponding per-user application-data paths on macOS and Linux. No runtime resource is resolved from the caller's current directory.
 
-The Windows installation is per-user and inherits the user's existing profile ACLs. The installer does not broaden permissions. A machine-wide deployment must use an administrator-owned install directory where standard users have read and execute access but cannot modify payload files that an elevated workflow trusts. Do not copy this payload into a protected shared location with standard-user write access.
+### Windows executable install lifecycle
 
-Run the offline payload inventory, source/package path, corruption, preservation, and Windows cabinet checks with:
+The Windows install is per-user and inherits ACLs from the user's profile. It does not request elevation or create a product Start Menu shortcut. A machine-wide install is not supported. PowerShell and .NET runtimes are managed by the existing prerequisite flow and are never removed by App Installer uninstall.
+
+The stable user path contains one active version. A previous script install is adopted when its product payload markers can be validated. The GUI repairs or upgrades from the validated launch payload. It stages a complete tree in a sibling directory, verifies payload hashes, and switches directories on the same volume. The previous tree stays available until the activated payload passes integrity validation. If activation fails, the failed tree is moved to a `.AppInstaller.failed-*` recovery path and the previous tree is restored. If cleanup of the old tree fails after a successful activation, the exact backup path and error are reported and the backup is retained.
+
+`.app-installer-install.json` records the installed version, current-user scope, and each owned payload file with its length and SHA-256. The installer carries forward unowned files and directories, queue state and its recovery backup, user profiles, and app configuration. An unowned file that conflicts with a packaged path stops the operation without replacing it. Edited profile files stay at their original paths and are included in the next payload integrity record. Edited owned code is copied to `.app-installer-preserved` before repair and the original and recovery paths are reported. A root, directory, or file with a custom ACL that differs from the inherited profile ACL stops staging instead of changing permissions.
+
+Logs stay under `%USERPROFILE%\myTech.Today\logs`. The executable itself stays where it was downloaded or copied. This lifecycle does not create or remove product shortcuts. Existing user-created shortcuts and shortcuts created for other applications are outside the install root and are left alone. When removing the application, queue data, profiles, logs, app configuration, unowned files, edited owned files, and downloaded runtimes are retained.
+
+The management entry point supports explicit lifecycle actions from a validated payload directory. Install, upgrade, and repair use `-SourceRoot` for that payload and `-InstallRoot` for a disposable or user-owned destination. Uninstall first reports the owned file count without deleting anything. To remove unchanged owned program files while retaining user data, pass both `-KeepData` and `-RemoveOwnedFiles`:
 
 ```powershell
+pwsh -NoProfile -File .\tools\Manage-AppInstallerInstall.ps1 -Action Install -SourceRoot . -InstallRoot "$env:USERPROFILE\myTech.Today\AppInstaller" -WhatIf
+pwsh -NoProfile -File .\tools\Manage-AppInstallerInstall.ps1 -Action Repair -SourceRoot . -InstallRoot "$env:USERPROFILE\myTech.Today\AppInstaller" -WhatIf
+pwsh -NoProfile -File "$env:USERPROFILE\myTech.Today\AppInstaller\tools\Manage-AppInstallerInstall.ps1" -Action Uninstall -KeepData
+pwsh -NoProfile -File "$env:USERPROFILE\myTech.Today\AppInstaller\tools\Manage-AppInstallerInstall.ps1" -Action Uninstall -KeepData -RemoveOwnedFiles -WhatIf
+```
+
+RemoveOwnedFiles deletes only manifest-owned files whose current length and SHA-256 still match. Modified owned files are retained. The root directory remains if user data or unowned files remain. KeepData is required because this lifecycle does not offer an option to delete profiles, queue state, logs, or other user data.
+
+If a legacy script install has neither a valid ownership manifest nor valid payload-integrity metadata, uninstall stops before removing files. Upgrade or repair it from a verified payload first so the installer can record a trustworthy local file baseline.
+
+Run the offline lifecycle and payload checks with:
+
+```powershell
+pwsh -NoProfile -File .\tests\test-executable-install-lifecycle.ps1
 pwsh -NoProfile -File .\tests\test-executable-payload.ps1
 ```
 
-The build scripts and package payload remain in the repository. The package is unsigned; version-resource metadata is not a code signature. `tests/test-executable-metadata.ps1` validates executable metadata without launching it, and `tests/test-executable-resource-update.ps1` exercises cabinet-resource replacement on a temporary copy.
+The current versioned package is unsigned; version-resource metadata is not a code signature. `tests/test-executable-build.ps1` checks the generated artifact and provenance without launching the executable. `tests/test-executable-resource-update.ps1` exercises cabinet-resource replacement on a temporary copy of the pinned seed.
 
 ## Administrator & Antivirus Notes
 
-- **Always run elevated:**
-  - When using the **PowerShell scripts** (`app-installer.ps1`, `app-installer-cli.ps1`): start PowerShell **as Administrator** and run the scripts from an elevated session.
-  - When using the **packaged EXE** (for example, `install-GUI.exe` built via IEXPRESS): allow the UAC elevation prompt and run the EXE **as Administrator**.
-- **Why elevation is required:**
-  - Installing software, managing services, and modifying system-wide settings (registry, Program Files, etc.) requires administrative rights.
-  - Some installers and winget operations will fail or behave unpredictably without elevation.
+- Runtime discovery and the setup launcher run in the current user session and do not request elevation. Individual package installers may request administrator approval when their operation requires it.
+- `invoke-elevated-install.ps1` is an explicit wrapper for a batch or executable target. It requests UAC elevation, waits for the child, and returns its confirmed exit code. Pass the target path first, followed by its arguments. A canceled UAC prompt returns a nonzero result. The wrapper does not change execution policy.
 - **Antivirus / SmartScreen behavior:**
-  - Because the EXE is a **custom IEXPRESS self-extracting package**, many antivirus products and/or Windows SmartScreen may **flag, warn about, or quarantine** the EXE on first run.
+  - The current versioned release EXE is an unsigned IExpress package. Windows SmartScreen or security software may warn about it.
   - If a security product flags or quarantines a package, stop and verify its source and any published signature or digest. If you cannot verify it, or an organization policy blocks it, contact your administrator rather than overriding the warning.
-- **Recommendation:**
-  - Prefer running the **raw PowerShell script (`app-installer.ps1`) from an elevated PowerShell session** when testing or developing.
-  - Use the **EXE** for deployment/hand-off scenarios, with the expectation that security software may require manual approval.
 
-## PowerShell execution policy and script signatures
+## Windows launch and PowerShell execution policy
 
-The direct script entry points apply the same Windows engine selection policy and may relaunch under the preferred compatible host before installer work begins. They do not alter persistent execution-policy scopes. Launch scripts with your normal host and leave its configured policy in place:
+`install.bat` starts the GUI by default. Add `-ForceCLI` to select the CLI entry script directly. The shared resolver chooses a compatible installed engine before the app starts. It prefers PowerShell Core 7.6.7 for CLI and for GUI when the required Desktop runtime and assemblies load; Windows PowerShell 5.1 supports both entry points. A missing `pwsh.exe` does not by itself trigger runtime installation when Windows PowerShell 5.1 can run the selected entry point. If no installed candidate can run the CLI, a pinned PowerShell Core install is offered only through the existing consent flow.
+
+Launch the source scripts with a supported host and its normal execution policy:
 
 ```powershell
+.\install.bat
+.\install.bat -ForceCLI -Action Status
+powershell.exe -NoProfile -File .\app-installer.ps1
+powershell.exe -NoProfile -File .\app-installer-cli.ps1 -Action Status
 pwsh -NoProfile -File .\app-installer.ps1
-pwsh -NoProfile -File .\app-installer-cli.ps1
+pwsh -NoProfile -File .\app-installer-cli.ps1 -Action Status
 ```
 
-Windows PowerShell 5.1 can launch the GUI entry point with `powershell.exe -NoProfile -File .\app-installer.ps1`. The `install.bat` and `install.sh` helpers use the same direct `-File` launch and do not alter policy settings. Check the effective scopes with `Get-ExecutionPolicy -List`; this installer does not write them. Execution policy is a PowerShell safety feature, not a code-integrity check. See Microsoft's [execution policy guidance](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_execution_policies?view=powershell-7.5).
+For automation, use the CLI script directly and include `-WhatIf` when reviewing a state-changing action. `-Action Status` is read-only. To request an elevated batch or EXE operation explicitly, call the helper with the target path followed by the target's arguments:
+
+```powershell
+pwsh -NoProfile -File .\app-installer-cli.ps1 -Action InstallMissing -WhatIf
+powershell.exe -NoProfile -File .\invoke-elevated-install.ps1 .\install.bat -ForceCLI -Action Status
+```
+
+When a release is available, obtain the versioned file and matching release metadata from [GitHub Releases](https://github.com/mytech-today-now/app_installer/releases). Do not launch either tracked legacy executable as the current product. The direct PowerShell script and `install.bat` launch paths do not alter policy settings. Check effective scopes with `Get-ExecutionPolicy -List`; this installer does not write them. Execution policy is a PowerShell safety feature, not a code-integrity check. See Microsoft's [execution policy guidance](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_execution_policies?view=powershell-7.5).
 
 For a signed Windows script, inspect its Authenticode result before launch:
 

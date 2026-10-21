@@ -11,8 +11,10 @@ echo   myTech.Today - App Installer Setup
 echo ============================================================
 echo.
 
-if not exist "%~dp0app-installer.ps1" (
-    echo [ERROR] App Installer script was not found: "%~dp0app-installer.ps1"
+if not exist "%~dp0app-installer.ps1" if not exist "%~dp0app-installer-cli.ps1" (
+    echo [ERROR] App Installer script was not found at either supported entry path:
+    echo         "%~dp0app-installer.ps1"
+    echo         "%~dp0app-installer-cli.ps1"
     exit /b 2
 )
 if not exist "%~dp0tools\Start-Installer.ps1" (

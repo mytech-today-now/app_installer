@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-10-20
+goal: Make current versioned release assets distinct from preserved legacy EXEs
+  with verifiable provenance and no legacy path reuse.

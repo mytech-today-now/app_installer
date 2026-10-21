@@ -57,6 +57,7 @@ function Get-InstallerHostInfo {
 
     $info = [ordered]@{
         Platform = $platform
+        ProductFamily = 'Unknown'
         DisplayVersion = ''
         BuildNumber = 0
         ProductType = ''
@@ -64,11 +65,16 @@ function Get-InstallerHostInfo {
         EditionId = ''
         Architecture = $architecture
         DotNetFrameworkRelease = 0
+        MetadataAvailable = ($platform -ne 'Windows')
+        MetadataReasonCode = ''
     }
 
     if ($platform -eq 'Windows') {
+        $currentVersionRead = $false
+        $productOptionsRead = $false
         try {
             $currentVersion = Get-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -ErrorAction Stop
+            $currentVersionRead = $true
             $info.DisplayVersion = [string]$currentVersion.DisplayVersion
             if (-not $info.DisplayVersion) {
                 $info.DisplayVersion = [string]$currentVersion.ReleaseId
@@ -89,6 +95,7 @@ function Get-InstallerHostInfo {
         try {
             $productOptions = Get-ItemProperty -LiteralPath 'HKLM:\SYSTEM\CurrentControlSet\Control\ProductOptions' -ErrorAction Stop
             $info.ProductType = [string]$productOptions.ProductType
+            $productOptionsRead = $true
         }
         catch {
             $info.ProductType = ''
@@ -100,6 +107,25 @@ function Get-InstallerHostInfo {
         }
         catch {
             $info.DotNetFrameworkRelease = 0
+        }
+
+        if ($info.ProductType -eq 'WinNT' -and $info.InstallationType -eq 'Client') {
+            $info.ProductFamily = 'WindowsClient'
+        }
+        elseif ($info.ProductType -in @('LanmanNT', 'ServerNT') -and $info.InstallationType -match '^Server') {
+            $info.ProductFamily = 'WindowsServer'
+        }
+
+        $metadataComplete = $currentVersionRead -and $productOptionsRead -and
+            -not [string]::IsNullOrWhiteSpace([string]$info.DisplayVersion) -and
+            [int]$info.BuildNumber -gt 0 -and
+            -not [string]::IsNullOrWhiteSpace([string]$info.InstallationType) -and
+            -not [string]::IsNullOrWhiteSpace([string]$info.EditionId) -and
+            -not [string]::IsNullOrWhiteSpace([string]$info.ProductType) -and
+            $info.ProductFamily -ne 'Unknown'
+        $info.MetadataAvailable = [bool]$metadataComplete
+        if (-not $metadataComplete) {
+            $info.MetadataReasonCode = 'WINDOWS_METADATA_UNAVAILABLE'
         }
     }
 
@@ -123,8 +149,21 @@ function Test-InstallerWindowsHost {
     if ($HostInfo.Platform -ne 'Windows') {
         return [PSCustomObject]@{ IsSupported = $false; ReasonCode = 'OS_NOT_WINDOWS'; Reason = 'This entry point requires Windows.'; Release = $null }
     }
+    $metadataProperty = $HostInfo.PSObject.Properties['MetadataAvailable']
+    $metadataMissing = [string]::IsNullOrWhiteSpace([string]$HostInfo.DisplayVersion) -or
+        [int]$HostInfo.BuildNumber -le 0 -or
+        [string]::IsNullOrWhiteSpace([string]$HostInfo.ProductType) -or
+        [string]::IsNullOrWhiteSpace([string]$HostInfo.InstallationType) -or
+        [string]::IsNullOrWhiteSpace([string]$HostInfo.EditionId)
+    if (($null -ne $metadataProperty -and -not [bool]$metadataProperty.Value) -or $metadataMissing) {
+        return [PSCustomObject]@{ IsSupported = $false; ReasonCode = 'WINDOWS_METADATA_UNAVAILABLE'; Reason = 'Windows product, release, edition, or build metadata could not be read. The installer cannot verify this host.'; Release = $null }
+    }
     if ($HostInfo.ProductType -ne $windows.productType -or $HostInfo.InstallationType -ne $windows.installationType) {
         return [PSCustomObject]@{ IsSupported = $false; ReasonCode = 'WINDOWS_NOT_CLIENT'; Reason = 'Windows Server and non-client installation types are not in the verified support matrix.'; Release = $null }
+    }
+    $hostArchitecture = ([string]$HostInfo.Architecture).ToUpperInvariant()
+    if ([string]::IsNullOrWhiteSpace($hostArchitecture) -or $hostArchitecture -notin @('X64', 'ARM64', 'X86')) {
+        return [PSCustomObject]@{ IsSupported = $false; ReasonCode = 'WINDOWS_ARCHITECTURE_UNKNOWN'; Reason = 'The Windows processor architecture could not be determined. The installer cannot select a safe runtime artifact.'; Release = $null }
     }
     if ($HostInfo.Architecture -ne $windows.architecture) {
         return [PSCustomObject]@{ IsSupported = $false; ReasonCode = 'WINDOWS_ARCHITECTURE_UNSUPPORTED'; Reason = "The detected architecture is $($HostInfo.Architecture); this contract supports x64 only."; Release = $null }
@@ -150,6 +189,37 @@ function Test-InstallerWindowsHost {
     }
 
     return [PSCustomObject]@{ IsSupported = $true; ReasonCode = 'WINDOWS_HOST_SUPPORTED'; Reason = ''; Release = $release[0] }
+}
+
+function Test-InstallerWindows10WinGetBootstrapHost {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [PSCustomObject]$HostInfo
+    )
+
+    $metadataProperty = $HostInfo.PSObject.Properties['MetadataAvailable']
+    if ($HostInfo.Platform -ne 'Windows' -or
+        ($null -ne $metadataProperty -and -not [bool]$metadataProperty.Value) -or
+        [string]::IsNullOrWhiteSpace([string]$HostInfo.ProductType) -or
+        [string]::IsNullOrWhiteSpace([string]$HostInfo.InstallationType) -or
+        [int]$HostInfo.BuildNumber -le 0) {
+        return [PSCustomObject]@{ IsSupported = $false; ReasonCode = 'WINDOWS_METADATA_UNAVAILABLE'; Reason = 'Windows host metadata is unavailable for the legacy WinGet bootstrap check.' }
+    }
+    if ($HostInfo.ProductType -ne 'WinNT' -or $HostInfo.InstallationType -ne 'Client') {
+        return [PSCustomObject]@{ IsSupported = $false; ReasonCode = 'WINDOWS_NOT_CLIENT'; Reason = 'The legacy WinGet bootstrap is limited to Windows client installations.' }
+    }
+    $hostArchitecture = ([string]$HostInfo.Architecture).ToUpperInvariant()
+    if ([string]::IsNullOrWhiteSpace($hostArchitecture) -or $hostArchitecture -notin @('X64', 'ARM64', 'X86')) {
+        return [PSCustomObject]@{ IsSupported = $false; ReasonCode = 'WINDOWS_ARCHITECTURE_UNKNOWN'; Reason = 'The host architecture could not be verified for the legacy WinGet bootstrap.' }
+    }
+    if ($HostInfo.Architecture -ne 'X64') {
+        return [PSCustomObject]@{ IsSupported = $false; ReasonCode = 'WINDOWS_ARCHITECTURE_UNSUPPORTED'; Reason = 'The legacy WinGet bootstrap only has a verified x64 artifact.' }
+    }
+    if ([int]$HostInfo.BuildNumber -lt 17763 -or [int]$HostInfo.BuildNumber -ge 22000) {
+        return [PSCustomObject]@{ IsSupported = $false; ReasonCode = 'WINDOWS10_WINGET_BOOTSTRAP_UNSUPPORTED'; Reason = 'The legacy WinGet bootstrap is limited to Windows 10 client build 17763 or later and below build 22000.' }
+    }
+    return [PSCustomObject]@{ IsSupported = $true; ReasonCode = 'WINDOWS10_WINGET_BOOTSTRAP_SUPPORTED'; Reason = '' }
 }
 
 function Get-InstallerWindowsFormsCapability {
@@ -291,6 +361,9 @@ function Test-InstallerCompatibility {
         [PSCustomObject]$HostInfo,
 
         [Parameter()]
+        [PSCustomObject]$Manifest,
+
+        [Parameter()]
         [PSCustomObject]$EngineInfo = $PSVersionTable,
 
         [Parameter()]
@@ -315,12 +388,14 @@ function Test-InstallerCompatibility {
         [scriptblock]$WindowsFormsLoader
     )
 
-    $manifest = Get-InstallerCompatibilityManifest
+    if (-not $Manifest) {
+        $Manifest = Get-InstallerCompatibilityManifest
+    }
+    $manifest = $Manifest
     $hostResult = $null
     if (-not $HostInfo) {
         $HostInfo = Get-InstallerHostInfo
     }
-
     if ($Component -eq 'WindowsHost' -or $Component -like 'Windows*') {
         $hostResult = Test-InstallerWindowsHost -HostInfo $HostInfo -Manifest $manifest -Date $Date
         if (-not $hostResult.IsSupported) {
@@ -525,4 +600,196 @@ function Invoke-InstallerCliFallback {
         return [PSCustomObject]@{ Action = 'Failure'; ExitCode = 1; RunCount = 1; Reason = 'The CLI fallback could not be started.' }
     }
 }
-Export-ModuleMember -Function Get-InstallerCompatibilityManifest, Get-InstallerHostInfo, Get-InstallerProcessArchitecture, Test-InstallerCompatibility, Test-InstallerGuiCapability, Resolve-InstallerGuiStartup, Invoke-InstallerCliFallback, Test-InstallerWindowsFormsAssemblies, Get-InstallerWindowsFormsCapability, Get-InstallerCompatibilityFailureMessage, Test-InstallerPowerShellEngine
+
+function Get-InstallerHostPreflight {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateSet('WindowsHost', 'WindowsGui', 'WindowsCli', 'CrossPlatformCli')]
+        [string]$Component,
+
+        [Parameter()]
+        [PSCustomObject]$HostInfo,
+
+        [Parameter()]
+        [PSCustomObject]$EngineInfo = $PSVersionTable,
+
+        [Parameter()]
+        [datetime]$Date = [datetime]::Today,
+
+        [Parameter()]
+        [Nullable[bool]]$WindowsFormsAvailable,
+
+        [Parameter()]
+        [int]$WindowsFormsMajor = 0,
+
+        [Parameter()]
+        [int]$DrawingMajor = 0,
+
+        [Parameter()]
+        [string]$ProcessArchitecture = (Get-InstallerProcessArchitecture),
+
+        [Parameter()]
+        [string]$ApartmentState = [string][Threading.Thread]::CurrentThread.GetApartmentState(),
+
+        [Parameter()]
+        [scriptblock]$WindowsFormsLoader,
+
+        [Parameter()]
+        [scriptblock]$WingetAvailabilityProbe,
+
+        [Parameter()]
+        [string]$RuntimeArtifactArchitecture,
+
+        [Parameter()]
+        [PSCustomObject]$Manifest
+    )
+
+    if (-not $Manifest) {
+        $Manifest = Get-InstallerCompatibilityManifest
+    }
+    if (-not $HostInfo) {
+        $HostInfo = Get-InstallerHostInfo
+    }
+    $isWindowsComponent = $Component -like 'Windows*'
+
+    $compatibilityParameters = @{
+        Component = $Component
+        HostInfo = $HostInfo
+        EngineInfo = $EngineInfo
+        Date = $Date
+        Manifest = $Manifest
+        ProcessArchitecture = $ProcessArchitecture
+        ApartmentState = $ApartmentState
+    }
+    if ($null -ne $WindowsFormsAvailable) {
+        $compatibilityParameters.WindowsFormsAvailable = $WindowsFormsAvailable
+    }
+    if ($PSBoundParameters.ContainsKey('WindowsFormsMajor')) {
+        $compatibilityParameters.WindowsFormsMajor = $WindowsFormsMajor
+    }
+    if ($PSBoundParameters.ContainsKey('DrawingMajor')) {
+        $compatibilityParameters.DrawingMajor = $DrawingMajor
+    }
+    if ($WindowsFormsLoader) {
+        $compatibilityParameters.WindowsFormsLoader = $WindowsFormsLoader
+    }
+
+    $capability = Test-InstallerCompatibility @compatibilityParameters
+    $packageArchitecture = $null
+    $artifactArchitecture = $null
+    if ($isWindowsComponent) {
+        $artifactArchitecture = if (-not [string]::IsNullOrWhiteSpace($RuntimeArtifactArchitecture)) {
+            [string]$RuntimeArtifactArchitecture
+        }
+        else {
+            [string]$Manifest.windowsExecutable.runtimeDiscovery.provisioning.architecture
+        }
+    }
+    $reasonCode = [string]$capability.ReasonCode
+    $reason = [string]$capability.Reason
+    $message = [string]$capability.Message
+    $isSupported = [bool]$capability.IsSupported
+    $recoveryOption = if ($isSupported) {
+        ''
+    }
+    elseif ($Component -eq 'CrossPlatformCli') {
+        'Use PowerShell Core {0} on an operating system supported by that PowerShell release.' -f $Manifest.engines.powerShellCore.version
+    }
+    else {
+        [string]$Manifest.recovery.windows
+    }
+
+    if ($isSupported -and $isWindowsComponent) {
+        $hostArchitecture = ([string]$HostInfo.Architecture).ToUpperInvariant()
+        $artifactArchitecture = $artifactArchitecture.ToUpperInvariant()
+        if ([string]::IsNullOrWhiteSpace($hostArchitecture) -or $hostArchitecture -notin @('X64', 'ARM64', 'X86')) {
+            $isSupported = $false
+            $reasonCode = 'WINDOWS_ARCHITECTURE_UNKNOWN'
+            $reason = 'The Windows processor architecture could not be determined. The installer cannot select a safe runtime artifact.'
+        }
+        elseif ([string]::IsNullOrWhiteSpace($artifactArchitecture) -or $artifactArchitecture -ne $hostArchitecture) {
+            $isSupported = $false
+            $reasonCode = 'PACKAGE_ARCHITECTURE_MISMATCH'
+            $reason = "The pinned runtime artifact architecture '$artifactArchitecture' does not match host architecture '$hostArchitecture'. No runtime artifact was selected."
+        }
+        else {
+            $packageArchitecture = $artifactArchitecture
+        }
+
+        if (-not $isSupported -and $reasonCode -eq 'PACKAGE_ARCHITECTURE_MISMATCH') {
+            $message = '[PACKAGE_ARCHITECTURE_MISMATCH] ' + (Get-InstallerCompatibilityFailureMessage -Component $Component -Reason $reason -Manifest $Manifest)
+            $recoveryOption = [string]$Manifest.recovery.windows
+        }
+    }
+
+    if ($isWindowsComponent) {
+        $releaseRequirement = @($Manifest.windowsClient.releases | ForEach-Object {
+            'Windows 11 {0} build {1}' -f $_.displayVersion, $_.build
+        }) -join ' or '
+        $hostRequirement = '{0}, Home or Pro, x64.' -f $releaseRequirement
+    }
+    else {
+        $hostRequirement = '{0} on an operating system supported by that PowerShell release.' -f $Manifest.nonWindowsCli.engine
+    }
+    $packageManagerStatus = 'NotApplicable'
+    $wingetAvailable = $null
+    $wingetRequired = $false
+    if ($isWindowsComponent) {
+        $packageManagerStatus = 'NotChecked'
+        if ($isSupported) {
+            try {
+                if ($WingetAvailabilityProbe) {
+                    $wingetAvailable = [bool](& $WingetAvailabilityProbe)
+                }
+                else {
+                    $wingetCommand = Get-Command -Name 'winget' -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+                    $wingetAvailable = ($null -ne $wingetCommand)
+                }
+                $packageManagerStatus = if ($wingetAvailable) { 'Available' } else { 'Unavailable' }
+            }
+            catch {
+                $wingetAvailable = $null
+                $packageManagerStatus = 'Unknown'
+            }
+        }
+    }
+
+    return [PSCustomObject]@{
+        IsSupported = $isSupported
+        Component = $Component
+        ReasonCode = $reasonCode
+        Reason = $reason
+        Message = $message
+        Requirement = $hostRequirement
+        RecoveryOption = $recoveryOption
+        ProductFamily = [string]$HostInfo.ProductFamily
+        DisplayVersion = [string]$HostInfo.DisplayVersion
+        BuildNumber = [int]$HostInfo.BuildNumber
+        EditionId = [string]$HostInfo.EditionId
+        Architecture = [string]$HostInfo.Architecture
+        MetadataAvailable = [bool]$HostInfo.MetadataAvailable
+        RuntimeRequirements = [PSCustomObject]@{
+            Cli = [PSCustomObject]@{
+                WindowsPowerShell = '{0}.{1}' -f $Manifest.engines.windowsPowerShell.major, $Manifest.engines.windowsPowerShell.minor
+                PowerShellCore = [string]$Manifest.engines.powerShellCore.version
+                AdditionalRuntime = [string]$Manifest.runtimePrerequisites.cli
+            }
+            Gui = [PSCustomObject]@{
+                WindowsPowerShell = $Manifest.runtimePrerequisites.windowsPowerShellGui
+                PowerShellCore = $Manifest.runtimePrerequisites.powerShellCoreGui
+            }
+        }
+        WinGet = [PSCustomObject]@{
+            Available = $wingetAvailable
+            Status = $packageManagerStatus
+            RequiredForHostSupport = $wingetRequired
+        }
+        SelectedPackageArchitecture = $packageArchitecture
+        RuntimeArtifactArchitecture = $artifactArchitecture
+        Capability = $capability
+        Release = $capability.Release
+    }
+}
+
+Export-ModuleMember -Function Get-InstallerCompatibilityManifest, Get-InstallerHostInfo, Get-InstallerProcessArchitecture, Test-InstallerCompatibility, Get-InstallerHostPreflight, Test-InstallerWindows10WinGetBootstrapHost, Test-InstallerGuiCapability, Resolve-InstallerGuiStartup, Invoke-InstallerCliFallback, Test-InstallerWindowsFormsAssemblies, Get-InstallerWindowsFormsCapability, Get-InstallerCompatibilityFailureMessage, Test-InstallerPowerShellEngine

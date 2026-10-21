@@ -58,6 +58,9 @@ function Get-InstallerPrerequisitePlan {
         [scriptblock]$ProbeInvoker,
 
         [Parameter()]
+        [scriptblock]$WingetAvailabilityProbe,
+
+        [Parameter()]
         [switch]$AllowTestCandidates,
 
         [Parameter()]
@@ -71,7 +74,7 @@ function Get-InstallerPrerequisitePlan {
         $CandidateRecords = @(Get-InstallerRuntimeCandidates -Manifest $Manifest)
     }
 
-    $hostDecision = Test-InstallerCompatibility -Component WindowsHost -HostInfo $HostInfo
+    $hostDecision = Get-InstallerHostPreflight -Component WindowsHost -HostInfo $HostInfo -Manifest $Manifest -WingetAvailabilityProbe $WingetAvailabilityProbe
     if (-not $hostDecision.IsSupported) {
         return [PSCustomObject]@{
             Action = 'Blocked'
@@ -81,7 +84,8 @@ function Get-InstallerPrerequisitePlan {
             Attempts = @()
             Selected = $null
             Provisioning = $null
-            Reason = 'This Windows host does not meet the supported host contract.'
+            HostPreflight = $hostDecision
+            Reason = if ($hostDecision.Message) { [string]$hostDecision.Message } else { [string]$hostDecision.Reason }
         }
     }
 
@@ -150,7 +154,8 @@ function Get-InstallerPrerequisitePlan {
     $provisioning = $Manifest.windowsExecutable.runtimeDiscovery.provisioning
     $runtimeDiscovery = $Manifest.windowsExecutable.runtimeDiscovery
     $coreVersion = [string]$Manifest.engines.powerShellCore.version
-    $expectedName = 'PowerShell-{0}-win-x64.zip' -f $coreVersion
+    $selectedArchitecture = [string]$hostDecision.SelectedPackageArchitecture
+    $expectedName = 'PowerShell-{0}-win-{1}.zip' -f $coreVersion, $selectedArchitecture.ToLowerInvariant()
     $expectedUrl = 'https://github.com/PowerShell/PowerShell/releases/download/v{0}/{1}' -f $coreVersion, $expectedName
     $expectedInstallLocation = '%LOCALAPPDATA%\Programs\myTech.Today\AppInstaller\PowerShell\{0}' -f $coreVersion
     $sourceUri = $null
@@ -159,6 +164,7 @@ function Get-InstallerPrerequisitePlan {
         ($runtimeDiscovery.consentRequiredProvisioning -eq $true) -and
         ([string]$provisioning.engine -eq 'Core') -and
         ([string]$provisioning.version -eq $coreVersion) -and
+        ([string]$provisioning.architecture -ceq $selectedArchitecture) -and
         ([string]$provisioning.artifactName -ceq $expectedName) -and
         ([string]$provisioning.source -ceq $expectedUrl) -and
         ([string]$provisioning.installLocation -ceq $expectedInstallLocation) -and
@@ -195,6 +201,7 @@ function Get-InstallerPrerequisitePlan {
         Provisioning = [PSCustomObject]@{
             Engine = 'Core'
             Version = $coreVersion
+            Architecture = $selectedArchitecture
             ArtifactName = [string]$provisioning.artifactName
             Source = [string]$provisioning.source
             Sha256 = ([string]$provisioning.sha256).ToUpperInvariant()
@@ -248,7 +255,7 @@ function Write-InstallerPrerequisitePlan {
     }
     elseif ($Plan.Action -eq 'Provision') {
         $provisioning = $Plan.Provisioning
-        Write-Host ('[PLAN] PowerShell Core {0} x64 will be downloaded from {1}.' -f $provisioning.Version, $provisioning.Source) -ForegroundColor Yellow
+        Write-Host ('[PLAN] PowerShell Core {0} {1} will be downloaded from {2}.' -f $provisioning.Version, $provisioning.Architecture, $provisioning.Source) -ForegroundColor Yellow
         Write-Host ('[PLAN] SHA-256 must match {0}; the extracted PowerShell executable must have a valid {1} signature.' -f $provisioning.Sha256, $provisioning.Signer) -ForegroundColor Yellow
         Write-Host ('[PLAN] Install scope: {0}; destination: {1}. Administrator privileges are not required.' -f $provisioning.InstallScope, $provisioning.InstallLocation) -ForegroundColor Yellow
         Write-Host '[PLAN] The installer will not change PATH, the default PowerShell engine, or other PowerShell versions.' -ForegroundColor Yellow
@@ -357,6 +364,9 @@ function Install-InstallerRuntimeArtifact {
 
         [Parameter()]
         [scriptblock]$ProbeInvoker,
+
+        [Parameter()]
+        [scriptblock]$WingetAvailabilityProbe,
 
         [Parameter()]
         [switch]$AllowTestCandidates,
@@ -505,6 +515,9 @@ function Invoke-InstallerRuntimePrerequisiteFlow {
         [scriptblock]$ProbeInvoker,
 
         [Parameter()]
+        [scriptblock]$WingetAvailabilityProbe,
+
+        [Parameter()]
         [scriptblock]$CandidateDiscoverer,
 
         [Parameter()]
@@ -542,7 +555,7 @@ function Invoke-InstallerRuntimePrerequisiteFlow {
     )
 
     if ($WhatIfPreference) {
-        $previewHostDecision = Test-InstallerCompatibility -Component WindowsHost -HostInfo $HostInfo
+        $previewHostDecision = Get-InstallerHostPreflight -Component WindowsHost -HostInfo $HostInfo -Manifest $Manifest -WingetAvailabilityProbe $WingetAvailabilityProbe
         $previewReason = 'WhatIf skips runtime and package discovery, so compatibility and provisioning need were not verified.'
         $previewStatus = 'PlanOnly'
         $previewAction = 'InspectionOnly'
@@ -550,7 +563,7 @@ function Invoke-InstallerRuntimePrerequisiteFlow {
         if (-not $previewHostDecision.IsSupported) {
             $previewAction = 'Blocked'
             $previewStatus = 'Blocked'
-            $previewReason = 'This Windows host does not meet the supported host contract.'
+            $previewReason = if ($previewHostDecision.Message) { [string]$previewHostDecision.Message } else { [string]$previewHostDecision.Reason }
         }
         $previewPlan = [PSCustomObject]@{
             Action = $previewAction
@@ -566,7 +579,7 @@ function Invoke-InstallerRuntimePrerequisiteFlow {
         return [PSCustomObject]@{ Status = $previewStatus; Plan = $previewPlan; RuntimeDecision = $null; Candidate = $null; Reason = $previewReason }
     }
 
-    $plan = Get-InstallerPrerequisitePlan -Component $Component -ApplicationPath $ApplicationPath -CandidateRecords $CandidateRecords -ProbeInvoker $ProbeInvoker -AllowTestCandidates:$AllowTestCandidates -HostInfo $HostInfo -Manifest $Manifest
+    $plan = Get-InstallerPrerequisitePlan -Component $Component -ApplicationPath $ApplicationPath -CandidateRecords $CandidateRecords -ProbeInvoker $ProbeInvoker -WingetAvailabilityProbe $WingetAvailabilityProbe -AllowTestCandidates:$AllowTestCandidates -HostInfo $HostInfo -Manifest $Manifest
     Write-InstallerPrerequisitePlan -Plan $plan
 
     if ($plan.Action -eq 'Blocked') {
@@ -591,7 +604,7 @@ function Invoke-InstallerRuntimePrerequisiteFlow {
     }
     else {
         try {
-            $answer = Read-Host ('Install PowerShell Core {0} x64 into the current-user App Installer directory shown above? Enter Y to continue' -f $plan.Provisioning.Version)
+            $answer = Read-Host ('Install PowerShell Core {0} {1} into the current-user App Installer directory shown above? Enter Y to continue' -f $plan.Provisioning.Version, $plan.Provisioning.Architecture)
             $consented = [string]::Equals([string]$answer, 'Y', [System.StringComparison]::OrdinalIgnoreCase)
         }
         catch {
@@ -602,7 +615,7 @@ function Invoke-InstallerRuntimePrerequisiteFlow {
         return [PSCustomObject]@{ Status = 'Declined'; Plan = $plan; RuntimeDecision = $null; Candidate = $null; Reason = 'Runtime installation was declined. No download or installation was started.' }
     }
 
-    $consentTarget = 'PowerShell Core {0} x64 for the current user at {1}' -f $plan.Provisioning.Version, $plan.Provisioning.InstallLocation
+    $consentTarget = 'PowerShell Core {0} {1} for the current user at {2}' -f $plan.Provisioning.Version, $plan.Provisioning.Architecture, $plan.Provisioning.InstallLocation
     $consentAction = 'Download from {0}, verify SHA-256 {1} and the {2} signature, then extract. No administrator privileges, PATH update, or default-engine change.' -f $plan.Provisioning.Source, $plan.Provisioning.Sha256, $plan.Provisioning.Signer
     if (-not $PSCmdlet.ShouldProcess($consentTarget, $consentAction)) {
         return [PSCustomObject]@{ Status = 'PlanOnly'; Plan = $plan; RuntimeDecision = $null; Candidate = $null; Reason = 'ShouldProcess prevented download and installation.' }

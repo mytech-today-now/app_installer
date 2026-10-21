@@ -91,7 +91,7 @@
                      Windows: Windows 11 25H2 or 26H2, Home or Pro, x64; Windows PowerShell 5.1 or PowerShell Core 7.6.7
                      macOS/Linux: PowerShell Core 7.6.7 on a supported platform
     Copyright      : (c) 2025 myTech.Today. All rights reserved.
-    Version        : 2.0.0
+    Version        : 2.0.2
 
 .LINK
     https://github.com/mytech-today-now/PowerShellScripts/app_installer
@@ -130,6 +130,7 @@ param(
 )
 
 #Requires -Version 5.1
+$script:ScriptVersion = '2.0.2'
 
 $script:PayloadModulePath = Join-Path $PSScriptRoot 'modules\InstallerPayload.psm1'
 if (-not (Test-Path -LiteralPath $script:PayloadModulePath -PathType Leaf)) {
@@ -204,7 +205,7 @@ if ($cliComponent -eq 'WindowsCli') {
     }
 }
 
-$cliCompatibility = Test-InstallerCompatibility -Component $cliComponent -HostInfo $script:CompatibilityHostInfo
+$cliCompatibility = Get-InstallerHostPreflight -Component $cliComponent -HostInfo $script:CompatibilityHostInfo
 if (-not $cliCompatibility.IsSupported) {
     Write-Host $cliCompatibility.Message -ForegroundColor Red
     exit 1
@@ -298,7 +299,7 @@ function Test-InstallerShouldProcess {
 #region Platform Detection and Module Loading
 
 Write-Host "`n=== myTech.Today Application Installer - CLI Mode ===" -ForegroundColor Cyan
-Write-Host "Version: 2.0.0" -ForegroundColor Gray
+Write-Host "Version: $script:ScriptVersion" -ForegroundColor Gray
 Write-Host ""
 
 # Import platform detection module
@@ -357,7 +358,6 @@ $script:StartupHelperFallbackMessage = 'A required optional helper could not be 
 #endregion
 
 # Script variables - cross-platform paths
-$script:ScriptVersion = '2.0.2'
 $script:OriginalScriptPath = [System.IO.Path]::GetFullPath($PSScriptRoot)
 $script:ResourceRoot = $script:OriginalScriptPath
 
@@ -610,11 +610,13 @@ function Install-WingetOnWindows10 {
     [CmdletBinding()]
     param()
 
-    $osVersion = [System.Environment]::OSVersion.Version
-    $isWindows10 = $osVersion.Major -eq 10 -and $osVersion.Build -lt 22000
-
-    if (-not $isWindows10) {
-        Write-Log "Not running on Windows 10, skipping winget installation" -Level INFO
+    $bootstrapHostInfo = $script:CompatibilityHostInfo
+    if (-not $bootstrapHostInfo) {
+        $bootstrapHostInfo = Get-InstallerHostInfo
+    }
+    $bootstrapCapability = Test-InstallerWindows10WinGetBootstrapHost -HostInfo $bootstrapHostInfo
+    if (-not $bootstrapCapability.IsSupported) {
+        Write-Log "WinGet bootstrap not eligible ($($bootstrapCapability.ReasonCode)); no bootstrap was started" -Level INFO
         return $false
     }
 
@@ -695,11 +697,13 @@ function Assert-WingetAvailable {
         return $true
     }
 
-    # Check if running on Windows 10
-    $osVersion = [System.Environment]::OSVersion.Version
-    $isWindows10 = $osVersion.Major -eq 10 -and $osVersion.Build -lt 22000
+    $bootstrapHostInfo = $script:CompatibilityHostInfo
+    if (-not $bootstrapHostInfo) {
+        $bootstrapHostInfo = Get-InstallerHostInfo
+    }
+    $bootstrapCapability = Test-InstallerWindows10WinGetBootstrapHost -HostInfo $bootstrapHostInfo
 
-    if ($isWindows10) {
+    if ($bootstrapCapability.IsSupported) {
         Write-Host "`n[i] winget not found. Attempting to install on Windows 10..." -ForegroundColor Yellow
         $installed = Install-WingetOnWindows10
 
@@ -712,7 +716,7 @@ function Assert-WingetAvailable {
         }
     }
     else {
-        Write-Host "[X] winget not found. Please install 'App Installer' from Microsoft Store." -ForegroundColor Red
+        Write-Host "[X] winget not found ($($bootstrapCapability.ReasonCode)). Please install App Installer using a supported Windows method." -ForegroundColor Red
         return $false
     }
 }

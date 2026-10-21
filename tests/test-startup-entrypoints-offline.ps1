@@ -56,9 +56,11 @@ function Copy-IsolatedInstallerTree {
     }
 
     $sourceLauncher = Join-Path $repositoryRoot 'tools\Start-Installer.ps1'
+    $sourceLifecycleManager = Join-Path $repositoryRoot 'tools\Manage-AppInstallerInstall.ps1'
     $destinationTools = Join-Path $Destination 'tools'
     New-Item -ItemType Directory -Path $destinationTools -Force | Out-Null
     Copy-Item -LiteralPath $sourceLauncher -Destination $destinationTools -Force
+    Copy-Item -LiteralPath $sourceLifecycleManager -Destination $destinationTools -Force
 
     foreach ($directoryName in @('modules', 'apps', 'profiles')) {
         $sourceDirectory = Join-Path $repositoryRoot $directoryName
@@ -272,6 +274,43 @@ else {
     }
 }
 
+function Invoke-SharedLauncherScenario {
+    param(
+        [Parameter(Mandatory = $true)][string]$TreeRoot,
+        [Parameter(Mandatory = $true)][string]$ArgumentTail,
+        [Parameter(Mandatory = $true)][string]$CliLogPath,
+        [Parameter(Mandatory = $true)][string]$GuiLogPath
+    )
+
+    $starterPath = Join-Path $TreeRoot 'tools\Start-Installer.ps1'
+    $processInfo = New-Object System.Diagnostics.ProcessStartInfo
+    $processInfo.FileName = $pwshPath
+    $processInfo.Arguments = '-NoProfile -File "' + $starterPath + '" ' + $ArgumentTail
+    $processInfo.WorkingDirectory = $TreeRoot
+    $processInfo.UseShellExecute = $false
+    $processInfo.CreateNoWindow = $true
+    $processInfo.RedirectStandardInput = $true
+    $processInfo.RedirectStandardOutput = $true
+    $processInfo.RedirectStandardError = $true
+    $processInfo.EnvironmentVariables['STARTER_CLI_ARGS_PATH'] = $CliLogPath
+    $processInfo.EnvironmentVariables['STARTER_GUI_LOG_PATH'] = $GuiLogPath
+
+    $process = [System.Diagnostics.Process]::Start($processInfo)
+    $process.StandardInput.Close()
+    if (-not $process.WaitForExit(90000)) {
+        $process.Kill()
+        [void]$process.WaitForExit(5000)
+        throw 'The isolated shared launcher did not exit within 90 seconds.'
+    }
+
+    $result = [PSCustomObject]@{
+        ExitCode = $process.ExitCode
+        Output = $process.StandardOutput.ReadToEnd() + $process.StandardError.ReadToEnd()
+    }
+    $process.Dispose()
+    return $result
+}
+
 try {
     New-Item -ItemType Directory -Path $tempRoot -Force | Out-Null
     New-Item -ItemType Directory -Path $fakeBinPath -Force | Out-Null
@@ -289,6 +328,46 @@ exit /b 0
     $fallbackTree = Join-Path $tempRoot 'source-without-helper'
     Copy-IsolatedInstallerTree -Destination $positiveTree
     Copy-IsolatedInstallerTree -Destination $fallbackTree -OmitResponsiveHelper
+
+    $unicodeSuffix = ([string][char]0x6771) + [char]0x4EAC
+    $selectionTree = Join-Path $tempRoot ('Start Installer ' + $unicodeSuffix)
+    $selectionTools = Join-Path $selectionTree 'tools'
+    $selectionModules = Join-Path $selectionTree 'modules'
+    New-Item -ItemType Directory -Path $selectionTools,$selectionModules -Force | Out-Null
+    Copy-Item -LiteralPath (Join-Path $repositoryRoot 'compatibility.json') -Destination $selectionTree
+    Copy-Item -LiteralPath (Join-Path $repositoryRoot 'tools\Start-Installer.ps1') -Destination $selectionTools
+    foreach ($moduleName in @('InstallerCompatibility.psm1', 'InstallerRuntimeDiscovery.psm1', 'InstallerPrerequisitePlan.psm1')) {
+        Copy-Item -LiteralPath (Join-Path $repositoryRoot ('modules\' + $moduleName)) -Destination $selectionModules
+    }
+    $selectionGuiPath = Join-Path $selectionTree 'app-installer.ps1'
+    $selectionCliPath = Join-Path $selectionTree 'app-installer-cli.ps1'
+    $selectionGuiLog = Join-Path $selectionTree 'gui-entry-ran.txt'
+    $selectionCliLog = Join-Path $selectionTree 'cli-entry-arguments.txt'
+    $fakeGuiText = @'
+[System.IO.File]::WriteAllText($env:STARTER_GUI_LOG_PATH, 'GUI entry was selected.')
+exit 41
+'@
+    $fakeCliText = @'
+[System.IO.File]::WriteAllLines($env:STARTER_CLI_ARGS_PATH, [string[]]$args, [System.Text.Encoding]::UTF8)
+Write-Output 'FAKE CLI ENTRYPOINT'
+exit 37
+'@
+    [System.IO.File]::WriteAllText($selectionGuiPath, $fakeGuiText, [System.Text.Encoding]::UTF8)
+    [System.IO.File]::WriteAllText($selectionCliPath, $fakeCliText, [System.Text.Encoding]::UTF8)
+
+    $savedSelectionCliPath = Join-Path $selectionTree 'app-installer-cli.saved'
+    Move-Item -LiteralPath $selectionCliPath -Destination $savedSelectionCliPath
+    $missingCli = Invoke-SharedLauncherScenario -TreeRoot $selectionTree -ArgumentTail '-ForceCLI -Action Status' -CliLogPath $selectionCliLog -GuiLogPath $selectionGuiLog
+    Assert-Condition -Condition ($missingCli.ExitCode -eq 2 -and $missingCli.Output -match '(?i)requested CLI application entry script is missing') -Message 'The shared launcher reports a missing requested CLI script before runtime discovery.'
+    Move-Item -LiteralPath $savedSelectionCliPath -Destination $selectionCliPath
+
+    Remove-Item -LiteralPath $selectionGuiPath -Force
+    $unicodeProfile = $unicodeSuffix + ' Profile'
+    $selectionArguments = '-ForceCLI -Action Status -Profile "' + $unicodeProfile + '"'
+    $selectedCli = Invoke-SharedLauncherScenario -TreeRoot $selectionTree -ArgumentTail $selectionArguments -CliLogPath $selectionCliLog -GuiLogPath $selectionGuiLog
+    $selectedCliArguments = [System.IO.File]::ReadAllLines($selectionCliLog)
+    $expectedSelectedCliArguments = @('-Action', 'Status', '-Profile', $unicodeProfile) -join '|'
+    Assert-Condition -Condition ($selectedCli.ExitCode -eq 37 -and ($selectedCliArguments -join '|') -eq $expectedSelectedCliArguments -and $selectedCli.Output.Contains('FAKE CLI ENTRYPOINT') -and -not (Test-Path -LiteralPath $selectionGuiLog -PathType Leaf)) -Message ("ForceCLI launches the CLI script directly, preserves Unicode arguments, forwards output, and returns the child exit code even when the GUI script is absent (exit {0}; args [{1}]; expected [{2}]; output: {3}; GUI selected: {4})." -f $selectedCli.ExitCode, ($selectedCliArguments -join '|'), $expectedSelectedCliArguments, ($selectedCli.Output -replace '\s+', ' ').Trim(), (Test-Path -LiteralPath $selectionGuiLog -PathType Leaf))
 
     $positiveGui = Invoke-IsolatedEntrypoint -Mode gui -TreeRoot $positiveTree -UserProfile (Join-Path $tempRoot 'profile-gui-positive')
     Assert-Condition -Condition ($positiveGui.ExitCode -eq 0) -Message 'GUI starts with the verified bundled helper and exits cleanly'

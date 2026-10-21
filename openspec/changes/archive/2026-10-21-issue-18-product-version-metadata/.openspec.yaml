@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-10-21
+goal: Use VERSION as the sole current version source for script, executable,
+  payload, tag, artifact, README, and release-note validation.

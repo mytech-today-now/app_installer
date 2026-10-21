@@ -298,7 +298,8 @@ try {
     Assert-Condition -Condition (-not $unsupportedHost.Result.Success -and $unsupportedHost.InstallCalls.Count -eq 0 -and $unsupportedHost.DownloadPaths.Count -eq 0) -Message 'Unsupported host architecture fails before download or package changes'
 
     $unverifiedHost = Invoke-FixtureScenario -Name 'unverified operating system' -Release $validRelease -Payloads $payloads -HostVerified $false
-    Assert-Condition -Condition (-not $unverifiedHost.Result.Success -and $unverifiedHost.InstallCalls.Count -eq 0 -and $unverifiedHost.DownloadPaths.Count -eq 0) -Message 'Non-Windows or non-Windows-10 host is rejected before download or package changes'
+    $unverifiedBootstrapDirectories = @(Get-ChildItem -LiteralPath $testRoot -Directory -Filter 'app-installer-winget-*' -ErrorAction SilentlyContinue)
+    Assert-Condition -Condition (-not $unverifiedHost.Result.Success -and $unverifiedHost.InstallCalls.Count -eq 0 -and $unverifiedHost.DownloadPaths.Count -eq 0 -and $unverifiedBootstrapDirectories.Count -eq 0) -Message 'An unverified host is rejected before package download, install, or persistent temporary files'
 
     $vclibsInstallFailure = Invoke-FixtureScenario -Name 'VCLibs installation failure' -Release $validRelease -Payloads $payloads -InstallFailureSuffix 'Microsoft.VCLibs.x64.14.00.Desktop.appx'
     Assert-Condition -Condition (-not $vclibsInstallFailure.Result.Success -and $vclibsInstallFailure.InstallCalls.Count -eq 1 -and $vclibsInstallFailure.InstallCalls[0] -notlike '*.msixbundle') -Message 'VCLibs installation failure prevents UI.Xaml and WinGet package commands'
@@ -317,6 +318,7 @@ try {
     Assert-Condition -Condition (-not $unknownCommand.Result.Success -and $unknownCommand.Result.Status -eq 'Unknown') -Message 'Unknown WinGet command discovery is not treated as success'
 
     $moduleText = [System.IO.File]::ReadAllText($modulePath)
+    Assert-Condition -Condition ($moduleText.Contains('Get-InstallerHostPreflight -Component WindowsHost -HostInfo $hostInfo') -and $moduleText.Contains('return [bool]($capability.IsSupported -and $appPreflight.IsSupported)')) -Message 'The WinGet bootstrap verifies the full App Installer host preflight before any downloads.'
     $signToolFinder = [System.Management.Automation.Language.Parser]::ParseFile($modulePath, [ref]$null, [ref]$null).FindAll({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Find-WingetSignTool' }, $true) | Select-Object -First 1
     Assert-Condition -Condition ($null -ne $signToolFinder -and -not $signToolFinder.Extent.Text.Contains('Get-Command -Name ''signtool.exe''')) -Message 'The signature verifier cannot resolve an arbitrary signtool.exe from PATH'
 
@@ -337,8 +339,8 @@ try {
     $cliAst = [System.Management.Automation.Language.Parser]::ParseFile($cliPath, [ref]$null, [ref]$null)
     $guiBootstrap = $guiAst.FindAll({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Install-WingetOnWindows10' }, $true) | Select-Object -First 1
     $cliBootstrap = $cliAst.FindAll({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Install-WingetOnWindows10' }, $true) | Select-Object -First 1
-    Assert-Condition -Condition ($null -ne $guiBootstrap -and $guiBootstrap.Extent.Text.Contains('if (-not $isWindows10)') -and $guiBootstrap.Extent.Text.Contains('WingetBootstrap\Invoke-WingetBootstrap')) -Message 'GUI keeps the non-Windows-10 no-op guard and delegates to the verifier'
-    Assert-Condition -Condition ($null -ne $cliBootstrap -and $cliBootstrap.Extent.Text.Contains('if (-not $isWindows10)') -and $cliBootstrap.Extent.Text.Contains('WingetBootstrap\Invoke-WingetBootstrap')) -Message 'CLI keeps the non-Windows-10 no-op guard and delegates to the verifier'
+    Assert-Condition -Condition ($null -ne $guiBootstrap -and $guiBootstrap.Extent.Text.Contains('Test-InstallerWindows10WinGetBootstrapHost -HostInfo') -and $guiBootstrap.Extent.Text.Contains('WingetBootstrap\Invoke-WingetBootstrap')) -Message 'GUI uses the shared Windows 10 client and architecture guard before the bootstrap verifier'
+    Assert-Condition -Condition ($null -ne $cliBootstrap -and $cliBootstrap.Extent.Text.Contains('Test-InstallerWindows10WinGetBootstrapHost -HostInfo') -and $cliBootstrap.Extent.Text.Contains('WingetBootstrap\Invoke-WingetBootstrap')) -Message 'CLI uses the shared Windows 10 client and architecture guard before the bootstrap verifier'
     Assert-Condition -Condition ($cliText.Contains('if (-not ($null -eq $IsWindows -or $IsWindows))') -and $guiText.Contains('function Test-WingetAvailable')) -Message 'Existing CLI non-Windows guard and GUI WinGet detection remain present'
     Assert-Condition -Condition ($guiText.Contains('The installer could not verify WinGet setup and made no package changes.') -and $cliText.Contains('The installer could not verify WinGet setup and made no package changes.')) -Message 'Both entrypoints provide truthful no-change manual-install recovery text'
     Assert-Condition -Condition (-not $guiBootstrap.Extent.Text.Contains('Add-AppxPackage') -and -not $cliBootstrap.Extent.Text.Contains('Add-AppxPackage') -and -not $guiBootstrap.Extent.Text.Contains('ErrorAction SilentlyContinue') -and -not $cliBootstrap.Extent.Text.Contains('ErrorAction SilentlyContinue')) -Message 'Both entrypoints avoid direct package calls and suppressed dependency errors'
