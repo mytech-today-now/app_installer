@@ -19,10 +19,12 @@ $beforeUnrelatedAppState = ConvertTo-Json -InputObject $script:unrelatedAppState
 $argumentCapturePath = Join-Path $testRoot 'captured-app-arguments.json'
 $nativeTracePath = Join-Path $testRoot 'fake-native-trace.txt'
 $fakeNativePath = Join-Path $testRoot 'fake-native.cmd'
+$browserTracePath = Join-Path $testRoot 'fake-browser-trace.txt'
 $oldArgumentCapture = $env:APP_SCRIPT_TEST_ARGUMENT_CAPTURE
 $oldNativePath = $env:APP_SCRIPT_TEST_NATIVE_PATH
 $oldNativeCode = $env:APP_SCRIPT_TEST_NATIVE_CODE
 $oldNativeTrace = $env:APP_SCRIPT_TEST_NATIVE_TRACE
+$oldBrowserTrace = $env:APP_SCRIPT_TEST_START_PROCESS_TRACE
 
 if (-not $testRoot.StartsWith($tempBase.TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::OrdinalIgnoreCase)) {
     throw 'Temporary test directory is outside the system temporary directory.'
@@ -48,6 +50,30 @@ function Write-Fixture {
     )
 
     [System.IO.File]::WriteAllText($Path, $Content, $utf8NoBom)
+}
+
+function Get-FunctionDefinitionText {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$Name
+    )
+
+    $tokens = $null
+    $parseErrors = $null
+    $ast = [System.Management.Automation.Language.Parser]::ParseFile($Path, [ref]$tokens, [ref]$parseErrors)
+    if ($parseErrors) {
+        throw "Cannot inspect $Name because $(Split-Path $Path -Leaf) has a parse error."
+    }
+
+    $functionAst = $ast.Find({
+            param($node)
+            $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $Name
+        }, $true)
+    if (-not $functionAst) {
+        throw "Function $Name was not found in $(Split-Path $Path -Leaf)."
+    }
+
+    return $functionAst.Extent.Text
 }
 
 try {
@@ -102,6 +128,19 @@ if ($false) {
 }
 Write-Output 'This execution path declares no result.'
 '@
+
+    $outcomeFixturePaths = @{}
+    foreach ($outcomeStatus in @('Installed', 'Failure', 'Unknown', 'ManualActionRequired')) {
+        $outcomeFixturePath = Join-Path $testRoot ("outcome-$outcomeStatus.ps1")
+        $outcomeMessage = "Injected $outcomeStatus outcome."
+        Write-Fixture -Path $outcomeFixturePath -Content @"
+`$global:AppInstallerScriptOutcome = [PSCustomObject]@{
+    Status = '$outcomeStatus'
+    Message = '$outcomeMessage'
+}
+"@
+        $outcomeFixturePaths[$outcomeStatus] = $outcomeFixturePath
+    }
 
     [System.IO.File]::WriteAllLines($fakeNativePath, [string[]]@(
         '@echo off',
@@ -161,6 +200,19 @@ Write-Output 'This execution path declares no result.'
     Assert-Condition ($conditionalUnknownResult.Status -eq 'Unknown') 'unexecuted exit branches do not turn a missing result into success'
     Assert-Condition ($null -eq $conditionalUnknownResult.ExitCode) 'conditional unknown result has no inferred exit code'
 
+    $installedOutcomeResult = Invoke-AppScript -ScriptPath $outcomeFixturePaths['Installed']
+    Assert-Condition ($installedOutcomeResult.Status -eq 'PowerShellSuccess' -and $installedOutcomeResult.ExitCode -eq 0) 'explicit Installed outcome preserves the existing PowerShell success status'
+
+    $failureOutcomeResult = Invoke-AppScript -ScriptPath $outcomeFixturePaths['Failure']
+    Assert-Condition ($failureOutcomeResult.Status -eq 'Failure' -and $failureOutcomeResult.ExitCode -eq 1) 'explicit Failure outcome remains a failure'
+
+    $unknownOutcomeResult = Invoke-AppScript -ScriptPath $outcomeFixturePaths['Unknown']
+    Assert-Condition ($unknownOutcomeResult.Status -eq 'Unknown' -and $null -eq $unknownOutcomeResult.ExitCode) 'explicit Unknown outcome remains unconfirmed'
+
+    $manualOutcomeResult = Invoke-AppScript -ScriptPath $outcomeFixturePaths['ManualActionRequired']
+    Assert-Condition ($manualOutcomeResult.Status -eq 'ManualActionRequired' -and $manualOutcomeResult.ExitCode -eq 0) 'explicit ManualActionRequired outcome stays distinct from installation success'
+    Assert-Condition ($manualOutcomeResult.Message -eq 'Injected ManualActionRequired outcome.') 'explicit outcome message is preserved across the child-process boundary'
+
     $belarcScriptPath = Join-Path $repositoryRoot 'apps\belarc.ps1'
     $belarcResult = Invoke-AppScript -ScriptPath $belarcScriptPath
     Assert-Condition ($belarcResult.Status -eq 'Failure' -and $belarcResult.ExitCode -eq 1) 'Belarc with absent production pins returns a failed custom-app result'
@@ -182,6 +234,113 @@ exit 0
     $wrapperResult = Invoke-AppInstallation -AppScriptName 'fixture.ps1' -AppsPath $appsPath
     Assert-Condition ($wrapperResult.Status -eq 'PowerShellSuccess') 'Invoke-AppInstallation returns the shared explicit result contract'
 
+    $browserApps = @(
+        @{ Name = 'AceMoney Lite'; ScriptName = 'acemoneylite.ps1'; Uri = 'https://www.mechcad.net/products/acemoney/' },
+        @{ Name = 'Akira'; ScriptName = 'akira.ps1'; Uri = 'https://github.com/akiraux/Akira' },
+        @{ Name = 'Hemingway Editor'; ScriptName = 'hemingwayeditor.ps1'; Uri = 'https://hemingwayapp.com/' },
+        @{ Name = 'Quant-UX'; ScriptName = 'quantux.ps1'; Uri = 'https://quant-ux.com/' }
+    )
+    $env:APP_SCRIPT_TEST_START_PROCESS_TRACE = $browserTracePath
+    $cliAppsPath = Join-Path $testRoot 'cli-apps'
+    New-Item -ItemType Directory -Path $cliAppsPath -Force | Out-Null
+    $script:cliLogEntries = @()
+
+    foreach ($browserApp in $browserApps) {
+        $targetScriptPath = Join-Path $repositoryRoot ('apps\' + $browserApp.ScriptName)
+        $wrapperPath = Join-Path $cliAppsPath $browserApp.ScriptName
+        $logPath = Join-Path $testRoot ($browserApp.ScriptName + '.log')
+        $quotedTargetPath = "'" + $targetScriptPath.Replace("'", "''") + "'"
+        $quotedLogPath = "'" + $logPath.Replace("'", "''") + "'"
+        $wrapperContent = @'
+function Start-Process {
+    param([Parameter(Position = 0)][string]$FilePath)
+    [System.IO.File]::AppendAllText($env:APP_SCRIPT_TEST_START_PROCESS_TRACE, ($FilePath + [Environment]::NewLine))
+}
+function Write-Host {
+    param([Parameter(Position = 0)][object]$Object, [object]$ForegroundColor, [object]$BackgroundColor, [switch]$NoNewline)
+}
+. __TARGET_SCRIPT__ -LogPath __LOG_PATH__
+'@
+        $wrapperContent = $wrapperContent.Replace('__TARGET_SCRIPT__', $quotedTargetPath).Replace('__LOG_PATH__', $quotedLogPath)
+        Write-Fixture -Path $wrapperPath -Content $wrapperContent
+
+        $browserResult = Invoke-AppScript -ScriptPath $wrapperPath
+        Assert-Condition ($browserResult.Status -eq 'ManualActionRequired') "$($browserApp.Name) browser handoff maps to ManualActionRequired"
+        Assert-Condition ($browserResult.Message -match 'Complete installation' -and $browserResult.Message -match 'does not confirm installation') "$($browserApp.Name) outcome tells the caller what remains to be done"
+        $appLog = Get-Content -LiteralPath $logPath -Raw
+        Assert-Condition ($appLog -match 'WARNING \| .*manual action required' -and $appLog -notmatch 'SUCCESS') "$($browserApp.Name) handoff log does not claim installation success"
+    }
+
+    $browserTraceLines = @(Get-Content -LiteralPath $browserTracePath)
+    Assert-Condition ($browserTraceLines.Count -eq $browserApps.Count) 'each browser-only script used the fake Start-Process exactly once'
+    for ($browserIndex = 0; $browserIndex -lt $browserApps.Count; $browserIndex++) {
+        Assert-Condition ($browserTraceLines[$browserIndex] -ceq $browserApps[$browserIndex].Uri) "$($browserApps[$browserIndex].Name) fake browser receives only its vendor URL"
+    }
+
+    $guiPath = Join-Path $repositoryRoot 'app-installer.ps1'
+    Invoke-Expression (Get-FunctionDefinitionText -Path $guiPath -Name 'Install-Application')
+    if (-not ('System.Drawing.Color' -as [type])) {
+        Add-Type -AssemblyName System.Drawing -ErrorAction Stop
+    }
+    $script:guiLogEntries = @()
+    $script:guiVisibleOutput = @()
+    $script:AppsPath = $cliAppsPath
+    $script:AppProgressBar = $null
+    $script:StatusLabel = $null
+    $script:InstalledApps = @{}
+    function Safe-TestPath { param([string]$Path) return (Test-Path -LiteralPath $Path) }
+    function Write-Log { param([string]$Message, [string]$Level) $script:guiLogEntries += [PSCustomObject]@{ Message = $Message; Level = $Level } }
+    function Write-Output { param([Parameter(Position = 0)][object]$Object, [object]$Color) $script:guiVisibleOutput += [string]$Object }
+
+    $guiApp = [PSCustomObject]@{
+        Name = 'AceMoney Lite'
+        ScriptName = 'acemoneylite.ps1'
+        WingetId = ''
+    }
+    $guiInstallResult = Install-Application -App $guiApp
+    Assert-Condition (-not $guiInstallResult -and $script:LastAppScriptOutcome -eq 'ManualActionRequired') 'GUI caller preserves ManualActionRequired as a non-success result'
+    Assert-Condition (-not $script:InstalledApps.ContainsKey($guiApp.Name)) 'GUI caller does not add a manual handoff to installed state'
+    Assert-Condition (@($script:guiLogEntries | Where-Object { $_.Level -eq 'SUCCESS' }).Count -eq 0 -and @($script:guiLogEntries | Where-Object { $_.Level -eq 'WARNING' -and $_.Message -match 'Complete installation' }).Count -eq 1) 'GUI caller logs the remaining manual action without a success entry'
+    Assert-Condition (($script:guiVisibleOutput -join ' ') -match '\[ACTION REQUIRED\].*Complete installation') 'GUI caller displays what the user must complete'
+
+    $cliPath = Join-Path $repositoryRoot 'app-installer-cli.ps1'
+    foreach ($functionName in @('New-InstallerActionResult', 'Get-InstallerActionStatus', 'Install-Application', 'Install-MissingApplications')) {
+        Invoke-Expression (Get-FunctionDefinitionText -Path $cliPath -Name $functionName)
+    }
+    function Test-InstallerShouldProcess { param([string]$Target, [string]$Action) return $true }
+    function Write-Log { param([string]$Message, [string]$Level) $script:cliLogEntries += [PSCustomObject]@{ Message = $Message; Level = $Level } }
+    function Get-InstalledApplications { $script:installedStateQueryCount++; return @{} }
+    function Start-Sleep { param([int]$Seconds) }
+
+    $manualApps = @($browserApps | ForEach-Object {
+            [PSCustomObject]@{
+                Name = $_.Name
+                ScriptName = $_.ScriptName
+                Platform = 'Windows'
+                WingetId = ''
+            }
+        })
+    Assert-Condition ($manualApps.Count -eq $browserApps.Count) 'all four browser-only script entries are represented in the fake CLI selection'
+    $script:AppsPath = $cliAppsPath
+    $script:Applications = $manualApps
+    $script:InstalledApps = @{}
+    $script:installedStateQueryCount = 0
+
+    foreach ($browserApp in $browserApps) {
+        $app = $manualApps | Where-Object { $_.ScriptName -ceq $browserApp.ScriptName } | Select-Object -First 1
+        $installResult = Install-Application -App $app -CurrentIndex 1 -TotalCount $browserApps.Count -Confirm:$false
+        Assert-Condition ((Get-InstallerActionStatus -Result $installResult) -eq 'ManualActionRequired' -and -not $installResult.Success) "$($browserApp.Name) CLI caller preserves ManualActionRequired"
+        Assert-Condition (-not $script:InstalledApps.ContainsKey($browserApp.Name)) "$($browserApp.Name) CLI caller does not add a manual handoff to installed state"
+    }
+
+    $browserTraceBeforeInstallMissing = @(Get-Content -LiteralPath $browserTracePath).Count
+    Install-MissingApplications -Confirm:$false
+    Assert-Condition ($script:installedStateQueryCount -eq 1) 'Install Missing queries fresh installed state after manual handoffs'
+    Assert-Condition ($script:InstalledApps.Count -eq 0) 'Install Missing keeps every unverified manual handoff out of installed state'
+    Assert-Condition ((@(Get-Content -LiteralPath $browserTracePath).Count - $browserTraceBeforeInstallMissing) -eq $browserApps.Count) 'a later Install Missing selection retries all four unverified handoffs'
+    Assert-Condition (@($script:cliLogEntries | Where-Object { $_.Level -eq 'SUCCESS' }).Count -eq 0) 'CLI handoffs emit no success log entries'
+    Assert-Condition (@($script:cliLogEntries | Where-Object { $_.Level -eq 'WARNING' -and $_.Message -match 'Complete installation' }).Count -ge $browserApps.Count) 'CLI tells users that the vendor installation still needs completion'
+
     $afterUnrelatedAppState = ConvertTo-Json -InputObject $script:unrelatedAppState -Depth 5 -Compress
     Assert-Condition ($afterUnrelatedAppState -ceq $beforeUnrelatedAppState) 'unrelated installed-app and queue state remain unchanged'
 
@@ -195,6 +354,9 @@ exit 0
     Assert-Condition ($cliSource.Contains('Write-Log "Using custom script: $scriptPath"')) 'CLI custom-script log line remains present'
     Assert-Condition ($guiSource.Contains('elseif ($appScriptResult.Status -eq ''Unknown'')') -and $guiSource.Contains('[UNKNOWN] $unknownMessage')) 'GUI reports an unknown result without marking the app installed'
     Assert-Condition ($cliSource.Contains('elseif ($appScriptResult.Status -eq ''Unknown'')') -and $cliSource.Contains('[2/2] [UNKNOWN] $unknownMessage')) 'CLI reports an unknown result without marking the app installed'
+    Assert-Condition ($guiSource.Contains("elseif (`$appScriptResult.Status -eq 'ManualActionRequired')") -and $guiSource.Contains('[ACTION REQUIRED] $manualActionMessage')) 'GUI reports a manual handoff distinctly and leaves it uninstalled'
+    Assert-Condition ($cliSource.Contains("elseif (`$appScriptResult.Status -eq 'ManualActionRequired')") -and $cliSource.Contains('[2/2] [ACTION REQUIRED] $manualActionMessage')) 'CLI reports a manual handoff distinctly and leaves it uninstalled'
+    Assert-Condition ($guiSource.Contains('=== Installation Run Finished - Manual Action Required ===') -and $guiSource.Contains('$toastTitle = if ($manualActionPending) { ''Manual action required'' }')) 'GUI completion heading and notification title remain action-required when manual work is pending'
     Assert-Condition ($guiSource.Contains('$app = $script:InstallationQueue[$script:CurrentQueueIndex]')) 'GUI installation queue still selects entries in queue order'
     Assert-Condition ($cliSource.Contains('foreach ($app in $appsToInstall)')) 'CLI installation loop still preserves selected app order'
 
@@ -206,6 +368,7 @@ finally {
     $env:APP_SCRIPT_TEST_NATIVE_PATH = $oldNativePath
     $env:APP_SCRIPT_TEST_NATIVE_CODE = $oldNativeCode
     $env:APP_SCRIPT_TEST_NATIVE_TRACE = $oldNativeTrace
+    $env:APP_SCRIPT_TEST_START_PROCESS_TRACE = $oldBrowserTrace
     Remove-Module -Name AppInstallerCore -Force -ErrorAction SilentlyContinue
 
     if (Test-Path -LiteralPath $testRoot -PathType Container) {

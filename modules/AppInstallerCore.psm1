@@ -395,7 +395,7 @@ function New-AppScriptExecutionResult {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]
-        [ValidateSet('PowerShellSuccess', 'NativeProcessSuccess', 'Failure', 'Unknown')]
+        [ValidateSet('PowerShellSuccess', 'NativeProcessSuccess', 'Failure', 'Unknown', 'ManualActionRequired')]
         [string]$Status,
 
         [AllowNull()]
@@ -425,11 +425,15 @@ function Invoke-AppScript {
         The child process isolates the script from the caller's native exit-code state. A zero
         exit code is successful only when the isolated runner records a result. A script that
         finishes without setting a PowerShell or native process result is Unknown and must not
-        be reported as completed.
+        be reported as completed. A script can declare one of Installed, Failure, Unknown, or
+        ManualActionRequired by setting $global:AppInstallerScriptOutcome to an object with
+        Status and Message properties. Installed maps to the existing success statuses; manual
+        action is preserved as a separate outcome and never counts as installation success.
         The returned object contains Status, ExitCode, ResultKind, and Message. Status is
         PowerShellSuccess for a declared PowerShell result, NativeProcessSuccess for a declared
-        native result, Failure for a nonzero process result or parse failure, and Unknown when
-        execution or its outcome cannot be confirmed.
+        native result, Failure for a nonzero process result or parse failure, ManualActionRequired
+        when the script hands work to the user, and Unknown when execution or its outcome cannot
+        be confirmed.
     #>
     [CmdletBinding()]
     param(
@@ -538,9 +542,59 @@ function Invoke-AppScript {
         }
         $resultKind = if ($nativeResultMarker) { 'NativeProcess' } else { 'PowerShell' }
 
+        $declaredOutcome = $null
+        if (-not [string]::IsNullOrWhiteSpace([string]$resultMarker)) {
+            try {
+                $parsedOutcome = ConvertFrom-Json -InputObject $resultMarker -ErrorAction Stop
+                if ($parsedOutcome.Protocol -ceq 'AppInstallerScriptOutcomeV1' -and
+                    $parsedOutcome.Status -in @('Installed', 'Failure', 'Unknown', 'ManualActionRequired')) {
+                    $declaredOutcome = $parsedOutcome
+                }
+            }
+            catch {
+                $declaredOutcome = $null
+            }
+        }
+
         if ($exitCode -ne 0) {
+            $failureMessage = if ($declaredOutcome -and $declaredOutcome.Status -eq 'Failure' -and
+                -not [string]::IsNullOrWhiteSpace([string]$declaredOutcome.Message)) {
+                [string]$declaredOutcome.Message
+            }
+            else {
+                "The app script returned exit code $exitCode."
+            }
             return New-AppScriptExecutionResult -Status Failure -ExitCode $exitCode -ResultKind $resultKind `
-                -Message "The app script returned exit code $exitCode."
+                -Message $failureMessage
+        }
+
+        if ($declaredOutcome) {
+            $declaredMessage = if ([string]::IsNullOrWhiteSpace([string]$declaredOutcome.Message)) {
+                'The app script declared an outcome.'
+            }
+            else {
+                [string]$declaredOutcome.Message
+            }
+
+            switch ([string]$declaredOutcome.Status) {
+                'Installed' {
+                    $successStatus = if ($nativeResultMarker) { 'NativeProcessSuccess' } else { 'PowerShellSuccess' }
+                    return New-AppScriptExecutionResult -Status $successStatus -ExitCode 0 -ResultKind $resultKind `
+                        -Message $declaredMessage
+                }
+                'Failure' {
+                    return New-AppScriptExecutionResult -Status Failure -ExitCode 1 -ResultKind $resultKind `
+                        -Message $declaredMessage
+                }
+                'Unknown' {
+                    return New-AppScriptExecutionResult -Status Unknown -ExitCode $null -ResultKind 'None' `
+                        -Message $declaredMessage
+                }
+                'ManualActionRequired' {
+                    return New-AppScriptExecutionResult -Status ManualActionRequired -ExitCode 0 -ResultKind $resultKind `
+                        -Message $declaredMessage
+                }
+            }
         }
 
         if ($resultMarker -eq 'unknown') {

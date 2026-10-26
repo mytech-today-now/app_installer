@@ -2939,6 +2939,7 @@ function Install-Application {
         [PSCustomObject]$App
     )
 
+    $script:LastAppScriptOutcome = $null
     Write-Log "Installing $($App.Name)..." -Level INFO
     Write-Output "`r`nInstalling $($App.Name)..." -Color ([System.Drawing.Color]::Blue)
 
@@ -3088,6 +3089,23 @@ function Install-Application {
                 }
 
                 return $true
+            }
+            elseif ($appScriptResult.Status -eq 'ManualActionRequired') {
+                $script:LastAppScriptOutcome = 'ManualActionRequired'
+                $manualActionMessage = if ([string]::IsNullOrWhiteSpace([string]$appScriptResult.Message)) {
+                    "$($App.Name) requires manual installation and verification before it can be marked installed."
+                }
+                else {
+                    "$($App.Name): $($appScriptResult.Message)"
+                }
+                Write-Log $manualActionMessage -Level WARNING
+                if ($script:StatusLabel) {
+                    $script:StatusLabel.Text = "[ACTION REQUIRED] $manualActionMessage"
+                    $script:StatusLabel.ForeColor = [System.Drawing.Color]::Orange
+                    [System.Windows.Forms.Application]::DoEvents()
+                }
+                Write-Output "  [ACTION REQUIRED] $manualActionMessage" -Color ([System.Drawing.Color]::Orange)
+                return $false
             }
             elseif ($appScriptResult.Status -eq 'Unknown') {
                 $unknownMessage = "$($App.Name) custom installer result is unknown. The app was not marked installed. Review its status before retrying."
@@ -6740,6 +6758,7 @@ function Install-SelectedApplications {
 
     $successCount = 0
     $failCount = 0
+    $manualActionRequiredCount = 0
     $skippedCount = 0
     $startTime = Get-Date  # Track installation start time
     $installationTimes = @()  # Track individual installation times for ETA
@@ -6804,6 +6823,10 @@ function Install-SelectedApplications {
                 $listViewItem.SubItems[2].Text = "Skipped"
                 $listViewItem.ForeColor = [System.Drawing.Color]::Orange
             }
+            elseif ($script:LastAppScriptOutcome -eq 'ManualActionRequired') {
+                $listViewItem.SubItems[2].Text = 'Manual action required'
+                $listViewItem.ForeColor = [System.Drawing.Color]::Orange
+            }
             elseif ($app.Name -eq 'O&O ShutUp10' -and $script:LastOOShutUp10Result) {
                 if ($script:LastOOShutUp10Result.ExecutableStatus -eq 'present') {
                     $listViewItem.SubItems[2].Text = 'Present; installer result failed'
@@ -6818,6 +6841,9 @@ function Install-SelectedApplications {
 
         if ($success) {
             $successCount++
+        }
+        elseif ($script:LastAppScriptOutcome -eq 'ManualActionRequired') {
+            $manualActionRequiredCount++
         }
         else {
             $failCount++
@@ -6882,36 +6908,68 @@ function Install-SelectedApplications {
     $totalMinutes = [Math]::Round($duration.TotalMinutes, 1)
 
     # Show completion message
-    $completionColor = if ($failCount -eq 0 -and $skippedCount -eq 0) { [System.Drawing.Color]::Green } else { [System.Drawing.Color]::Orange }
+    $completionColor = if ($failCount -eq 0 -and $skippedCount -eq 0 -and $manualActionRequiredCount -eq 0) { [System.Drawing.Color]::Green } else { [System.Drawing.Color]::Orange }
+    $manualActionPending = $manualActionRequiredCount -gt 0
 
-    Write-Output "`r`n=== Installation Complete ===" -Color ([System.Drawing.Color]::Cyan)
-    Write-Output "Installation complete: $successCount succeeded, $failCount failed, $skippedCount skipped" -Color $completionColor
-    Write-Output "Success: $successCount | Failed: $failCount | Skipped: $skippedCount | Time: $totalMinutes minutes" -Color $completionColor
+    $completionHeading = if ($manualActionPending) { '=== Installation Run Finished - Manual Action Required ===' } else { '=== Installation Complete ===' }
+    $completionSummary = if ($manualActionPending) {
+        "Installation run finished: $successCount succeeded, $failCount failed, $manualActionRequiredCount require manual action, $skippedCount skipped"
+    }
+    else {
+        "Installation complete: $successCount succeeded, $failCount failed, $skippedCount skipped"
+    }
+    Write-Output "`r`n$completionHeading" -Color ([System.Drawing.Color]::Cyan)
+    Write-Output $completionSummary -Color $completionColor
+    Write-Output "Success: $successCount | Failed: $failCount | Manual action required: $manualActionRequiredCount | Skipped: $skippedCount | Time: $totalMinutes minutes" -Color $completionColor
 
     # Update status label
     if ($script:StatusLabel) {
-        $statusText = "[COMPLETE] All installations complete! ($successCount succeeded, $failCount failed"
+        $statusText = if ($manualActionPending) {
+            "[ACTION REQUIRED] Installation run finished ($successCount succeeded, $failCount failed"
+        }
+        else {
+            "[COMPLETE] All installations complete! ($successCount succeeded, $failCount failed"
+        }
         if ($skippedCount -gt 0) {
             $statusText += ", $skippedCount skipped"
         }
+        if ($manualActionRequiredCount -gt 0) {
+            $statusText += ", $manualActionRequiredCount require manual action"
+        }
         $statusText += ", $totalMinutes min)"
         $script:StatusLabel.Text = $statusText
-        $script:StatusLabel.ForeColor = if ($failCount -eq 0 -and $skippedCount -eq 0) { [System.Drawing.Color]::Green } else { [System.Drawing.Color]::Orange }
+        $script:StatusLabel.ForeColor = if ($failCount -eq 0 -and $skippedCount -eq 0 -and $manualActionRequiredCount -eq 0) { [System.Drawing.Color]::Green } else { [System.Drawing.Color]::Orange }
         [System.Windows.Forms.Application]::DoEvents()
     }
 
     # Show Windows Toast notification
-    $toastTitle = "Installation Complete"
-    $toastMessage = "Successfully installed $successCount of $($script:InstallationQueue.Count) applications in $totalMinutes minutes"
+    $toastTitle = if ($manualActionPending) { 'Manual action required' } else { 'Installation Complete' }
+    $toastMessage = if ($manualActionPending) {
+        "$manualActionRequiredCount application(s) still require manual action; $successCount application(s) succeeded."
+    }
+    else {
+        "Successfully installed $successCount of $($script:InstallationQueue.Count) applications in $totalMinutes minutes"
+    }
     if ($failCount -gt 0) {
         $toastMessage += "`n$failCount installation(s) failed"
+    }
+    if ($manualActionRequiredCount -gt 0) {
+        $toastMessage += "`n$manualActionRequiredCount installation(s) require manual action"
     }
     if ($skippedCount -gt 0) {
         $toastMessage += "`n$skippedCount installation(s) skipped"
     }
-    Show-ToastNotification -Title $toastTitle -Message $toastMessage -Type $(if ($failCount -eq 0 -and $skippedCount -eq 0) { 'Success' } else { 'Warning' })
+    Show-ToastNotification -Title $toastTitle -Message $toastMessage -Type $(if ($failCount -eq 0 -and $skippedCount -eq 0 -and $manualActionRequiredCount -eq 0) { 'Success' } else { 'Warning' })
 
-    $completionMessage = "Installation complete!`n`nSuccessful: $successCount`nFailed: $failCount"
+    $completionMessage = if ($manualActionPending) {
+        "Installation run finished; manual action is required.`n`nSuccessful: $successCount`nFailed: $failCount"
+    }
+    else {
+        "Installation complete!`n`nSuccessful: $successCount`nFailed: $failCount"
+    }
+    if ($manualActionRequiredCount -gt 0) {
+        $completionMessage += "`nManual action required: $manualActionRequiredCount"
+    }
     if ($skippedCount -gt 0) {
         $completionMessage += "`nSkipped: $skippedCount"
     }
@@ -6919,9 +6977,9 @@ function Install-SelectedApplications {
 
     [System.Windows.Forms.MessageBox]::Show(
         $completionMessage,
-        "Installation Complete",
+        $(if ($manualActionPending) { 'Manual Action Required' } else { 'Installation Complete' }),
         [System.Windows.Forms.MessageBoxButtons]::OK,
-        [System.Windows.Forms.MessageBoxIcon]::Information
+        $(if ($manualActionPending) { [System.Windows.Forms.MessageBoxIcon]::Warning } else { [System.Windows.Forms.MessageBoxIcon]::Information })
     )
 
     # Refresh the list

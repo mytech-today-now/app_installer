@@ -17,10 +17,19 @@ try {
     Write-Host "  [i] Opening download page in browser..." -ForegroundColor Gray
     
     Start-Process "https://github.com/akiraux/Akira"
-    
-    "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') | INFO | $AppName manual installation initiated" | Out-File -FilePath $LogPath -Append
-    Write-Host "  [OK] Download page opened. Please complete installation manually." -ForegroundColor Green
-    exit 0
+
+    $global:AppInstallerScriptOutcome = [PSCustomObject]@{
+        Status = 'ManualActionRequired'
+        Message = 'Complete installation from the vendor page and verify the app is installed before retrying. Opening the page does not confirm installation.'
+    }
+
+    try {
+        "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') | WARNING | $AppName manual action required; vendor page opened" | Out-File -FilePath $LogPath -Append
+    }
+    catch {
+        Write-Host "  [WARN] Could not write the app log: $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+    Write-Host "  [ACTION REQUIRED] Download page opened. Complete installation manually and verify the app is installed." -ForegroundColor Yellow
 }
 catch {
     Write-Host "  [!] Error: $_" -ForegroundColor Red

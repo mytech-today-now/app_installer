@@ -250,7 +250,7 @@ function New-InstallerActionResult {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]
-        [ValidateSet('Preview', 'Skipped')]
+        [ValidateSet('Preview', 'Skipped', 'ManualActionRequired')]
         [string]$Status,
 
         [Parameter(Mandatory = $true)]
@@ -1309,6 +1309,7 @@ function Install-SelectedApplications {
     $currentIndex = 0
     $successCount = 0
     $failCount = 0
+    $manualActionRequiredCount = 0
     $previewCount = 0
     $skippedCount = 0
 
@@ -1324,6 +1325,7 @@ function Install-SelectedApplications {
             'Completed' { $successCount++ }
             'Preview' { $previewCount++ }
             'Skipped' { $skippedCount++ }
+            'ManualActionRequired' { $manualActionRequiredCount++ }
             default { $failCount++ }
         }
     }
@@ -1336,6 +1338,9 @@ function Install-SelectedApplications {
     Write-Host "  Total:     $($appsToInstall.Count)" -ForegroundColor White
     Write-Host "  Success:   $successCount" -ForegroundColor Green
     Write-Host "  Failed:    $failCount" -ForegroundColor $(if ($failCount -gt 0) { "Red" } else { "Gray" })
+    if ($manualActionRequiredCount -gt 0) {
+        Write-Host "  Manual action required: $manualActionRequiredCount" -ForegroundColor Yellow
+    }
     if ($previewCount -gt 0) {
         Write-Host "  Preview:   $previewCount (not run)" -ForegroundColor Cyan
     }
@@ -2705,6 +2710,7 @@ function Install-Application {
 
             if ($TotalCount -gt 0) {
                 $progressStatus = if ($appScriptResult.Status -in @('PowerShellSuccess', 'NativeProcessSuccess')) { 'Complete' } `
+                    elseif ($appScriptResult.Status -eq 'ManualActionRequired') { 'Manual action required' } `
                     elseif ($appScriptResult.Status -eq 'Unknown') { 'Result unknown' } else { 'Failed' }
                 Write-Progress -Activity "Installing $($App.Name)" `
                     -Status $progressStatus `
@@ -2736,6 +2742,17 @@ function Install-Application {
                 }
 
                 return $true
+            }
+            elseif ($appScriptResult.Status -eq 'ManualActionRequired') {
+                $manualActionMessage = if ([string]::IsNullOrWhiteSpace([string]$appScriptResult.Message)) {
+                    "$($App.Name) requires manual installation and verification before it can be marked installed."
+                }
+                else {
+                    "$($App.Name): $($appScriptResult.Message)"
+                }
+                Write-Log $manualActionMessage -Level WARNING
+                Write-Host "  [2/2] [ACTION REQUIRED] $manualActionMessage" -ForegroundColor Yellow
+                return (New-InstallerActionResult -Status ManualActionRequired -Message $manualActionMessage)
             }
             elseif ($appScriptResult.Status -eq 'Unknown') {
                 $unknownMessage = "$($App.Name) custom installer result is unknown. The app was not marked installed. Review its status before retrying."
@@ -3057,6 +3074,7 @@ function Install-AllApplications {
 
     $successCount = 0
     $failCount = 0
+    $manualActionRequiredCount = 0
     $previewCount = 0
     $skippedCount = 0
     $totalCount = $script:Applications.Count
@@ -3105,6 +3123,7 @@ function Install-AllApplications {
             'Completed' { $successCount++ }
             'Preview' { $previewCount++ }
             'Skipped' { $skippedCount++ }
+            'ManualActionRequired' { $manualActionRequiredCount++ }
             default { $failCount++ }
         }
         if (-not $WhatIfPreference) {
@@ -3129,6 +3148,9 @@ function Install-AllApplications {
     Write-Host "|  Total Applications: $totalCount" -ForegroundColor White
     Write-Host "|  [OK] Successful: $successCount" -ForegroundColor Green
     Write-Host "|  [FAIL] Failed: $failCount" -ForegroundColor Red
+    if ($manualActionRequiredCount -gt 0) {
+        Write-Host "|  [ACTION REQUIRED] Manual action: $manualActionRequiredCount" -ForegroundColor Yellow
+    }
     if ($previewCount -gt 0) {
         Write-Host "|  [PREVIEW] Not run: $previewCount" -ForegroundColor Cyan
     }
@@ -3138,7 +3160,7 @@ function Install-AllApplications {
     Write-Host "|  [TIME] Total Time: $totalMinutes minutes" -ForegroundColor White
     Write-Host "+====================================================================+" -ForegroundColor Cyan
 
-    Write-Log "Installation complete. Success: $successCount, Failed: $failCount, Duration: $totalMinutes minutes" -Level INFO
+    Write-Log "Installation complete. Success: $successCount, Failed: $failCount, Manual action required: $manualActionRequiredCount, Duration: $totalMinutes minutes" -Level INFO
     Write-Verbose "Installation summary logged to: $script:LogFile"
 }
 
@@ -3157,6 +3179,7 @@ function Install-MissingApplications {
 
     $successCount = 0
     $failCount = 0
+    $manualActionRequiredCount = 0
     $skippedCount = 0
     $previewCount = 0
     $totalCount = $script:Applications.Count
@@ -3210,6 +3233,7 @@ function Install-MissingApplications {
                     'Completed' { $successCount++ }
                     'Preview' { $previewCount++ }
                     'Skipped' { $skippedCount++ }
+                    'ManualActionRequired' { $manualActionRequiredCount++ }
                     default { $failCount++ }
                 }
             }
@@ -3240,6 +3264,7 @@ function Install-MissingApplications {
                         'Completed' { $successCount++ }
                         'Preview' { $previewCount++ }
                         'Skipped' { $skippedCount++ }
+                        'ManualActionRequired' { $manualActionRequiredCount++ }
                         default { $failCount++ }
                     }
                 }
@@ -3283,6 +3308,7 @@ function Install-MissingApplications {
                 'Completed' { $successCount++ }
                 'Preview' { $previewCount++ }
                 'Skipped' { $skippedCount++ }
+                'ManualActionRequired' { $manualActionRequiredCount++ }
                 default { $failCount++ }
             }
         }
@@ -3299,7 +3325,7 @@ function Install-MissingApplications {
     $totalMinutes = [Math]::Round($duration.TotalMinutes, 1)
 
     Write-Verbose "Installation batch completed in $totalMinutes minutes"
-    Write-Verbose "Installed: $successCount, Skipped: $skippedCount, Failed: $failCount"
+    Write-Verbose "Installed: $successCount, Skipped: $skippedCount, Failed: $failCount, Manual action required: $manualActionRequiredCount"
 
     # Installation Summary
     Write-Host "`n+====================================================================+" -ForegroundColor Cyan
@@ -3309,13 +3335,16 @@ function Install-MissingApplications {
     Write-Host "|  [OK] Installed: $successCount" -ForegroundColor Green
     Write-Host "|  [SKIP] Skipped: $skippedCount" -ForegroundColor Gray
     Write-Host "|  [FAIL] Failed: $failCount" -ForegroundColor Red
+    if ($manualActionRequiredCount -gt 0) {
+        Write-Host "|  [ACTION REQUIRED] Manual action: $manualActionRequiredCount" -ForegroundColor Yellow
+    }
     if ($previewCount -gt 0) {
         Write-Host "|  [PREVIEW] Not run: $previewCount" -ForegroundColor Cyan
     }
     Write-Host "|  [TIME] Total Time: $totalMinutes minutes" -ForegroundColor White
     Write-Host "+====================================================================+" -ForegroundColor Cyan
 
-    Write-Log "Installation complete. Installed: $successCount, Skipped: $skippedCount, Failed: $failCount, Duration: $totalMinutes minutes" -Level INFO
+    Write-Log "Installation complete. Installed: $successCount, Skipped: $skippedCount, Failed: $failCount, Manual action required: $manualActionRequiredCount, Duration: $totalMinutes minutes" -Level INFO
     Write-Verbose "Installation summary logged to: $script:LogFile"
 }
 
