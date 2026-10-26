@@ -71,6 +71,7 @@
       "modules/InstallerPayload.psm1",
       "modules/InstallerPrerequisitePlan.psm1",
       "modules/InstallerRuntimeDiscovery.psm1",
+      "modules/BelarcInstallerTrust.psm1",
       "modules/WingetBootstrap.psm1",
       "platform-detect.ps1"
     ],
@@ -85,6 +86,7 @@
       "modules/InstallerPrerequisitePlan.psm1",
       "modules/InstallerRuntimeDiscovery.psm1",
       "modules/OOShutUp10Trust.psm1",
+      "modules/BelarcInstallerTrust.psm1",
       "modules/StartupHelperTrust.psm1",
       "modules/WingetBootstrap.psm1",
       "platform-detect.ps1"

@@ -986,7 +986,7 @@ $script:Applications = @(
     [PSCustomObject]@{ Name = "Waterfox"; ScriptName = "waterfox.ps1"; WingetId = "Waterfox.Waterfox"; Category = "Browsers"; Description = "Privacy-focused Firefox-based browser" }
     [PSCustomObject]@{ Name = "Chromium"; ScriptName = "chromium.ps1"; WingetId = "Hibbiki.Chromium"; Category = "Browsers"; Description = "Open-source base for Chrome" }
     [PSCustomObject]@{ Name = "Pale Moon"; ScriptName = "palemoon.ps1"; WingetId = "MoonchildProductions.PaleMoon"; Category = "Browsers"; Description = "Lightweight Firefox-based browser" }
-    [PSCustomObject]@{ Name = "Ungoogled Chromium"; ScriptName = "ungoogledchromium.ps1"; WingetId = "eloston.ungoogled-chromium"; Category = "Browsers"; Description = "Chrome without Google integration" }
+    [PSCustomObject]@{ Name = "Ungoogled Chromium"; ScriptName = "ungoogledchromium.ps1"; WingetId = "AdrianGabrielK.UngoogledChromium"; Category = "Browsers"; Description = "Chrome without Google integration" }
     [PSCustomObject]@{ Name = "Midori Browser"; ScriptName = "midori.ps1"; WingetId = "AstianInc.Midori"; Category = "Browsers"; Description = "Lightweight and fast web browser" }
     [PSCustomObject]@{ Name = "Min Browser"; ScriptName = "min.ps1"; WingetId = "Min.Min"; Category = "Browsers"; Description = "Minimal, fast web browser" }
     # Development Tools
@@ -1027,17 +1027,17 @@ $script:Applications = @(
     [PSCustomObject]@{ Name = "Joplin"; ScriptName = "joplin.ps1"; WingetId = "Joplin.Joplin"; Category = "Productivity"; Description = "Open-source note-taking app" }
     [PSCustomObject]@{ Name = "Notion"; ScriptName = "notion.ps1"; WingetId = "Notion.Notion"; Category = "Productivity"; Description = "All-in-one workspace for notes and docs" }
     [PSCustomObject]@{ Name = "Calibre"; ScriptName = "calibre.ps1"; WingetId = "calibre.calibre"; Category = "Productivity"; Description = "eBook library management and conversion" }
-    [PSCustomObject]@{ Name = "Zotero"; ScriptName = "zotero.ps1"; WingetId = "DigitalScholar.Zotero"; Category = "Productivity"; Description = "Research citation and bibliography manager" }
+    [PSCustomObject]@{ Name = "Zotero"; ScriptName = "zotero.ps1"; WingetId = "Zotero.Zotero"; Category = "Productivity"; Description = "Research citation and bibliography manager" }
     [PSCustomObject]@{ Name = "FreeMind"; ScriptName = "freemind.ps1"; WingetId = "FreeMind.FreeMind"; Category = "Productivity"; Description = "Mind mapping and brainstorming tool" }
     [PSCustomObject]@{ Name = "XMind"; ScriptName = "xmind.ps1"; WingetId = "XMind.XMind"; Category = "Productivity"; Description = "Professional mind mapping software" }
     [PSCustomObject]@{ Name = "WPS Office"; ScriptName = "wpsoffice.ps1"; WingetId = "Kingsoft.WPSOffice"; Category = "Productivity"; Description = "Free office suite alternative" }
-    [PSCustomObject]@{ Name = "PDF24 Creator"; ScriptName = "pdf24.ps1"; WingetId = "geeksoftwareGmbH.PDF24Creator"; Category = "Productivity"; Description = "PDF creation and editing tools" }
+    [PSCustomObject]@{ Name = "PDF24 Creator"; ScriptName = "pdf24.ps1"; WingetId = "geek.PDF24Creator"; Category = "Productivity"; Description = "PDF creation and editing tools" }
     [PSCustomObject]@{ Name = "Typora"; ScriptName = "typora.ps1"; WingetId = "Typora.Typora"; Category = "Productivity"; Description = "Minimalist markdown editor" }
     [PSCustomObject]@{ Name = "Toggl Track"; ScriptName = "toggltrack.ps1"; WingetId = "Toggl.TogglTrack"; Category = "Productivity"; Description = "Time tracking and productivity tool" }
     [PSCustomObject]@{ Name = "Clockify"; ScriptName = "clockify.ps1"; WingetId = "Clockify.Clockify"; Category = "Productivity"; Description = "Free time tracking software" }
     [PSCustomObject]@{ Name = "Evernote"; ScriptName = "evernote.ps1"; WingetId = "Evernote.Evernote"; Category = "Productivity"; Description = "Note-taking and organization app" }
     [PSCustomObject]@{ Name = "Simplenote"; ScriptName = "simplenote.ps1"; WingetId = "Automattic.Simplenote"; Category = "Productivity"; Description = "Simple, lightweight note-taking" }
-    [PSCustomObject]@{ Name = "Trello"; ScriptName = "trello.ps1"; WingetId = "Trello.Trello"; Category = "Productivity"; Description = "Visual project management boards" }
+    [PSCustomObject]@{ Name = "Trello"; ScriptName = "trello.ps1"; WingetId = "Atlassian.Trello"; Category = "Productivity"; Description = "Visual project management boards" }
     [PSCustomObject]@{ Name = "ClickUp"; ScriptName = "clickup.ps1"; WingetId = "ClickUp.ClickUp"; Category = "Productivity"; Description = "All-in-one productivity platform" }
     [PSCustomObject]@{ Name = "Todoist"; ScriptName = "todoist.ps1"; WingetId = "Doist.Todoist"; Category = "Productivity"; Description = "Task management and to-do lists" }
     # Media & Creative
@@ -1049,7 +1049,7 @@ $script:Applications = @(
     [PSCustomObject]@{ Name = "OpenShot"; ScriptName = "openshot.ps1"; WingetId = "OpenShot.OpenShot"; Category = "Media"; Description = "Easy-to-use video editor" }
     [PSCustomObject]@{ Name = "Kdenlive"; ScriptName = "kdenlive.ps1"; WingetId = "KDE.Kdenlive"; Category = "Media"; Description = "Professional video editing suite" }
     [PSCustomObject]@{ Name = "Shotcut"; ScriptName = "shotcut.ps1"; WingetId = "Meltytech.Shotcut"; Category = "Media"; Description = "Cross-platform video editor" }
-    [PSCustomObject]@{ Name = "ClipGrab"; ScriptName = "clipgrab.ps1"; WingetId = "Philipp Schmieder.ClipGrab"; Category = "Media"; Description = "Video downloader and converter" }
+    [PSCustomObject]@{ Name = "ClipGrab"; ScriptName = "clipgrab.ps1"; WingetId = "Philipp.Schmieder.ClipGrab"; Category = "Media"; Description = "Video downloader and converter" }
     [PSCustomObject]@{ Name = "Inkscape"; ScriptName = "inkscape.ps1"; WingetId = "Inkscape.Inkscape"; Category = "Media"; Description = "Vector graphics editor" }
     [PSCustomObject]@{ Name = "Paint.NET"; ScriptName = "paintdotnet.ps1"; WingetId = "dotPDN.PaintDotNet"; Category = "Media"; Description = "Simple yet powerful image editor" }
     [PSCustomObject]@{ Name = "Krita"; ScriptName = "krita.ps1"; WingetId = "KDE.Krita"; Category = "Media"; Description = "Digital painting and illustration tool" }
@@ -1096,9 +1096,9 @@ $script:Applications = @(
     [PSCustomObject]@{ Name = "CPU-Z"; ScriptName = "cpuz.ps1"; WingetId = "CPUID.CPU-Z"; Category = "Utilities"; Description = "CPU and system information utility" }
     [PSCustomObject]@{ Name = "CrystalDiskMark"; ScriptName = "crystaldiskmark.ps1"; WingetId = "CrystalDewWorld.CrystalDiskMark"; Category = "Utilities"; Description = "Disk benchmark utility" }
     [PSCustomObject]@{ Name = "HWMonitor"; ScriptName = "hwmonitor.ps1"; WingetId = "CPUID.HWMonitor"; Category = "Utilities"; Description = "Hardware monitoring program" }
-    [PSCustomObject]@{ Name = "MSI Afterburner"; ScriptName = "msiafterburner.ps1"; WingetId = "Guru3D.Afterburner"; Category = "Utilities"; Description = "Graphics card overclocking utility" }
+    [PSCustomObject]@{ Name = "MSI Afterburner"; ScriptName = "msiafterburner.ps1"; WingetId = "MSI.Afterburner"; Category = "Utilities"; Description = "Graphics card overclocking utility" }
     [PSCustomObject]@{ Name = "Lightshot"; ScriptName = "lightshot.ps1"; WingetId = "Skillbrains.Lightshot"; Category = "Utilities"; Description = "Screenshot tool with instant sharing" }
-    [PSCustomObject]@{ Name = "System Informer"; ScriptName = "systeminformer.ps1"; WingetId = "WinsiderSS.SystemInformer"; Category = "Utilities"; Description = "Advanced system monitor and task manager" }
+    [PSCustomObject]@{ Name = "System Informer"; ScriptName = "systeminformer.ps1"; WingetId = "SystemInformer.SystemInformer"; Category = "Utilities"; Description = "Advanced system monitor and task manager" }
     # Security
     [PSCustomObject]@{ Name = "Bitwarden"; ScriptName = "bitwarden.ps1"; WingetId = "Bitwarden.Bitwarden"; Category = "Security"; Description = "Open-source password manager" }
     [PSCustomObject]@{ Name = "KeePass"; ScriptName = "keepass.ps1"; WingetId = "DominikReichl.KeePass"; Category = "Security"; Description = "Secure password database manager" }
@@ -1124,9 +1124,9 @@ $script:Applications = @(
     [PSCustomObject]@{ Name = "WhatsApp Desktop"; ScriptName = "whatsapp.ps1"; WingetId = "WhatsApp.WhatsApp"; Category = "Communication"; Description = "Desktop messaging application" }
     [PSCustomObject]@{ Name = "Viber"; ScriptName = "viber.ps1"; WingetId = "Viber.Viber"; Category = "Communication"; Description = "Free calls and messages" }
     [PSCustomObject]@{ Name = "Element"; ScriptName = "element.ps1"; WingetId = "Element.Element"; Category = "Communication"; Description = "Secure decentralized messaging" }
-    [PSCustomObject]@{ Name = "Jitsi Meet"; ScriptName = "jitsimeet.ps1"; WingetId = "Jitsi.Meet"; Category = "Communication"; Description = "Secure video conferencing" }
+    [PSCustomObject]@{ Name = "Jitsi Meet"; ScriptName = "jitsimeet.ps1"; WingetId = "JitsiMeet.JitsiMeet"; Category = "Communication"; Description = "Secure video conferencing" }
     [PSCustomObject]@{ Name = "Rocket.Chat"; ScriptName = "rocketchat.ps1"; WingetId = "RocketChat.RocketChat"; Category = "Communication"; Description = "Open-source team communication" }
-    [PSCustomObject]@{ Name = "Mattermost Desktop"; ScriptName = "mattermost.ps1"; WingetId = "Mattermost.MattermostDesktop"; Category = "Communication"; Description = "Secure team collaboration platform" }
+    [PSCustomObject]@{ Name = "Mattermost Desktop"; ScriptName = "mattermost.ps1"; WingetId = "Mattermost.Mattermost"; Category = "Communication"; Description = "Secure team collaboration platform" }
     # 3D & CAD
     [PSCustomObject]@{ Name = "Blender"; ScriptName = "blender.ps1"; WingetId = "BlenderFoundation.Blender"; Category = "3D `& CAD"; Description = "3D modeling, animation, and rendering" }
     [PSCustomObject]@{ Name = "FreeCAD"; ScriptName = "freecad.ps1"; WingetId = "FreeCAD.FreeCAD"; Category = "3D `& CAD"; Description = "Parametric 3D CAD modeler" }
@@ -1166,10 +1166,10 @@ $script:Applications = @(
     # Writing & Screenwriting
     [PSCustomObject]@{ Name = "Trelby"; ScriptName = "trelby.ps1"; WingetId = $null; Category = "Writing"; Description = "Screenplay writing software" }
     [PSCustomObject]@{ Name = "KIT Scenarist"; ScriptName = "kitscenarist.ps1"; WingetId = $null; Category = "Writing"; Description = "Screenwriting and story development" }
-    [PSCustomObject]@{ Name = "Storyboarder"; ScriptName = "storyboarder.ps1"; WingetId = "Wonderunit.Storyboarder"; Category = "Writing"; Description = "Storyboard creation tool" }
+    [PSCustomObject]@{ Name = "Storyboarder"; ScriptName = "storyboarder.ps1"; WingetId = "WonderUnit.Storyboarder"; Category = "Writing"; Description = "Storyboard creation tool" }
     [PSCustomObject]@{ Name = "FocusWriter"; ScriptName = "focuswriter.ps1"; WingetId = "GottCode.FocusWriter"; Category = "Writing"; Description = "Distraction-free writing environment" }
     [PSCustomObject]@{ Name = "Manuskript"; ScriptName = "manuskript.ps1"; WingetId = "TheologicalElucidations.Manuskript"; Category = "Writing"; Description = "Novel writing and organization tool" }
-    [PSCustomObject]@{ Name = "yWriter"; ScriptName = "ywriter.ps1"; WingetId = "Spacejock.yWriter"; Category = "Writing"; Description = "Word processor for novelists" }
+    [PSCustomObject]@{ Name = "yWriter"; ScriptName = "ywriter.ps1"; WingetId = "Spacejock.yWriter7"; Category = "Writing"; Description = "Word processor for novelists" }
     [PSCustomObject]@{ Name = "Celtx"; ScriptName = "celtx.ps1"; WingetId = "Celtx.Celtx"; Category = "Writing"; Description = "Screenwriting and production software" }
     [PSCustomObject]@{ Name = "bibisco"; ScriptName = "bibisco.ps1"; WingetId = "bibisco.bibisco"; Category = "Writing"; Description = "Novel writing software" }
     [PSCustomObject]@{ Name = "Scribus"; ScriptName = "scribus.ps1"; WingetId = "Scribus.Scribus"; Category = "Writing"; Description = "Desktop publishing software" }
@@ -1188,7 +1188,7 @@ $script:Applications = @(
     [PSCustomObject]@{ Name = "Dropbox"; ScriptName = "dropbox.ps1"; WingetId = "Dropbox.Dropbox"; Category = "Cloud Storage"; Description = "Cloud file storage and sharing" }
     [PSCustomObject]@{ Name = "OneDrive"; ScriptName = "onedrive.ps1"; WingetId = "Microsoft.OneDrive"; Category = "Cloud Storage"; Description = "Microsoft cloud storage service" }
     [PSCustomObject]@{ Name = "MEGA"; ScriptName = "mega.ps1"; WingetId = "Mega.MEGASync"; Category = "Cloud Storage"; Description = "Secure cloud storage with encryption" }
-    [PSCustomObject]@{ Name = "pCloud"; ScriptName = "pcloud.ps1"; WingetId = "pCloud.pCloudDrive"; Category = "Cloud Storage"; Description = "Secure cloud storage solution" }
+    [PSCustomObject]@{ Name = "pCloud"; ScriptName = "pcloud.ps1"; WingetId = "pCloud.pCloud"; Category = "Cloud Storage"; Description = "Secure cloud storage solution" }
     [PSCustomObject]@{ Name = "Sync.com"; ScriptName = "sync.ps1"; WingetId = "Sync.Sync"; Category = "Cloud Storage"; Description = "Zero-knowledge encrypted cloud storage" }
     [PSCustomObject]@{ Name = "Box"; ScriptName = "box.ps1"; WingetId = "Box.Box"; Category = "Cloud Storage"; Description = "Cloud content management and file sharing" }
     # Remote Desktop
@@ -1197,10 +1197,10 @@ $script:Applications = @(
     [PSCustomObject]@{ Name = "Chrome Remote Desktop"; ScriptName = "chromeremote.ps1"; WingetId = "Google.ChromeRemoteDesktopHost"; Category = "Remote Desktop"; Description = "Remote access via Chrome browser" }
     [PSCustomObject]@{ Name = "TightVNC"; ScriptName = "tightvnc.ps1"; WingetId = "GlavSoft.TightVNC"; Category = "Remote Desktop"; Description = "Remote desktop control software" }
     [PSCustomObject]@{ Name = "RustDesk"; ScriptName = "rustdesk.ps1"; WingetId = "RustDesk.RustDesk"; Category = "Remote Desktop"; Description = "Open-source remote desktop software" }
-    [PSCustomObject]@{ Name = "UltraVNC"; ScriptName = "ultravnc.ps1"; WingetId = "uvncbvba.UltraVnc"; Category = "Remote Desktop"; Description = "Powerful remote PC access software" }
+    [PSCustomObject]@{ Name = "UltraVNC"; ScriptName = "ultravnc.ps1"; WingetId = "uvnc.UltraVNC"; Category = "Remote Desktop"; Description = "Powerful remote PC access software" }
     [PSCustomObject]@{ Name = "Parsec"; ScriptName = "parsec.ps1"; WingetId = "Parsec.Parsec"; Category = "Remote Desktop"; Description = "Low-latency remote desktop for gaming" }
     # Backup & Recovery
-    [PSCustomObject]@{ Name = "Veeam Agent FREE"; ScriptName = "veeam.ps1"; WingetId = "Veeam.Agent.Windows"; Category = "Backup"; Description = "Free backup and recovery solution" }
+    [PSCustomObject]@{ Name = "Veeam Agent FREE"; ScriptName = "veeam.ps1"; WingetId = "Veeam.Agent"; Category = "Backup"; Description = "Free backup and recovery solution" }
     [PSCustomObject]@{ Name = "Macrium Reflect Free"; ScriptName = "macrium.ps1"; WingetId = "Macrium.ReflectFree"; Category = "Backup"; Description = "Disk imaging and cloning tool" }
     [PSCustomObject]@{ Name = "EaseUS Todo Backup Free"; ScriptName = "easeus.ps1"; WingetId = "EASEUSAG.EaseUSTodoBackupFree"; Category = "Backup"; Description = "Backup and disaster recovery" }
     [PSCustomObject]@{ Name = "Duplicati"; ScriptName = "duplicati.ps1"; WingetId = "Duplicati.Duplicati"; Category = "Backup"; Description = "Encrypted backup to cloud storage" }
@@ -1224,7 +1224,7 @@ $script:Applications = @(
     [PSCustomObject]@{ Name = "Firefly III Desktop"; ScriptName = "fireflyiii.ps1"; WingetId = "mtoensing.FireflyIIIDesktop"; Category = "Finance"; Description = "Personal finance manager desktop client" }
     [PSCustomObject]@{ Name = "Buddi"; ScriptName = "buddi.ps1"; WingetId = $null; Category = "Finance"; Description = "Personal finance and budgeting software" }
     [PSCustomObject]@{ Name = "AceMoney Lite"; ScriptName = "acemoneylite.ps1"; WingetId = $null; Category = "Finance"; Description = "Personal finance management tool" }
-    [PSCustomObject]@{ Name = "Actual Budget"; ScriptName = "actualbudget.ps1"; WingetId = "ActualBudget.ActualBudget"; Category = "Finance"; Description = "Local-first personal finance tool" }
+    [PSCustomObject]@{ Name = "Actual Budget"; ScriptName = "actualbudget.ps1"; WingetId = "ActualBudget.Actual"; Category = "Finance"; Description = "Local-first personal finance tool" }
     # Shortcuts & Maintenance
     [PSCustomObject]@{ Name = "Grok AI Shortcuts"; ScriptName = "grok-shortcuts.ps1"; WingetId = $null; Category = "Shortcuts"; Description = "Quick access to Grok AI assistant" }
     [PSCustomObject]@{ Name = "ChatGPT Shortcuts"; ScriptName = "chatgpt-shortcuts.ps1"; WingetId = $null; Category = "Shortcuts"; Description = "Quick access to ChatGPT" }
@@ -1245,10 +1245,10 @@ $script:Applications = @(
     [PSCustomObject]@{ Name = "Quant-UX"; ScriptName = "quantux.ps1"; WingetId = $null; Category = "Mockups `& Wireframe"; Description = "Prototyping and usability testing" }
     # Video Editing
     [PSCustomObject]@{ Name = "Lightworks"; ScriptName = "lightworks.ps1"; WingetId = "LWKS.Lightworks"; Category = "Video Editing"; Description = "Professional video editing software" }
-    [PSCustomObject]@{ Name = "VSDC Free Video Editor"; ScriptName = "vsdcvideoeditor.ps1"; WingetId = "FlashIntegro.VSDCFreeVideoEditor"; Category = "Video Editing"; Description = "Non-linear video editing suite" }
-    [PSCustomObject]@{ Name = "Olive Video Editor"; ScriptName = "olivevideoeditor.ps1"; WingetId = "OliveTeam.OliveVideoEditor"; Category = "Video Editing"; Description = "Free non-linear video editor" }
-    [PSCustomObject]@{ Name = "VidCutter"; ScriptName = "vidcutter.ps1"; WingetId = "OzmosisGames.VidCutter"; Category = "Video Editing"; Description = "Simple video trimming and cutting" }
-    [PSCustomObject]@{ Name = "LosslessCut"; ScriptName = "losslesscut.ps1"; WingetId = "mifi.losslesscut"; Category = "Video Editing"; Description = "Lossless video and audio trimmer" }
+    [PSCustomObject]@{ Name = "VSDC Free Video Editor"; ScriptName = "vsdcvideoeditor.ps1"; WingetId = "Multilab.VSDCFreeVideoEditor"; Category = "Video Editing"; Description = "Non-linear video editing suite" }
+    [PSCustomObject]@{ Name = "Olive Video Editor"; ScriptName = "olivevideoeditor.ps1"; WingetId = "OliveTeam.Olive"; Category = "Video Editing"; Description = "Free non-linear video editor" }
+    [PSCustomObject]@{ Name = "VidCutter"; ScriptName = "vidcutter.ps1"; WingetId = "ozmartian.VidCutter"; Category = "Video Editing"; Description = "Simple video trimming and cutting" }
+    [PSCustomObject]@{ Name = "LosslessCut"; ScriptName = "losslesscut.ps1"; WingetId = "MoritzBunkus.LosslessCut"; Category = "Video Editing"; Description = "Lossless video and audio trimmer" }
     [PSCustomObject]@{ Name = "Flowblade"; ScriptName = "flowblade.ps1"; WingetId = $null; Category = "Video Editing"; Description = "Multitrack non-linear video editor" }
     [PSCustomObject]@{ Name = "Cinelerra"; ScriptName = "cinelerra.ps1"; WingetId = $null; Category = "Video Editing"; Description = "Advanced video editing and compositing" }
     # Audio Production
@@ -1260,8 +1260,8 @@ $script:Applications = @(
     [PSCustomObject]@{ Name = "Mixxx"; ScriptName = "mixxx.ps1"; WingetId = "Mixxx.Mixxx"; Category = "Audio Production"; Description = "Free DJ mixing software" }
     [PSCustomObject]@{ Name = "Hydrogen"; ScriptName = "hydrogen.ps1"; WingetId = "Hydrogen.Hydrogen"; Category = "Audio Production"; Description = "Advanced drum machine and sequencer" }
     # Screen Recording & Streaming
-    [PSCustomObject]@{ Name = "Streamlabs Desktop"; ScriptName = "streamlabsdesktop.ps1"; WingetId = "Streamlabs.StreamlabsOBS"; Category = "Screen Recording"; Description = "Live streaming software for content creators" }
-    [PSCustomObject]@{ Name = "FlashBack Express"; ScriptName = "flashbackexpress.ps1"; WingetId = "Blueberry.FlashbackExpress"; Category = "Screen Recording"; Description = "Free screen recorder" }
+    [PSCustomObject]@{ Name = "Streamlabs Desktop"; ScriptName = "streamlabsdesktop.ps1"; WingetId = "Streamlabs.Streamlabs"; Category = "Screen Recording"; Description = "Live streaming software for content creators" }
+    [PSCustomObject]@{ Name = "FlashBack Express"; ScriptName = "flashbackexpress.ps1"; WingetId = "BlueberryGmbH.FlashBackExpress"; Category = "Screen Recording"; Description = "Free screen recorder" }
     [PSCustomObject]@{ Name = "ScreenToGif"; ScriptName = "screentogif.ps1"; WingetId = "NickeManarin.ScreenToGif"; Category = "Screen Recording"; Description = "Screen, webcam and sketch recorder" }
     [PSCustomObject]@{ Name = "Flameshot"; ScriptName = "flameshot.ps1"; WingetId = "Flameshot.Flameshot"; Category = "Screen Recording"; Description = "Powerful screenshot and annotation tool" }
     [PSCustomObject]@{ Name = "Kap"; ScriptName = "kap.ps1"; WingetId = $null; Category = "Screen Recording"; Description = "Open-source screen recorder" }
@@ -2339,12 +2339,17 @@ function Get-PackageDependencies {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]
-        [string]$PackageId
+        [string]$PackageId,
+
+        [AllowNull()]
+        [string]$Source
     )
 
     try {
         Write-Log "Checking dependencies for package: $PackageId" -Level INFO
-        $showResult = Invoke-WingetDependencyCommand -Arguments @('show', '--id', $PackageId, '--exact')
+        $resolvedSource = Resolve-WingetPackageSource -PackageId $PackageId -DeclaredSource $Source
+        $showArguments = New-WingetArgumentList -Operation show -PackageId $PackageId -Source $resolvedSource
+        $showResult = Invoke-WingetDependencyCommand -Arguments $showArguments
         if ($null -eq $showResult -or $showResult.Status -ne 'Succeeded' -or $null -eq $showResult.ExitCode -or $showResult.ExitCode -ne 0) {
             $exitCode = if ($showResult -and $showResult.PSObject.Properties['ExitCode']) { $showResult.ExitCode } else { $null }
             Write-Log "Dependency discovery is unknown for $PackageId (exit code: $exitCode)" -Level WARNING
@@ -2410,7 +2415,10 @@ function Install-PackageDependencies {
         [array]$Dependencies,
 
         [Parameter(Mandatory = $true)]
-        [string]$PackageName
+        [string]$PackageName,
+
+        [AllowNull()]
+        [string]$Source
     )
 
     if ($Dependencies.Count -eq 0) {
@@ -2435,7 +2443,9 @@ function Install-PackageDependencies {
 
         try {
             Write-Log "Checking dependency: $dependencyId" -Level INFO
-            $checkResult = Invoke-WingetDependencyCommand -Arguments @('list', '--id', $dependencyId, '--exact')
+            $dependencySource = Resolve-WingetPackageSource -PackageId $dependencyId
+            $checkArguments = New-WingetArgumentList -Operation list -PackageId $dependencyId -Source $dependencySource
+            $checkResult = Invoke-WingetDependencyCommand -Arguments $checkArguments
             if ($checkResult -and $checkResult.PSObject.Properties['ExitCode']) {
                 $checkExitCode = $checkResult.ExitCode
             }
@@ -2452,10 +2462,12 @@ function Install-PackageDependencies {
                 }
                 else {
                     Write-Log "Installing dependency: $dependencyId" -Level INFO
-                    $installResult = Invoke-WingetDependencyCommand -Arguments @(
-                        'install', '--id', $dependencyId, '--exact', '--silent',
-                        '--accept-source-agreements', '--accept-package-agreements'
-                    )
+                    $installArguments = New-WingetArgumentList `
+                        -Operation install `
+                        -PackageId $dependencyId `
+                        -Source $dependencySource `
+                        -AdditionalArguments @('--silent', '--accept-source-agreements', '--accept-package-agreements')
+                    $installResult = Invoke-WingetDependencyCommand -Arguments $installArguments
                     if ($installResult -and $installResult.PSObject.Properties['ExitCode']) {
                         $installExitCode = $installResult.ExitCode
                     }
@@ -2549,7 +2561,15 @@ function Write-PackageDependencyFallbackNotice {
 
     $dependencySummary = ($unresolved | ForEach-Object { "$($_.PackageId) ($($_.Status))" }) -join ', '
     $firstDependencyId = [string]$unresolved[0].PackageId
-    $message = "Dependency preflight for $PackageName was incomplete: $dependencySummary. Continuing to WinGet, which processes manifest dependencies by default. If it fails, run: winget install --id $firstDependencyId --exact, then retry."
+    try {
+        $dependencySource = Resolve-WingetPackageSource -PackageId $firstDependencyId
+        $recoveryArguments = New-WingetArgumentList -Operation install -PackageId $firstDependencyId -Source $dependencySource
+        $recoveryCommand = 'winget ' + ($recoveryArguments -join ' ')
+    }
+    catch {
+        $recoveryCommand = "No manual WinGet command is available because '$firstDependencyId' has no unambiguous catalog source."
+    }
+    $message = "Dependency preflight for $PackageName was incomplete: $dependencySummary. Continuing to WinGet, which processes manifest dependencies by default. If it fails, run: $recoveryCommand, then retry."
     Write-Log $message -Level WARNING
     Write-PackageDependencyMessage -Message "  [WARN] $message" -Status warning
 }
@@ -2560,7 +2580,7 @@ function Update-Applications {
         Updates selected applications using winget upgrade.
 
     .DESCRIPTION
-        Updates one or more applications using 'winget upgrade --id {WingetId}'.
+        Updates one or more applications using an exact catalog ID and source.
         Shows progress and logs all operations.
 
     .PARAMETER Updates
@@ -2590,10 +2610,11 @@ function Update-Applications {
         Write-Output "[UPDATE] Updating $($update.Name)..." -Color ([System.Drawing.Color]::Blue)
 
         try {
-            $dependencyDiscovery = Get-PackageDependencies -PackageId $update.Id
+            $updateSource = Resolve-WingetPackageSource -PackageId ([string]$update.Id) -DeclaredSource ([string]$update.Source)
+            $dependencyDiscovery = Get-PackageDependencies -PackageId $update.Id -Source $updateSource
             $dependencyResult = $null
             if ($dependencyDiscovery.Status -eq 'succeeded') {
-                $dependencyResult = Install-PackageDependencies -Dependencies $dependencyDiscovery.Dependencies -PackageName $update.Name
+                $dependencyResult = Install-PackageDependencies -Dependencies $dependencyDiscovery.Dependencies -PackageName $update.Name -Source $updateSource
             }
             Write-PackageDependencyFallbackNotice -PackageName $update.Name -DiscoveryResult $dependencyDiscovery -InstallResult $dependencyResult
 
@@ -2611,26 +2632,32 @@ function Update-Applications {
                     Start-Sleep -Seconds 2
                 }
 
-                # Build winget command with appropriate flags
-                $wingetCmd = "winget upgrade --id `"$($update.Id)`" --silent --accept-source-agreements --accept-package-agreements"
+                $upgradeArguments = New-WingetArgumentList `
+                    -Operation upgrade `
+                    -PackageId ([string]$update.Id) `
+                    -Source $updateSource `
+                    -AdditionalArguments @('--silent', '--accept-source-agreements', '--accept-package-agreements')
 
                 # For architecture-specific errors, try with --force flag
                 if ($retryCount -gt 0 -and $lastExitCode -eq -1978335212) {
-                    $wingetCmd += " --force"
+                    $upgradeArguments = New-WingetArgumentList `
+                        -Operation upgrade `
+                        -PackageId ([string]$update.Id) `
+                        -Source $updateSource `
+                        -AdditionalArguments @('--silent', '--accept-source-agreements', '--accept-package-agreements', '--force')
                     Write-Log "Adding --force flag due to installer type mismatch" -Level INFO
                 }
 
-                # For source errors, try with explicit source
+                # Retain the catalog-selected source for source-related failures.
                 if ($retryCount -gt 0 -and $lastExitCode -eq -1978335226) {
-                    $wingetCmd = "winget upgrade --id `"$($update.Id)`" --source winget --silent --accept-source-agreements --accept-package-agreements"
-                    Write-Log "Specifying explicit source due to unsupported source error" -Level INFO
+                    Write-Log "Retrying with the catalog-selected WinGet source" -Level INFO
                 }
 
-                Write-Log "Executing: $wingetCmd" -Level INFO
+                Write-Log ("Executing: winget {0}" -f ($upgradeArguments -join ' ')) -Level INFO
 
-                # Execute winget and capture output
-                $output = & cmd /c "$wingetCmd 2>&1"
-                $exitCode = $LASTEXITCODE
+                $upgradeResult = Invoke-WingetDependencyCommand -Arguments $upgradeArguments
+                $output = @($upgradeResult.Output)
+                $exitCode = $upgradeResult.ExitCode
                 $lastExitCode = $exitCode
 
                 # Log the output for debugging
@@ -2678,13 +2705,15 @@ function Update-Applications {
 
                 # Provide helpful suggestions based on error type
                 if ($lastExitCode -eq -1978335212) {
-                    Write-Output "  [HINT] Try updating manually with: winget upgrade --id `"$($update.Id)`" --interactive" -Color ([System.Drawing.Color]::Cyan)
+                    $interactiveUpgradeArguments = New-WingetArgumentList -Operation upgrade -PackageId ([string]$update.Id) -Source $updateSource -AdditionalArguments @('--interactive')
+                    Write-Output ("  [HINT] Try updating manually with: winget {0}" -f ($interactiveUpgradeArguments -join ' ')) -Color ([System.Drawing.Color]::Cyan)
                 }
                 elseif ($lastExitCode -eq -1978335226) {
                     Write-Output "  [HINT] Package may need to be updated from a different source" -Color ([System.Drawing.Color]::Cyan)
                 }
                 elseif ($lastExitCode -eq -1978334975) {
-                    Write-Output "  [HINT] Try running: winget upgrade --id `"$($update.Id)`" --interactive" -Color ([System.Drawing.Color]::Cyan)
+                    $interactiveUpgradeArguments = New-WingetArgumentList -Operation upgrade -PackageId ([string]$update.Id) -Source $updateSource -AdditionalArguments @('--interactive')
+                    Write-Output ("  [HINT] Try running: winget {0}" -f ($interactiveUpgradeArguments -join ' ')) -Color ([System.Drawing.Color]::Cyan)
                 }
 
                 $failCount++
@@ -3090,10 +3119,11 @@ function Install-Application {
                 Write-Log "Installing via winget: $($App.WingetId)" -Level INFO
                 Write-Output "  Installing via winget..." -Color ([System.Drawing.Color]::Gray)
 
-                $dependencyDiscovery = Get-PackageDependencies -PackageId $App.WingetId
+                $wingetSource = Resolve-WingetPackageSource -PackageId ([string]$App.WingetId) -DeclaredSource ([string]$App.WingetSource)
+                $dependencyDiscovery = Get-PackageDependencies -PackageId $App.WingetId -Source $wingetSource
                 $dependencyResult = $null
                 if ($dependencyDiscovery.Status -eq 'succeeded') {
-                    $dependencyResult = Install-PackageDependencies -Dependencies $dependencyDiscovery.Dependencies -PackageName $App.Name
+                    $dependencyResult = Install-PackageDependencies -Dependencies $dependencyDiscovery.Dependencies -PackageName $App.Name -Source $wingetSource
                 }
                 Write-PackageDependencyFallbackNotice -PackageName $App.Name -DiscoveryResult $dependencyDiscovery -InstallResult $dependencyResult
 
@@ -3104,7 +3134,14 @@ function Install-Application {
                     [System.Windows.Forms.Application]::DoEvents()
                 }
 
-                $result = winget install --id $App.WingetId --silent --accept-source-agreements --accept-package-agreements 2>&1
+                $installArguments = New-WingetArgumentList `
+                    -Operation install `
+                    -PackageId ([string]$App.WingetId) `
+                    -Source $wingetSource `
+                    -AdditionalArguments @('--silent', '--accept-source-agreements', '--accept-package-agreements')
+                $installResult = Invoke-WingetDependencyCommand -Arguments $installArguments
+                $result = @($installResult.Output)
+                $global:LASTEXITCODE = if ($null -eq $installResult.ExitCode) { 1 } else { [int]$installResult.ExitCode }
 
                 if ($LASTEXITCODE -eq 0) {
                     Write-Log "$($App.Name) installed successfully" -Level SUCCESS
@@ -3228,7 +3265,7 @@ function Uninstall-Application {
         Uninstalls a single application using winget.
 
     .DESCRIPTION
-        Uninstalls an application using 'winget uninstall --id {WingetId} --silent'.
+        Uninstalls an application using an exact catalog ID and source.
         Logs all operations and updates UI with progress.
 
     .PARAMETER App
@@ -3304,8 +3341,16 @@ function Uninstall-Application {
             [System.Windows.Forms.Application]::DoEvents()
         }
 
-        Write-Log "Executing: winget uninstall --id $($App.WingetId) --silent" -Level INFO
-        $result = winget uninstall --id $App.WingetId --silent 2>&1
+        $wingetSource = Resolve-WingetPackageSource -PackageId ([string]$App.WingetId) -DeclaredSource ([string]$App.WingetSource)
+        $uninstallArguments = New-WingetArgumentList `
+            -Operation uninstall `
+            -PackageId ([string]$App.WingetId) `
+            -Source $wingetSource `
+            -AdditionalArguments @('--silent')
+        Write-Log ("Executing: winget {0}" -f ($uninstallArguments -join ' ')) -Level INFO
+        $uninstallResult = Invoke-WingetDependencyCommand -Arguments $uninstallArguments
+        $result = @($uninstallResult.Output)
+        $global:LASTEXITCODE = if ($null -eq $uninstallResult.ExitCode) { 1 } else { [int]$uninstallResult.ExitCode }
 
         # Check exit code
         if ($LASTEXITCODE -eq 0) {

@@ -37,7 +37,8 @@ try {
     # Install using winget (Microsoft Store version)
     Write-Host "  Installing via winget (Microsoft Store)..." -ForegroundColor Yellow
 
-    $result = winget install --id XPFD23M0L795KD --silent --accept-source-agreements --accept-package-agreements 2>&1
+    . "$PSScriptRoot/../platform-detect.ps1"
+    $result = Invoke-WingetPackageCommand -Operation install -PackageId 'XPFD23M0L795KD' -AdditionalArguments @('--silent', '--accept-source-agreements', '--accept-package-agreements')
 
     if ($LASTEXITCODE -eq 0) {
         Write-Host "  ? Avira Security installed successfully!" -ForegroundColor Green

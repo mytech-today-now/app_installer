@@ -161,6 +161,11 @@ Write-Output 'This execution path declares no result.'
     Assert-Condition ($conditionalUnknownResult.Status -eq 'Unknown') 'unexecuted exit branches do not turn a missing result into success'
     Assert-Condition ($null -eq $conditionalUnknownResult.ExitCode) 'conditional unknown result has no inferred exit code'
 
+    $belarcScriptPath = Join-Path $repositoryRoot 'apps\belarc.ps1'
+    $belarcResult = Invoke-AppScript -ScriptPath $belarcScriptPath
+    Assert-Condition ($belarcResult.Status -eq 'Failure' -and $belarcResult.ExitCode -eq 1) 'Belarc with absent production pins returns a failed custom-app result'
+    Assert-Condition ($belarcResult.ResultKind -eq 'NativeProcess') 'Belarc exposes its verified installer child result to the custom-app runner'
+
     $appsPath = Join-Path $testRoot 'apps'
     New-Item -ItemType Directory -Path $appsPath -Force | Out-Null
     $wrapperFixturePath = Join-Path $appsPath 'fixture.ps1'

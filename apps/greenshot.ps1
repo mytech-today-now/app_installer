@@ -37,7 +37,8 @@ try {
     # Install using winget
     Write-Host "  Installing via winget..." -ForegroundColor Yellow
 
-    $result = winget install --id Greenshot.Greenshot --silent --accept-source-agreements --accept-package-agreements 2>&1
+    . "$PSScriptRoot/../platform-detect.ps1"
+    $result = Invoke-WingetPackageCommand -Operation install -PackageId 'Greenshot.Greenshot' -AdditionalArguments @('--silent', '--accept-source-agreements', '--accept-package-agreements')
 
     if ($LASTEXITCODE -eq 0) {
         Write-Host "  [OK] Greenshot installed successfully!" -ForegroundColor Green

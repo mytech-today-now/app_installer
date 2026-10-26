@@ -11,7 +11,7 @@ if ($env:OS -notmatch 'Windows') {
 
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $tempBase = [System.IO.Path]::GetFullPath([System.IO.Path]::GetTempPath())
-$testRoot = [System.IO.Path]::GetFullPath((Join-Path $tempBase ('app-installer-monthly-task-' + [guid]::NewGuid().ToString('N'))))
+$testRoot = [System.IO.Path]::GetFullPath((Join-Path $tempBase ('winget-task-' + [guid]::NewGuid().ToString('N'))))
 $engineExecutableName = if ($PSVersionTable.PSEdition -eq 'Core') { 'pwsh.exe' } else { 'powershell.exe' }
 $cliEnginePath = Join-Path $PSHOME $engineExecutableName
 if (-not (Test-Path -LiteralPath $cliEnginePath -PathType Leaf)) {
@@ -335,7 +335,7 @@ function global:winget {
         $global:LASTEXITCODE = 0
         return
     }
-    if ($PackageArgs -contains 'update' -or $PackageArgs -contains 'install') {
+    if ($PackageArgs -contains 'upgrade' -or $PackageArgs -contains 'install') {
         [System.IO.File]::AppendAllText($env:FAKE_WINGET_TRACE, (($PackageArgs -join '|') + [Environment]::NewLine))
         if ([int]$env:FAKE_WINGET_EXIT_CODE -eq 0) {
             $packageIdIndex = [Array]::IndexOf($PackageArgs, '--id')
@@ -359,8 +359,9 @@ function global:winget {
 
 if ($env:DRIVER_MODE -eq 'updater') {
     function global:Test-Path {
-        param([string]$Path)
-        return ($Path -eq 'C:\mytech.today\logs')
+        param([string]$Path, [string]$LiteralPath, [string]$PathType)
+        $candidate = if ($PSBoundParameters.ContainsKey('LiteralPath')) { $LiteralPath } else { $Path }
+        return ($candidate -eq 'C:\mytech.today\logs') -or [System.IO.File]::Exists($candidate) -or [System.IO.Directory]::Exists($candidate)
     }
     function global:Add-Content {
         param([string]$Path, [string]$Value, [object]$ErrorAction)
@@ -530,10 +531,10 @@ try {
 
     $installAll = New-Scenario -Name 'install-all-success' -Action 'InstallAll' -TraceAllWingetCalls
     $installAllResult = Invoke-Scenario -Scenario $installAll
-    $installAllCalls = [string](Get-Content -LiteralPath $installAll.WingetTracePath -Raw)
+    $installAllCalls = [string](Get-Content -LiteralPath $installAll.NativeWingetTracePath -Raw)
     Assert-Condition -Condition ($installAllResult.Output -match 'Loaded 1 applications for Windows') -Message 'Single-app registry remains an array in both PowerShell engines'
     Assert-Condition -Condition ($installAllResult.Output -match 'Successful: 1' -and $installAllResult.Output -match 'Failed: 0') -Message 'InstallAll classifies a successful fake package operation'
-    Assert-Condition -Condition ($installAllCalls -match '(?m)^install\|--id\|Box\.Box\|') -Message 'InstallAll invokes the fake manager with the selected package ID'
+    Assert-Condition -Condition ($installAllCalls -match '(?m)^install --id Box\.Box --exact --source winget --silent --accept-source-agreements --accept-package-agreements') -Message 'InstallAll invokes the fake manager with exact catalog ID and source'
 
     $installAllFailure = New-Scenario -Name 'install-all-failure' -Action 'InstallAll' -WingetExitCode 23
     $installAllFailureResult = Invoke-Scenario -Scenario $installAllFailure
@@ -548,7 +549,8 @@ try {
     $installMissingResult = Invoke-Scenario -Scenario $installMissing
     $installMissingCalls = @(([string](Get-Content -LiteralPath $installMissing.WingetTracePath -Raw)) -split '\r?\n' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
     Assert-Condition -Condition ($installMissingResult.Output -match 'Installed: 1' -and $installMissingResult.Output -match 'Skipped: 0' -and $installMissingResult.Output -match 'Failed: 0') -Message 'InstallMissing installs an absent app through the fake manager'
-    Assert-Condition -Condition ($installMissingCalls.Count -eq 2 -and $installMissingCalls[0] -match '^list\|' -and $installMissingCalls[1] -match '^install\|--id\|Box\.Box\|') -Message 'InstallMissing queries installed state before invoking the selected package install'
+    $installMissingNativeCalls = [string](Get-Content -LiteralPath $installMissing.NativeWingetTracePath -Raw)
+    Assert-Condition -Condition ($installMissingCalls.Count -eq 1 -and $installMissingCalls[0] -match '^list\|' -and $installMissingNativeCalls -match '(?m)^install --id Box\.Box --exact --source winget --silent --accept-source-agreements --accept-package-agreements') -Message 'InstallMissing queries installed state and installs with exact catalog ID and source'
 
     $installMissingInstalled = New-Scenario -Name 'install-missing-already-installed' -Action 'InstallMissing' -NonInteractive -FakeWingetReportsInstalled -TraceAllWingetCalls
     $installMissingInstalledResult = Invoke-Scenario -Scenario $installMissingInstalled
@@ -716,12 +718,12 @@ try {
     $scopedUpdateResult = Invoke-Scenario -Scenario $scopedUpdate
     $scopedUpdateCalls = @(([string](Get-Content -LiteralPath $scopedUpdate.WingetTracePath -Raw)) -split '\r?\n' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
     Assert-Condition -Condition ($scopedUpdateResult.ExitCode -eq 0 -and $scopedUpdateCalls.Count -eq 1) -Message 'Scoped updater returns success for the selected package'
-    Assert-Condition -Condition ($scopedUpdateCalls[0] -match '^update\|--id\|Google\.Chrome\|--exact\|' -and $scopedUpdateCalls[0] -notmatch '--all') -Message 'Scoped updater invokes winget only for the selected package ID'
+    Assert-Condition -Condition ($scopedUpdateCalls[0] -ceq 'upgrade|--id|Google.Chrome|--exact|--source|winget|--accept-source-agreements|--accept-package-agreements') -Message 'Scoped updater uses exact catalog identity and source argument ordering'
 
     $failedUpdate = New-Scenario -Name 'scoped-update-network-failure' -Action 'Updater' -Mode updater -PackageIds 'Google.Chrome' -WingetExitCode 23
     $failedUpdateResult = Invoke-Scenario -Scenario $failedUpdate
     Assert-Condition -Condition ($failedUpdateResult.ExitCode -eq 23 -and $failedUpdateResult.Output -match '\[FAILED\] Update outcome:' -and $failedUpdateResult.Output -match 'winget-exit-code=23' -and $failedUpdateResult.Output.Contains('Update status is incomplete. Some applications may remain out of date. Review the log and run a manual update check.')) -Message 'Scheduled updater preserves winget failure status in its outcome and process code'
-    Assert-Condition -Condition ((Get-Content -LiteralPath $failedUpdate.WingetTracePath -Raw) -match '^update\|--id\|Google\.Chrome') -Message 'Network or package-manager failure does not widen the update scope'
+    Assert-Condition -Condition ((Get-Content -LiteralPath $failedUpdate.WingetTracePath -Raw) -match '^upgrade\|--id\|Google\.Chrome\|--exact\|--source\|winget') -Message 'Network or package-manager failure does not widen the update scope'
 
     $invalidScope = New-Scenario -Name 'invalid-update-scope' -Action 'Updater' -Mode updater -PackageIds '--all'
     $invalidScopeResult = Invoke-Scenario -Scenario $invalidScope
@@ -732,7 +734,7 @@ try {
     $cliText = Get-Content (Join-Path $repositoryRoot 'app-installer-cli.ps1') -Raw
     $updaterText = Get-Content (Join-Path $repositoryRoot 'apps\winget-update.ps1') -Raw
     Assert-Condition -Condition ($cliText -notmatch '(?s)finally\s*\{[^}]*Install-MonthlyUpdateTask') -Message 'Task installation is not called from a finally block'
-    Assert-Condition -Condition ($updaterText.Contains('winget update --all --accept-source-agreements --accept-package-agreements')) -Message 'Manual all-app update command remains available unchanged'
+    Assert-Condition -Condition ($updaterText.Contains('New-WingetArgumentList') -and $updaterText -notmatch '(?im)winget\s+(update|upgrade)\s+--all') -Message 'Updater builds scoped arguments and has no unscoped all-package action'
     Write-Host (' ' + [Environment]::NewLine + "[OK] Monthly scheduling regression checks passed ($checkCount assertions).") -ForegroundColor Green
 }
 finally {

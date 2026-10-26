@@ -19,58 +19,38 @@ param()
 # Platform check - this application is Windows-only
 if (-not ($IsWindows -or $env:OS -match 'Windows')) {
     Write-Host "[INFO] Belarc Advisor is only available for Windows." -ForegroundColor Yellow
-    exit 0
+    $global:LASTEXITCODE = 0
+    return
 }
 
 $ErrorActionPreference = 'Stop'
 
 try {
-    Write-Host "Installing Belarc Advisor..." -ForegroundColor Cyan
-    
-    # Define download URL
-    $belarcUrl = "https://downloads.belarc.com/advisor/advisorinstaller.exe"
-    $installerPath = Join-Path $env:TEMP "BelarcAdvisorInstaller.exe"
-    
-    # Download Belarc Advisor
-    Write-Host "  Downloading Belarc Advisor..." -ForegroundColor Yellow
-    
-    try {
-        Invoke-WebRequest -Uri $belarcUrl -OutFile $installerPath -UseBasicParsing
-        Write-Host "  ? Download complete" -ForegroundColor Green
+    $trustModulePath = Join-Path $PSScriptRoot '..\modules\BelarcInstallerTrust.psm1'
+    Import-Module -Name $trustModulePath -Force -DisableNameChecking -ErrorAction Stop
+
+    $release = Get-BelarcInstallerPinnedRelease
+    $installerResult = Invoke-VerifiedBelarcInstaller `
+        -Uri $release.Uri `
+        -ExpectedSha256 $release.Sha256 `
+        -ExpectedSignerThumbprint $release.SignerThumbprint
+
+    if ($installerResult.Success) {
+        Write-Host '[OK] Belarc Advisor installer completed.' -ForegroundColor Green
+        $global:LASTEXITCODE = [int]$installerResult.ExitCode
     }
-    catch {
-        Write-Host "  ? Failed to download: $_" -ForegroundColor Red
-        exit 1
-    }
-    
-    # Install Belarc Advisor
-    Write-Host "  Installing Belarc Advisor..." -ForegroundColor Yellow
-    
-    try {
-        $process = Start-Process -FilePath $installerPath -ArgumentList "/S" -Wait -PassThru
-        
-        if ($process.ExitCode -eq 0) {
-            Write-Host "  ? Belarc Advisor installed successfully!" -ForegroundColor Green
+    else {
+        Write-Host ("[ERROR] {0}" -f $installerResult.Message) -ForegroundColor Red
+        $global:LASTEXITCODE = if ($null -ne $installerResult.ExitCode -and [int]$installerResult.ExitCode -ne 0) {
+            [int]$installerResult.ExitCode
         }
         else {
-            Write-Host "  ??  Installer exited with code: $($process.ExitCode)" -ForegroundColor Yellow
+            1
         }
     }
-    catch {
-        Write-Host "  ? Installation failed: $_" -ForegroundColor Red
-        exit 1
-    }
-    finally {
-        # Clean up
-        if (Test-Path $installerPath) {
-            Remove-Item $installerPath -Force -ErrorAction SilentlyContinue
-        }
-    }
-    
-    exit 0
 }
 catch {
-    Write-Host "Error installing Belarc Advisor: $_" -ForegroundColor Red
-    exit 1
+    Write-Host ("[ERROR] Belarc installer could not be verified or run: {0}" -f $_.Exception.Message) -ForegroundColor Red
+    $global:LASTEXITCODE = 1
 }
 

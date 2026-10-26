@@ -124,9 +124,9 @@ exit /b %FAKE_WINGET_EXIT_CODE%
     Assert-Condition -Condition ((Read-TraceLines -Path $tracePath).Count -eq 0) -Message 'CLI startup and profile preview made no package-manager calls.'
     Assert-Condition -Condition (-not (Test-Path -LiteralPath (Join-Path $profileRoot 'myTech.Today'))) -Message 'CLI preview created no installed copy or log directory.'
 
-    $app = @{ Name = 'Test Application'; ScriptName = 'missing-test-app.ps1'; WingetId = 'Example.TestApplication' }
+    $app = @{ Name = 'Test Application'; ScriptName = 'missing-test-app.ps1'; WingetId = 'Google.Chrome' }
     $testCategories = @([PSCustomObject]@{ Name = 'Test'; Group = @($app) })
-    $update = [PSCustomObject]@{ Name = 'Test Application'; Id = 'Example.TestApplication'; CurrentVersion = '1.0'; AvailableVersion = '2.0' }
+    $update = [PSCustomObject]@{ Name = 'Test Application'; Id = 'Google.Chrome'; CurrentVersion = '1.0'; AvailableVersion = '2.0' }
     $script:SystemInstallPath = $installRoot
     $script:AppsPath = Join-Path $repositoryRoot 'apps'
     $script:LogPath = $null
@@ -183,11 +183,11 @@ exit /b %FAKE_WINGET_EXIT_CODE%
     $enablePreview = Install-MonthlyUpdateTask -MenuData @{ MenuItems = @{ 1 = $app }; Categories = $testCategories } -WhatIf
     $disablePreview = Disable-MonthlyUpdateTask -WhatIf
 
-    Assert-Condition -Condition ($installPreview.Status -eq 'Preview' -and $installPreview.Message -match 'Example\.TestApplication') -Message 'Install WhatIf identifies the package and returns Preview.'
-    Assert-Condition -Condition ($updatePreview.PreviewCount -eq 1 -and $updatePreview.Results[0].Status -eq 'Preview' -and $updatePreview.Results[0].Message -match 'Example\.TestApplication') -Message 'Update WhatIf identifies the package and returns Preview.'
-    Assert-Condition -Condition ($uninstallPreview.Status -eq 'Preview' -and $uninstallPreview.Message -match 'Example\.TestApplication') -Message 'Uninstall WhatIf identifies the package and returns Preview.'
+    Assert-Condition -Condition ($installPreview.Status -eq 'Preview' -and $installPreview.Message -match 'Google\.Chrome') -Message 'Install WhatIf identifies the package and returns Preview.'
+    Assert-Condition -Condition ($updatePreview.PreviewCount -eq 1 -and $updatePreview.Results[0].Status -eq 'Preview' -and $updatePreview.Results[0].Message -match 'Google\.Chrome') -Message 'Update WhatIf identifies the package and returns Preview.'
+    Assert-Condition -Condition ($uninstallPreview.Status -eq 'Preview' -and $uninstallPreview.Message -match 'Google\.Chrome') -Message 'Uninstall WhatIf identifies the package and returns Preview.'
     Assert-Condition -Condition ($checkPreview.Status -eq 'Preview') -Message 'Update discovery WhatIf returns Preview without querying winget.'
-    Assert-Condition -Condition ($enablePreview.Status -eq 'Preview' -and $enablePreview.Message -match 'Example\.TestApplication' -and $enablePreview.Message -match '\\myTech\.Today\\Monthly Application Updates') -Message 'Enable-task WhatIf identifies its selected package scope and task target.'
+    Assert-Condition -Condition ($enablePreview.Status -eq 'Preview' -and $enablePreview.Message -match 'Google\.Chrome' -and $enablePreview.Message -match '\\myTech\.Today\\Monthly Application Updates') -Message 'Enable-task WhatIf identifies its selected package scope and task target.'
     Assert-Condition -Condition ($disablePreview.Status -eq 'Preview' -and $disablePreview.Message -match '\\myTech\.Today\\Monthly Application Updates') -Message 'Disable-task WhatIf identifies the task target and returns Preview.'
     Assert-Condition -Condition ((Read-TraceLines -Path $tracePath).Count -eq 0 -and (Read-TraceLines -Path $schedulerTracePath).Count -eq 0 -and $script:DependencyCallCount -eq 0) -Message 'All dry-run package, dependency, and scheduler traces remain empty.'
 
@@ -232,7 +232,7 @@ exit /b %FAKE_WINGET_EXIT_CODE%
     $packageTrace = Read-TraceLines -Path $tracePath
     $schedulerTrace = Read-TraceLines -Path $schedulerTracePath
     Assert-Condition -Condition ($installCompleted -and $updateCompleted.SuccessCount -eq 1 -and $updateCompleted.Results[0].Status -eq 'Completed' -and $uninstallCompleted) -Message 'Noninteractive -Confirm:$false completes install, update, and uninstall through fake winget.'
-    Assert-Condition -Condition (($packageTrace -match '^winget install ') -and ($packageTrace -match '^winget upgrade ') -and ($packageTrace -match '^winget uninstall ')) -Message 'Fake winget trace records the selected install, update, and uninstall commands.'
+    Assert-Condition -Condition (($packageTrace -match '^winget install --id Google\.Chrome --exact --source winget ') -and ($packageTrace -match '^winget upgrade --id Google\.Chrome --exact --source winget ') -and ($packageTrace -match '^winget uninstall --id Google\.Chrome --exact --source winget ')) -Message 'Fake winget trace records exact selected IDs, sources, and argv ordering.'
     Assert-Condition -Condition ($disableCompleted -and ($schedulerTrace -match '^query\|') -and ($schedulerTrace -match '^/Delete\|')) -Message 'Noninteractive -Confirm:$false disables only through the fake scheduler trace.'
     Assert-Condition -Condition ($script:ReadHostCallCount -eq 0) -Message 'Explicit noninteractive execution made no Read-Host confirmation calls.'
 

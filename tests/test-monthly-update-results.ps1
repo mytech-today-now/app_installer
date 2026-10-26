@@ -48,15 +48,55 @@ function New-FakeWinget {
     $scenarioUpdaterPath = Join-Path $scenarioRoot 'winget-update.ps1'
     $wingetPath = Join-Path $fakeBin 'winget.cmd'
 
+    $catalogPath = Join-Path $testRoot 'apps-manifest.json'
+    $modulesPath = Join-Path $testRoot 'modules'
+    if (-not [System.IO.File]::Exists($catalogPath)) {
+        New-Item -ItemType Directory -Path $modulesPath -Force | Out-Null
+        Copy-Item -LiteralPath (Join-Path $repositoryRoot 'apps-manifest.json') -Destination $catalogPath -Force
+        Copy-Item -LiteralPath (Join-Path (Join-Path $repositoryRoot 'modules') 'AppInstallerCore.psm1') -Destination (Join-Path $modulesPath 'AppInstallerCore.psm1') -Force
+        $catalog = Get-Content -LiteralPath $catalogPath -Raw | ConvertFrom-Json
+        foreach ($fixtureId in @('Test.Package', 'Test.Good', 'Test.Failed')) {
+            $fixtureName = $fixtureId.ToLowerInvariant() -replace '[^a-z0-9]+', '-'
+            $catalog.apps += [PSCustomObject]@{
+                name = $fixtureName
+                displayName = $fixtureId
+                description = 'Offline monthly update fixture.'
+                category = 'Testing'
+                platform = 'Windows'
+                packages = [PSCustomObject]@{ winget = $fixtureId; wingetSource = 'winget' }
+            }
+        }
+        [System.IO.File]::WriteAllText($catalogPath, ($catalog | ConvertTo-Json -Depth 20), $utf8)
+    }
+
     $cmdLines = @(
         '@echo off',
         ('>>"{0}" echo invoked' -f $tracePath),
         ('>>"{0}" echo %*' -f $tracePath)
     )
-    foreach ($line in $OutputLines) {
-        $cmdLines += ('echo {0}' -f $line)
+    if ($ScenarioName -eq 'partial-update') {
+        $cmdLines += @(
+            'if /I "%3"=="Test.Good" goto UpdateGood',
+            'if /I "%3"=="Test.Failed" goto UpdateFailed',
+            'exit /b 88',
+            ':UpdateGood',
+            'echo Found Good Package [Test.Good] Version 2.0',
+            'echo Starting package install...',
+            'echo Successfully installed',
+            'exit /b 0',
+            ':UpdateFailed',
+            'echo Found Failed Package [Test.Failed] Version 2.0',
+            'echo Starting package install...',
+            'echo Installer failed with exit code: 23',
+            'exit /b 23'
+        )
     }
-    $cmdLines += ('exit /b {0}' -f $ExitCode)
+    else {
+        foreach ($line in $OutputLines) {
+            $cmdLines += ('echo {0}' -f $line)
+        }
+        $cmdLines += ('exit /b {0}' -f $ExitCode)
+    }
     [System.IO.File]::WriteAllLines($wingetPath, [string[]]$cmdLines, [System.Text.Encoding]::ASCII)
 
     $injectedFunctions = @'
@@ -65,8 +105,9 @@ function Start-Sleep {
     param([int]$Seconds, [int]$Milliseconds)
 }
 function Test-Path {
-    param([string]$Path)
-    return ($Path -eq 'C:\mytech.today\logs')
+    param([string]$Path, [string]$LiteralPath, [string]$PathType)
+    $candidate = if ($PSBoundParameters.ContainsKey('LiteralPath')) { $LiteralPath } else { $Path }
+    return ($candidate -eq 'C:\mytech.today\logs') -or [System.IO.File]::Exists($candidate) -or [System.IO.Directory]::Exists($candidate)
 }
 function Add-Content {
     param([string]$Path, [string]$Value, [string]$ErrorAction)
@@ -185,19 +226,23 @@ try {
         'Starting package install...',
         'Successfully installed'
     ) -ExitCode 0
-    $success = Invoke-FakeUpdater -Scenario $successScenario
+    $success = Invoke-FakeUpdater -Scenario $successScenario -PackageIds 'Test.Package'
     Assert-ScenarioResult -Result $success -Category 'COMPLETED' -LogLevel 'SUCCESS' -ExpectedExitCode 0 -ScenarioName 'Successful update'
     Assert-Condition -Condition ($success.Output.Contains('Your applications have been updated.')) -Message 'Successful update retains the success message'
     Assert-Condition -Condition ($success.Trace -match '(?m)^invoked\s*$') -Message 'Successful update invoked only the fake winget executable'
-    Assert-Condition -Condition ($success.Trace -match '(?m)^update --all --accept-source-agreements --accept-package-agreements\s*$') -Message 'Manual update keeps the documented update alias and agreement flags'
+    Assert-Condition -Condition ($success.Trace -match '(?m)^upgrade --id Test\.Package --exact --source winget --accept-source-agreements --accept-package-agreements\s*$') -Message 'Scoped update uses exact catalog identity, source, and stable argument ordering'
+
+    $unscoped = Invoke-FakeUpdater -Scenario (New-FakeWinget -ScenarioName 'unscoped-update' -OutputLines @() -ExitCode 0)
+    Assert-Condition -Condition ($unscoped.ExitCode -eq 2 -and $unscoped.Output -match 'explicit catalog-backed package scope is required') -Message 'Updater rejects an unscoped all-package action'
+    Assert-Condition -Condition ([string]::IsNullOrWhiteSpace($unscoped.Trace)) -Message 'Unscoped updater does not invoke the fake WinGet process'
 
     $noUpdatesScenario = New-FakeWinget -ScenarioName 'no-updates' -OutputLines @('No applicable upgrade found.') -ExitCode 0
-    $noUpdates = Invoke-FakeUpdater -Scenario $noUpdatesScenario
+    $noUpdates = Invoke-FakeUpdater -Scenario $noUpdatesScenario -PackageIds 'Test.Package'
     Assert-ScenarioResult -Result $noUpdates -Category 'COMPLETED' -LogLevel 'SUCCESS' -ExpectedExitCode 0 -ScenarioName 'No available updates'
     Assert-Condition -Condition ($noUpdates.Output.Contains('No application updates were available.') -and -not $noUpdates.Output.Contains('Your applications have been updated.')) -Message 'No-update success does not claim an application changed'
 
     $failureScenario = New-FakeWinget -ScenarioName 'failed-before-change' -OutputLines @('Failed to open one or more sources.') -ExitCode 23
-    $failure = Invoke-FakeUpdater -Scenario $failureScenario
+    $failure = Invoke-FakeUpdater -Scenario $failureScenario -PackageIds 'Test.Package'
     Assert-ScenarioResult -Result $failure -Category 'FAILED' -LogLevel 'ERROR' -ExpectedExitCode 23 -ScenarioName 'Failure before package changes'
     Assert-Condition -Condition (-not $failure.Output.Contains('Your applications have been updated.')) -Message 'Failed command never prints the all-updated statement'
     Assert-Condition -Condition ($failure.Log -match 'winget-exit-code=23') -Message 'Failed command log preserves the winget exit code'
@@ -210,7 +255,7 @@ try {
         'Starting package install...',
         'Installer failed with exit code: 23'
     ) -ExitCode 23
-    $partial = Invoke-FakeUpdater -Scenario $partialScenario
+    $partial = Invoke-FakeUpdater -Scenario $partialScenario -PackageIds 'Test.Good,Test.Failed'
     Assert-ScenarioResult -Result $partial -Category 'PARTIALLY COMPLETED' -LogLevel 'WARNING' -ExpectedExitCode 23 -ScenarioName 'Partial update'
     Assert-Condition -Condition ($partial.Output -match 'attempted=2, succeeded=1, failed=1, unknown=0') -Message 'Partial update reports package counts separately'
     Assert-Condition -Condition ($partial.Output -notmatch 'Your applications have been updated\.') -Message 'Partial update does not claim all applications were updated'
@@ -219,10 +264,10 @@ try {
     $taskActionScenario = New-FakeWinget -ScenarioName 'scheduled-action-failure' -OutputLines @('Failed to open one or more sources.') -ExitCode 23
     $taskAction = Invoke-FakeUpdater -Scenario $taskActionScenario -PackageIds 'Google.Chrome'
     Assert-Condition -Condition ($taskAction.ExitCode -eq 23 -and $taskAction.Output -match '\[FAILED\] Update outcome:' -and $taskAction.Output -match 'winget-exit-code=23' -and $taskAction.Output.Contains($script:incompleteMessage)) -Message 'Scheduled task action receives the failed result and native exit code'
-    Assert-Condition -Condition ($taskAction.Trace -match '(?m)^update --id Google\.Chrome --exact --accept-source-agreements --accept-package-agreements\s*$') -Message 'Scheduled task action uses its selected package scope with the fake winget command'
+    Assert-Condition -Condition ($taskAction.Trace -match '(?m)^upgrade --id Google\.Chrome --exact --source winget --accept-source-agreements --accept-package-agreements\s*$') -Message 'Scheduled task action uses its selected catalog scope with the fake winget command'
 
     $malformedScenario = New-FakeWinget -ScenarioName 'malformed-output' -OutputLines @('unstructured fake winget response') -ExitCode 0
-    $malformed = Invoke-FakeUpdater -Scenario $malformedScenario
+    $malformed = Invoke-FakeUpdater -Scenario $malformedScenario -PackageIds 'Test.Package'
     Assert-ScenarioResult -Result $malformed -Category 'UNKNOWN' -LogLevel 'ERROR' -ExpectedExitCode 1 -ScenarioName 'Malformed output'
     Assert-Condition -Condition (-not $malformed.Output.Contains('Your applications have been updated.')) -Message 'Malformed output never prints the all-updated statement'
 
@@ -231,14 +276,29 @@ try {
         'Starting package install...',
         'Successfully installed'
     ) -ExitCode 0
-    $logFailure = Invoke-FakeUpdater -Scenario $logFailureScenario -FailLogWrites
+    $logFailure = Invoke-FakeUpdater -Scenario $logFailureScenario -FailLogWrites -PackageIds 'Test.Package'
     Assert-Condition -Condition ($logFailure.ExitCode -ne 0 -and $logFailure.Output.Contains($script:incompleteMessage)) -Message 'Log write failure returns nonzero with the incomplete-status fallback'
     Assert-Condition -Condition ($logFailure.Output -match '\[UNKNOWN\] Update outcome:' -and -not $logFailure.Output.Contains('Your applications have been updated.')) -Message 'Log write failure does not report successful completion'
 
     $missingScenario = New-FakeWinget -ScenarioName 'missing-winget' -OutputLines @() -ExitCode 0
-    $missing = Invoke-FakeUpdater -Scenario $missingScenario -MissingWinget
+    $missing = Invoke-FakeUpdater -Scenario $missingScenario -MissingWinget -PackageIds 'Test.Package'
     Assert-Condition -Condition ($missing.ExitCode -ne 0 -and $missing.Output.Contains($script:incompleteMessage)) -Message 'Missing winget returns nonzero with the incomplete-status fallback'
     Assert-Condition -Condition (-not $missing.Output.Contains('Your applications have been updated.') -and [string]::IsNullOrWhiteSpace($missing.Trace)) -Message 'Missing winget does not report success or invoke a package manager'
+
+    $ambiguousCatalog = Get-Content -LiteralPath (Join-Path $testRoot 'apps-manifest.json') -Raw | ConvertFrom-Json
+    $ambiguousCatalog.apps += [PSCustomObject]@{
+        name = 'conflicting-test-package'
+        displayName = 'Conflicting Test Package'
+        description = 'Conflicting source fixture.'
+        category = 'Testing'
+        platform = 'Windows'
+        packages = [PSCustomObject]@{ winget = 'Test.Package'; wingetSource = 'msstore' }
+    }
+    [System.IO.File]::WriteAllText((Join-Path $testRoot 'apps-manifest.json'), ($ambiguousCatalog | ConvertTo-Json -Depth 20), $utf8)
+    $ambiguousScenario = New-FakeWinget -ScenarioName 'ambiguous-scope' -OutputLines @('fake output must not be reached') -ExitCode 0
+    $ambiguous = Invoke-FakeUpdater -Scenario $ambiguousScenario -PackageIds 'Google.Chrome,Test.Package'
+    Assert-Condition -Condition ($ambiguous.ExitCode -eq 2 -and $ambiguous.Output -match 'missing, invalid, or conflicting catalog source metadata') -Message 'Ambiguous source metadata fails before a scoped update starts'
+    Assert-Condition -Condition ([string]::IsNullOrWhiteSpace($ambiguous.Trace)) -Message 'A later ambiguous package prevents earlier valid package IDs from launching'
 
     Write-Host "`n[OK] Fake winget result regression checks passed ($checkCount assertions)." -ForegroundColor Green
 }

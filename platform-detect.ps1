@@ -11,6 +11,12 @@
     Prerequisite   : PowerShell 5.1+ (Windows) or PowerShell 7+ (macOS/Linux)
 #>
 
+# Keep WinGet package identity and argv rules in the shared core module.
+$script:AppInstallerCorePath = Join-Path $PSScriptRoot 'modules\AppInstallerCore.psm1'
+if (Test-Path -LiteralPath $script:AppInstallerCorePath -PathType Leaf) {
+    Import-Module -Name $script:AppInstallerCorePath -ErrorAction Stop -Verbose:$false | Out-Null
+}
+
 #region Platform Detection Variables
 
 # Detect platform - PowerShell 7+ has $IsWindows, $IsMacOS, $IsLinux
@@ -169,6 +175,7 @@ function Get-PackageManagerCommand {
     [CmdletBinding()]
     param(
         [object]$WingetId,
+        [object]$WingetSource,
         [object]$BrewCask,
         [object]$BrewFormula,
         [object]$AptPackage,
@@ -231,8 +238,47 @@ function Get-PackageManagerCommand {
     switch ($script:PackageManager) {
         "winget" {
             if ($WingetId) {
-                $executable = 'winget'
-                $arguments = @('install', '--id', $WingetId, '--silent', '--accept-source-agreements', '--accept-package-agreements', '--force')
+                try {
+                    if ($null -ne $WingetSource -and
+                        (($WingetSource -isnot [string]) -or $WingetSource -cnotin @('winget', 'msstore'))) {
+                        throw 'Unsupported WinGet source metadata.'
+                    }
+                    $WingetSource = Resolve-WingetPackageSource `
+                        -PackageId $WingetId `
+                        -DeclaredSource $WingetSource
+                    $executable = 'winget'
+                    $arguments = New-WingetArgumentList `
+                        -Operation install `
+                        -PackageId $WingetId `
+                        -Source $WingetSource `
+                        -AdditionalArguments @('--silent', '--accept-source-agreements', '--accept-package-agreements', '--force')
+                }
+                catch {
+                    return [pscustomobject]@{
+                        Status       = 'InvalidMapping'
+                        Available    = $false
+                        IsValid      = $false
+                        Executable   = $null
+                        Arguments    = [string[]]@()
+                        ExitCode     = $null
+                        Output       = [object[]]@()
+                        Diagnostic   = 'WinGet source or package identity is invalid.'
+                        UserMessage  = 'This package entry is invalid. No package command was run.'
+                    }
+                }
+            }
+            elseif ($null -ne $WingetSource) {
+                return [pscustomobject]@{
+                    Status       = 'InvalidMapping'
+                    Available    = $false
+                    IsValid      = $false
+                    Executable   = $null
+                    Arguments    = [string[]]@()
+                    ExitCode     = $null
+                    Output       = [object[]]@()
+                    Diagnostic   = 'WinGet source metadata was supplied without a package ID.'
+                    UserMessage  = 'This package entry is invalid. No package command was run.'
+                }
             }
         }
         "brew" {
@@ -394,6 +440,7 @@ function Install-CrossPlatformApp {
         [string]$AppName,
 
         [object]$WingetId,
+        [object]$WingetSource,
         [object]$BrewCask,
         [object]$BrewFormula,
         [object]$AptPackage,
@@ -405,6 +452,7 @@ function Install-CrossPlatformApp {
     # Get the install command for current platform
     $pkgInfo = Get-PackageManagerCommand `
         -WingetId $WingetId `
+        -WingetSource $WingetSource `
         -BrewCask $BrewCask `
         -BrewFormula $BrewFormula `
         -AptPackage $AptPackage `
@@ -492,6 +540,37 @@ function Install-CrossPlatformApp {
         Write-Host "[ERROR] Package manager execution failed. No success was reported." -ForegroundColor Red
         return 1
     }
+}
+
+function Invoke-WingetPackageCommand {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateSet('install', 'upgrade', 'uninstall', 'show', 'list')]
+        [string]$Operation,
+
+        [Parameter(Mandatory = $true)]
+        [ValidateNotNullOrEmpty()]
+        [string]$PackageId,
+
+        [AllowNull()]
+        [string]$Source,
+
+        [ValidateSet('--silent', '--accept-source-agreements', '--accept-package-agreements', '--force', '--disable-interactivity', '--interactive')]
+        [string[]]$AdditionalArguments = @(),
+
+        [string]$ManifestPath
+    )
+
+    $resolvedSource = Resolve-WingetPackageSource -PackageId $PackageId -DeclaredSource $Source -ManifestPath $ManifestPath
+    $arguments = New-WingetArgumentList `
+        -Operation $Operation `
+        -PackageId $PackageId `
+        -Source $resolvedSource `
+        -AdditionalArguments $AdditionalArguments
+    $processResult = Invoke-PackageManagerProcess -Executable 'winget' -Arguments $arguments
+    $global:LASTEXITCODE = if ($null -eq $processResult.ExitCode) { 1 } else { [int]$processResult.ExitCode }
+    return [object[]]$processResult.Output
 }
 
 #endregion

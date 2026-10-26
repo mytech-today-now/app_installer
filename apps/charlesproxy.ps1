@@ -13,7 +13,8 @@ Write-Host "Installing $AppName..." -ForegroundColor Cyan
 try {
     # Try winget installation first
     Write-Host "  Attempting installation via winget..." -ForegroundColor Gray
-    $result = winget install --id $WingetId --silent --accept-package-agreements --accept-source-agreements 2>&1
+    . "$PSScriptRoot/../platform-detect.ps1"
+    $result = Invoke-WingetPackageCommand -Operation install -PackageId 'XK72.Charles' -AdditionalArguments @('--silent', '--accept-package-agreements', '--accept-source-agreements')
     
     if ($LASTEXITCODE -eq 0) {
         Write-Host "  [OK] $AppName installed successfully via winget" -ForegroundColor Green

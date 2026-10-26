@@ -13,7 +13,7 @@ if (-not ($IsWindows -or $env:OS -match 'Windows')) {
 }
 
 $AppName    = "System Informer"
-$WingetId   = "WinsiderSS.SystemInformer"
+$WingetId   = "SystemInformer.SystemInformer"
 $Homepage   = "https://systeminformer.sourceforge.io/"
 
 # Ensure log directory exists (best-effort)

@@ -37,7 +37,8 @@ try {
     # Install using winget
     Write-Host "  Installing via winget..." -ForegroundColor Yellow
 
-    $result = winget install --id geeksoftwareGmbH.PDF24Creator --silent --accept-source-agreements --accept-package-agreements 2>&1
+    . "$PSScriptRoot/../platform-detect.ps1"
+    $result = Invoke-WingetPackageCommand -Operation install -PackageId 'geek.PDF24Creator' -AdditionalArguments @('--silent', '--accept-source-agreements', '--accept-package-agreements')
 
     if ($LASTEXITCODE -eq 0) {
         Write-Host "  [OK] PDF24 Creator installed successfully!" -ForegroundColor Green

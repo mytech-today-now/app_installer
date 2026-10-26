@@ -6,6 +6,7 @@
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing -ErrorAction Stop
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
+Import-Module -Name (Join-Path (Join-Path $repositoryRoot 'modules') 'AppInstallerCore.psm1') -Force -ErrorAction Stop
 $script:AppsPath = Join-Path $repositoryRoot 'apps'
 $script:StatusLabel = $null
 $script:AppProgressBar = $null
@@ -89,6 +90,19 @@ function Write-Output {
 
 function Test-WingetAvailable {
     return $true
+}
+
+function Resolve-WingetPackageSource {
+    param(
+        [Parameter(Mandatory = $true)][string]$PackageId,
+        [AllowNull()][string]$DeclaredSource,
+        [string]$ManifestPath
+    )
+
+    if (-not [string]::IsNullOrWhiteSpace($DeclaredSource) -and $DeclaredSource -cne 'winget') {
+        throw 'Injected catalog source conflict.'
+    }
+    return 'winget'
 }
 
 function Test-InstallerShouldProcess {
@@ -191,11 +205,17 @@ function Invoke-WingetDependencyCommand {
             throw 'Injected dependency install exception.'
         }
 
-        $exitCode = if ($script:installExitCodes.ContainsKey($packageId)) {
-            [int]$script:installExitCodes[$packageId]
+        if ($script:mainExitCodes.ContainsKey($packageId)) {
+            $script:mainWingetCalls += ,([string[]]$Arguments)
+            $exitCode = [int]$script:mainExitCodes[$packageId]
         }
         else {
-            0
+            $exitCode = if ($script:installExitCodes.ContainsKey($packageId)) {
+                [int]$script:installExitCodes[$packageId]
+            }
+            else {
+                0
+            }
         }
         return [PSCustomObject]@{
             Status = if ($exitCode -eq 0) { 'Succeeded' } else { 'Failed' }
@@ -308,6 +328,9 @@ function Invoke-DependencyHelperCases {
     Assert-ResultState -Result $success -ExpectedStatus 'succeeded' -ExpectedSuccess $true -Context "$EntryPoint successful dependency"
     Assert-Condition -Condition ($success.Outcomes.Count -eq 1 -and $success.Outcomes[0].Status -ceq 'succeeded') -Message "$EntryPoint marks successful dependency succeeded"
     Assert-Condition -Condition ($script:dependencyCommands.Count -eq 3) -Message "$EntryPoint checks and installs a dependency once"
+    Assert-Condition -Condition (($script:dependencyCommands[0] -join '|') -ceq 'show|--id|Test.Parent|--exact|--source|winget') -Message "$EntryPoint queries parent dependencies with exact ID and explicit source"
+    Assert-Condition -Condition (($script:dependencyCommands[1] -join '|') -ceq 'list|--id|Test.Success|--exact|--source|winget') -Message "$EntryPoint checks each dependency with its catalog source"
+    Assert-Condition -Condition (($script:dependencyCommands[2] -join '|') -ceq 'install|--id|Test.Success|--exact|--source|winget|--silent|--accept-source-agreements|--accept-package-agreements') -Message "$EntryPoint installs each dependency with exact ID and explicit source"
 
     Reset-MockState
     $script:installedDependencyIds = @('Test.Installed')
@@ -374,7 +397,7 @@ function Invoke-ApplicationParentCases {
     Assert-Condition -Condition ($script:mainWingetCalls.Count -eq 1) -Message "$EntryPoint invokes the documented main-manager dependency fallback once"
     Assert-Condition -Condition ($script:mainWingetCalls[0] -notcontains '--skip-dependencies') -Message "$EntryPoint leaves WinGet's documented dependency processing enabled"
     Assert-Condition -Condition (@($script:logs | Where-Object { $_.Message -match 'Dependency outcome: Parent.Dependency is failed' }).Count -eq 1) -Message "$EntryPoint parent retains the failed prerequisite outcome"
-    Assert-Condition -Condition (@($script:messages | Where-Object { $_ -match 'winget install --id Parent.Dependency --exact' }).Count -gt 0) -Message "$EntryPoint shows a safe dependency recovery step"
+    Assert-Condition -Condition (@($script:messages | Where-Object { $_ -match 'winget install --id Parent.Dependency --exact --source winget' }).Count -gt 0) -Message "$EntryPoint shows a safe dependency recovery step"
     Assert-Condition -Condition (@($script:messages | Where-Object { $_ -match 'Parent App installed successfully' }).Count -eq 0) -Message "$EntryPoint does not show a success marker after main-manager failure"
 
     Reset-MockState
@@ -411,7 +434,7 @@ function Assert-GuiQueueContinuesAfterFailure {
 
     $loopText = $source.Substring($loopStart, $loopEnd - $loopStart)
     $installPosition = $loopText.IndexOf('Install-Application -App $app', [System.StringComparison]::Ordinal)
-    $advancePosition = $loopText.IndexOf('$script:CurrentQueueIndex++', [System.StringComparison]::Ordinal)
+    $advancePosition = $loopText.IndexOf('$script:CurrentQueueIndex++', $installPosition, [System.StringComparison]::Ordinal)
     Assert-Condition -Condition ($installPosition -ge 0 -and $advancePosition -gt $installPosition) -Message 'GUI queue advances after an application install returns failure'
     Assert-Condition -Condition ($loopText -notmatch '\b(break|return)\b') -Message 'GUI queue does not abort remaining applications after one failed install'
 }

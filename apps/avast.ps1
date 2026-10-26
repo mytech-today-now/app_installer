@@ -37,7 +37,8 @@ try {
     # Install using winget
     Write-Host "  Installing via winget..." -ForegroundColor Yellow
 
-    $result = winget install --id Avast.Avast.Free --silent --accept-source-agreements --accept-package-agreements 2>&1
+    . "$PSScriptRoot/../platform-detect.ps1"
+    $result = Invoke-WingetPackageCommand -Operation install -PackageId 'Avast.Avast.Free' -AdditionalArguments @('--silent', '--accept-source-agreements', '--accept-package-agreements')
 
     if ($LASTEXITCODE -eq 0) {
         Write-Host "  [OK] Avast Free Antivirus installed successfully!" -ForegroundColor Green

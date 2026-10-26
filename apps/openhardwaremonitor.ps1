@@ -46,7 +46,8 @@ try {
     }
 
     Write-Host "  Installing via winget..." -ForegroundColor Yellow
-    $result = winget install --id $WingetId --silent --accept-source-agreements --accept-package-agreements 2>&1
+    . "$PSScriptRoot/../platform-detect.ps1"
+    $result = Invoke-WingetPackageCommand -Operation install -PackageId 'openhardwaremonitor.openhardwaremonitor' -AdditionalArguments @('--silent', '--accept-source-agreements', '--accept-package-agreements')
 
     if ($LASTEXITCODE -eq 0) {
         Write-Host "  [OK] $AppName installed successfully!" -ForegroundColor Green

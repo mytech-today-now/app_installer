@@ -174,6 +174,37 @@ function Get-ApplicationRegistry {
             if ($null -eq $manifest.apps -or @($manifest.apps).Count -eq 0) {
                 throw 'The application catalog does not contain an apps collection.'
             }
+
+            $wingetSourcesById = @{}
+            foreach ($catalogApp in $manifest.apps) {
+                if ($null -eq $catalogApp.packages) {
+                    throw "Application '$($catalogApp.name)' does not contain a packages object."
+                }
+
+                $wingetIdProperty = $catalogApp.packages.PSObject.Properties['winget']
+                $wingetSourceProperty = $catalogApp.packages.PSObject.Properties['wingetSource']
+                $wingetId = if ($wingetIdProperty) { $wingetIdProperty.Value } else { $null }
+                $wingetSource = if ($wingetSourceProperty) { $wingetSourceProperty.Value } else { $null }
+
+                if ($null -eq $wingetId -or ([string]$wingetId).Length -eq 0) {
+                    if ($null -ne $wingetSource) {
+                        throw "Application '$($catalogApp.name)' declares a WinGet source without a WinGet package ID."
+                    }
+                    continue
+                }
+
+                if ($wingetId -isnot [string] -or -not [regex]::IsMatch([string]$wingetId, '\A[A-Za-z0-9][A-Za-z0-9._+-]*\z')) {
+                    throw "Application '$($catalogApp.name)' has an invalid WinGet package ID."
+                }
+                if ($wingetSource -isnot [string] -or $wingetSource -cnotin @('winget', 'msstore')) {
+                    throw "Application '$($catalogApp.name)' must declare a supported WinGet source (winget or msstore)."
+                }
+
+                if ($wingetSourcesById.ContainsKey($wingetId) -and $wingetSourcesById[$wingetId] -cne $wingetSource) {
+                    throw "WinGet package ID '$wingetId' is mapped to conflicting sources."
+                }
+                $wingetSourcesById[$wingetId] = $wingetSource
+            }
             
             # Convert manifest apps to PSCustomObject array
             $applications = @()
@@ -182,6 +213,7 @@ function Get-ApplicationRegistry {
                     Name = $app.displayName
                     ScriptName = "$($app.name).ps1"
                     WingetId = $app.packages.winget
+                    WingetSource = $app.packages.wingetSource
                     Category = $app.category
                     Description = $app.description
                     Platform = $app.platform
@@ -203,6 +235,88 @@ function Get-ApplicationRegistry {
     }
 
     throw 'The complete application catalog became unavailable during loading. No partial catalog was used.'
+}
+
+function Get-WingetPackageSource {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateNotNullOrEmpty()]
+        [string]$PackageId,
+
+        [string]$ManifestPath
+    )
+
+    $applications = @(Get-ApplicationRegistry -ManifestPath $ManifestPath)
+    $matches = @($applications | Where-Object { [string]$_.WingetId -ceq $PackageId })
+    if ($matches.Count -eq 0) {
+        throw "WinGet package ID '$PackageId' has no source mapping in apps-manifest.json. No package command was run."
+    }
+
+    $sources = @($matches | ForEach-Object { [string]$_.WingetSource } | Select-Object -Unique)
+    if ($sources.Count -ne 1 -or [string]::IsNullOrWhiteSpace($sources[0])) {
+        throw "WinGet package ID '$PackageId' has ambiguous or missing source metadata. No package command was run."
+    }
+
+    return $sources[0]
+}
+
+function Resolve-WingetPackageSource {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateNotNullOrEmpty()]
+        [string]$PackageId,
+
+        [AllowNull()]
+        [string]$DeclaredSource,
+
+        [string]$ManifestPath
+    )
+
+    $catalogSource = Get-WingetPackageSource -PackageId $PackageId -ManifestPath $ManifestPath
+    if (-not [string]::IsNullOrWhiteSpace($DeclaredSource) -and $DeclaredSource -cne $catalogSource) {
+        throw "WinGet package ID '$PackageId' declares source '$DeclaredSource' but the catalog maps it to '$catalogSource'. No package command was run."
+    }
+
+    return $catalogSource
+}
+
+function New-WingetArgumentList {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateSet('install', 'upgrade', 'uninstall', 'show', 'list')]
+        [string]$Operation,
+
+        [Parameter(Mandatory = $true)]
+        [ValidateNotNullOrEmpty()]
+        [string]$PackageId,
+
+        [AllowNull()]
+        [string]$Source,
+
+        [ValidateSet('--silent', '--accept-source-agreements', '--accept-package-agreements', '--force', '--disable-interactivity', '--interactive')]
+        [string[]]$AdditionalArguments = @()
+    )
+
+    if (-not [regex]::IsMatch($PackageId, '\A[A-Za-z0-9][A-Za-z0-9._+-]*\z')) {
+        throw 'The WinGet package ID does not match the accepted identifier format. No package command was run.'
+    }
+    if ([string]::IsNullOrWhiteSpace($Source) -or $Source -cnotin @('winget', 'msstore')) {
+        throw 'A supported explicit WinGet source is required. No package command was run.'
+    }
+
+    $arguments = @($Operation, '--id', $PackageId)
+    if ($Source -ceq 'winget') {
+        $arguments += '--exact'
+    }
+    $arguments += @('--source', $Source)
+    if ($AdditionalArguments) {
+        $arguments += $AdditionalArguments
+    }
+
+    return [string[]]$arguments
 }
 
 function Select-ApplicationsByPlatform {
@@ -349,7 +463,7 @@ function Invoke-AppScript {
     $nativeResultMarker = @($scriptAst.FindAll({
                 param($node)
                 $node -is [System.Management.Automation.Language.VariableExpressionAst] -and
-                $node.VariablePath.UserPath -ieq 'LASTEXITCODE'
+                $node.VariablePath.UserPath -match '^(?:(?:global|script|local):)?LASTEXITCODE$'
             }, $true)).Count -gt 0
 
     $nativeHelperNames = @('Install-CrossPlatformApp', 'Invoke-PackageManagerProcess')
@@ -580,6 +694,9 @@ Export-ModuleMember -Function @(
     'Get-InstallerProfilesPath',
     'Initialize-InstallerDirectories',
     'Get-ApplicationRegistry',
+    'Get-WingetPackageSource',
+    'Resolve-WingetPackageSource',
+    'New-WingetArgumentList',
     'Select-ApplicationsByPlatform',
     'Invoke-AppScript',
     'Invoke-AppInstallation',

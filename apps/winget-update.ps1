@@ -3,8 +3,7 @@
     Monthly Windows Package Manager (winget) Update Script 
 
 .DESCRIPTION
-    Without -PackageIds, manual execution updates all applications installed via winget.
-    Scheduled execution supplies the confirmed package IDs and updates only that scope.
+    Requires an explicit catalog-backed package ID scope and updates only that scope.
     Windows-only: Winget-AutoUpdate is not available on macOS or Linux.
     Installed and managed by myTech.Today to keep your system up-to-date and secure.
 
@@ -39,6 +38,18 @@ $script:WingetExitCode = $null
 if (-not ($IsWindows -or $env:OS -match 'Windows')) {
     Write-Host $script:IncompleteUpdateMessage -ForegroundColor Yellow
     exit 1
+}
+
+$script:CatalogLoadError = $null
+try {
+    $coreModulePath = Join-Path (Join-Path (Split-Path -Parent $PSScriptRoot) 'modules') 'AppInstallerCore.psm1'
+    if (-not (Test-Path -LiteralPath $coreModulePath -PathType Leaf)) {
+        throw 'The shared package catalog module is missing.'
+    }
+    Import-Module -Name $coreModulePath -Force -ErrorAction Stop
+}
+catch {
+    $script:CatalogLoadError = 'The shared package catalog could not be loaded.'
 }
 
 # Script configuration
@@ -213,10 +224,6 @@ function New-WingetUpdateResult {
             $states = @([PSCustomObject]@{ PackageId = 'winget command'; Status = 'Unknown' })
         }
         return New-UpdateResult -Status Unknown -Attempted $states.Count -Unknown $states.Count -CommandExitCode 1 -Reason 'winget did not provide a process exit code.' -Packages $states
-    }
-
-    if ($ExpectedPackageId -and $noUpdatesAvailable -and $packageStates.Count -eq 0 -and $ExitCode -eq 0) {
-        $packageStates[$ExpectedPackageId] = 'Succeeded'
     }
 
     $succeededCount = @($packageStates.Values | Where-Object { $_ -eq 'Succeeded' }).Count
@@ -432,6 +439,30 @@ function Invoke-ScopedWingetUpdates {
         return New-FailedUpdateResult -Reason 'The saved monthly package scope is empty or invalid. No updates were started.' -ExitCode 2
     }
 
+    if ($script:CatalogLoadError) {
+        return New-FailedUpdateResult -Reason "$script:CatalogLoadError No updates were started." -ExitCode 2
+    }
+
+    $packageDefinitions = @()
+    try {
+        foreach ($packageId in $packageIdList) {
+            $packageSource = Get-WingetPackageSource -PackageId $packageId
+            $upgradeArguments = New-WingetArgumentList `
+                -Operation upgrade `
+                -PackageId $packageId `
+                -Source $packageSource `
+                -AdditionalArguments @('--accept-source-agreements', '--accept-package-agreements')
+            $packageDefinitions += [PSCustomObject]@{
+                PackageId = $packageId
+                Source = $packageSource
+                Arguments = [string[]]$upgradeArguments
+            }
+        }
+    }
+    catch {
+        return New-FailedUpdateResult -Reason 'The saved monthly package scope has missing, invalid, or conflicting catalog source metadata. No updates were started.' -ExitCode 2
+    }
+
     if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
         return New-FailedUpdateResult -Reason 'winget is unavailable for the selected monthly package scope. No updates were started.'
     }
@@ -439,13 +470,16 @@ function Invoke-ScopedWingetUpdates {
     $packageResults = @()
     $commandExitCode = 0
     $commandFailed = $false
-    Write-Log ("Starting scoped monthly updates for {0} package(s)." -f $packageIdList.Count) -Level INFO
-    foreach ($packageId in $packageIdList) {
+    Write-Log ("Starting scoped monthly updates for {0} package(s)." -f $packageDefinitions.Count) -Level INFO
+    foreach ($packageDefinition in $packageDefinitions) {
+        $packageId = [string]$packageDefinition.PackageId
         Write-Host "Updating selected package: $packageId" -ForegroundColor Cyan
         Write-Log "Running scoped update for package ID: $packageId" -Level INFO
         try {
+            $upgradeArguments = [string[]]$packageDefinition.Arguments
+            Write-Log ("Executing: winget {0}" -f ($upgradeArguments -join ' ')) -Level INFO
             $script:UpdateCommandStarted = $true
-            $packageOutput = @(winget update --id $packageId --exact --accept-source-agreements --accept-package-agreements 2>&1)
+            $packageOutput = @(& winget @upgradeArguments 2>&1)
             $script:WingetExitCode = $LASTEXITCODE
             $packageResult = New-WingetUpdateResult -CommandOutput $packageOutput -ExitCode $script:WingetExitCode -ExpectedPackageId $packageId
         }
@@ -460,6 +494,9 @@ function Invoke-ScopedWingetUpdates {
             }
         }
         if ($packageResult.Packages.Count -eq 0) {
+            if ($packageResult.Status -eq 'Completed') {
+                continue
+            }
             $packageStatus = switch ($packageResult.Status) {
                 'Completed' { 'Succeeded' }
                 'Failed' { 'Failed' }
@@ -482,10 +519,7 @@ function Invoke-ScopedWingetUpdates {
     $succeededCount = @($packageResults | Where-Object { $_.Status -eq 'Succeeded' }).Count
     $failedCount = @($packageResults | Where-Object { $_.Status -eq 'Failed' }).Count
     $unknownCount = @($packageResults | Where-Object { $_.Status -eq 'Unknown' }).Count
-    $attemptedCount = $packageResults.Count
-    if ($attemptedCount -eq 0) {
-        $attemptedCount = $packageIdList.Count
-    }
+    $attemptedCount = $packageDefinitions.Count
     if (-not $commandFailed) {
         return New-UpdateResult -Status Completed -Attempted $attemptedCount -Succeeded $succeededCount -CommandExitCode 0 -Reason 'All selected package update checks completed.' -Packages $packageResults
     }
@@ -510,124 +544,8 @@ if ($script:PackageIdsWereProvided) {
     exit $scopedExitCode
 }
 
-# Display friendly explanation to user
-function Show-UserExplanation {
-    Clear-Host
-    
-    Write-Host ""
-    Write-Host "+===================================================================+" -ForegroundColor Cyan
-    Write-Host "|              myTech.Today Monthly Application Updates             |" -ForegroundColor Cyan
-    Write-Host "+===================================================================+" -ForegroundColor Cyan
-    Write-Host ""
-    Write-Host "  Hello! This is your monthly application update from myTech.Today," -ForegroundColor White
-    Write-Host "  your IT solutions provider." -ForegroundColor White
-    Write-Host ""
-    Write-Host "  WHAT'S HAPPENING:" -ForegroundColor Yellow
-    Write-Host "  We're updating all of your applications to keep your computer" -ForegroundColor Gray
-    Write-Host "  secure, stable, and running smoothly. This happens automatically" -ForegroundColor Gray
-    Write-Host "  on the 15th of each month at 1:00 PM." -ForegroundColor Gray
-    Write-Host ""
-    Write-Host "  WHY YOU'RE SEEING THIS:" -ForegroundColor Yellow
-    Write-Host "  Microsoft requires administrator permission to update applications." -ForegroundColor Gray
-    Write-Host "  Unfortunately, Microsoft makes this process very obvious and" -ForegroundColor Gray
-    Write-Host "  sometimes alarming with security prompts. We can't make it silent" -ForegroundColor Gray
-    Write-Host "  or invisible - that's a Microsoft security requirement." -ForegroundColor Gray
-    Write-Host ""
-    Write-Host "  WHAT YOU NEED TO DO:" -ForegroundColor Yellow
-    Write-Host "  When Microsoft asks if it's OK to make changes to your device," -ForegroundColor Green
-    Write-Host "  please click:" -ForegroundColor Green
-    Write-Host ""
-    Write-Host "    [OK]  or  [YES]  or  [ALLOW]  or  [CONTINUE]" -ForegroundColor Cyan -BackgroundColor DarkBlue
-    Write-Host ""
-    Write-Host "  This is normal and expected. We're just updating your apps!" -ForegroundColor Gray
-    Write-Host ""
-    Write-Host "  At myTech.Today, we explain what's happening because it makes" -ForegroundColor White
-    Write-Host "  life easier. No surprises, no confusion - just clear communication." -ForegroundColor White
-    Write-Host ""
-    Write-Host "+===================================================================+" -ForegroundColor Cyan
-    Write-Host ""
-    Write-Host "  Starting updates in 10 seconds..." -ForegroundColor Yellow
-    Write-Host "  (Press Ctrl+C to cancel if needed)" -ForegroundColor Gray
-    Write-Host ""
-    
-    # Give user time to read
-    Start-Sleep -Seconds 10
-}
-
-# Main execution
-$updateResult = $null
-try {
-    Write-Log '=== Starting Monthly winget Update ===' -Level INFO
-    Write-Log "Script Version: $script:ScriptVersion" -Level INFO
-
-    Show-UserExplanation
-
-    Write-Log 'Checking for winget availability...' -Level INFO
-    $winget = Get-Command winget -ErrorAction SilentlyContinue
-    if ($null -eq $winget) {
-        $updateResult = New-FailedUpdateResult -Reason 'Windows Package Manager (winget) is unavailable. No updates were started.'
-        Write-Log 'winget is unavailable; no update command was started.' -Level ERROR
-    }
-    else {
-        Write-Log 'winget is available.' -Level INFO
-        Write-Host ''
-        Write-Host '+===================================================================+' -ForegroundColor Cyan
-        Write-Host '|                    Updating All Applications                      |' -ForegroundColor Cyan
-        Write-Host '+===================================================================+' -ForegroundColor Cyan
-        Write-Host ''
-
-        Write-Log 'Running: winget update --all' -Level INFO
-        Write-Host 'Running: winget update --all' -ForegroundColor Cyan
-        Write-Host ''
-
-        $script:UpdateCommandStarted = $true
-        $commandOutput = @(winget update --all --accept-source-agreements --accept-package-agreements 2>&1)
-        $script:WingetExitCode = $LASTEXITCODE
-        $updateResult = New-WingetUpdateResult -CommandOutput $commandOutput -ExitCode $script:WingetExitCode
-    }
-}
-catch {
-    $exceptionType = $_.Exception.GetType().Name
-    Write-Log ("Monthly update raised an unexpected {0} exception." -f $exceptionType) -Level ERROR
-    if ($script:UpdateCommandStarted) {
-        $exitCode = if ($script:WingetExitCode -ne $null -and $script:WingetExitCode -ne 0) { $script:WingetExitCode } else { 1 }
-        $updateResult = New-UnknownUpdateResult -Reason ("An unexpected {0} exception left the update result unconfirmed." -f $exceptionType) -ExitCode $exitCode
-    }
-    else {
-        $updateResult = New-FailedUpdateResult -Reason ("An unexpected {0} exception prevented the update from starting." -f $exceptionType)
-    }
-}
-
-if ($null -eq $updateResult) {
-    $updateResult = New-UnknownUpdateResult -Reason 'The updater did not produce a result.'
-}
-
-Write-Host ''
-Write-Host '+===================================================================+' -ForegroundColor Cyan
-Write-Host '|                         Update Result                             |' -ForegroundColor Cyan
-Write-Host '+===================================================================+' -ForegroundColor Cyan
-$processExitCode = Complete-UpdateResult -Result $updateResult
-
-if ($updateResult.Status -eq 'Completed') {
-    Write-Host ''
-    Write-Host '  Thank you for using myTech.Today services!' -ForegroundColor Cyan
-    Write-Host '  Questions? Contact us at sales@mytech.today or (847) 767-4914' -ForegroundColor White
-    Write-Host ''
-    if (-not [Console]::IsInputRedirected) {
-        Write-Host '  This window will close in 30 seconds...' -ForegroundColor Yellow
-        Write-Host '  (Press any key to close now)' -ForegroundColor Gray
-        Write-Host ''
-        $timeout = 30
-        $startTime = Get-Date
-        while (((Get-Date) - $startTime).TotalSeconds -lt $timeout) {
-            if ([Console]::KeyAvailable) {
-                $null = [Console]::ReadKey($true)
-                break
-            }
-            Start-Sleep -Milliseconds 100
-        }
-    }
-}
-
-exit $processExitCode
-
+$unscopedResult = New-FailedUpdateResult `
+    -Reason 'An explicit catalog-backed package scope is required. No package updates were started.' `
+    -ExitCode 2
+$unscopedExitCode = Complete-UpdateResult -Result $unscopedResult
+exit $unscopedExitCode

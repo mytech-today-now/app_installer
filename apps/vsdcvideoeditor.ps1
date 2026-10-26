@@ -13,14 +13,14 @@ if (-not ($IsWindows -or $env:OS -match 'Windows')) {
 }
 
 $AppName = "VSDC Free Video Editor"
-$WingetId = "FlashIntegro.VSDCFreeVideoEditor"
+$WingetId = "Multilab.VSDCFreeVideoEditor"
 
 Write-Host "Installing $AppName..." -ForegroundColor Cyan
 
 try {
     # Try winget installation first
     Write-Host "  Attempting installation via winget..." -ForegroundColor Gray
-    $result = winget install --id $WingetId --silent --accept-package-agreements --accept-source-agreements 2>&1
+    $result = Invoke-WingetPackageCommand -Operation install -PackageId 'Multilab.VSDCFreeVideoEditor' -AdditionalArguments @('--silent', '--accept-package-agreements', '--accept-source-agreements')
     
     if ($LASTEXITCODE -eq 0) {
         Write-Host "  [OK] $AppName installed successfully via winget" -ForegroundColor Green

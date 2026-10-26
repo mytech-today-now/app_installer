@@ -1571,7 +1571,7 @@ function ConvertFrom-WingetUpgradeTable {
             Id               = $parts[1]
             CurrentVersion   = $parts[2]
             AvailableVersion = $parts[3]
-            Source           = if ($parts.Count -ge 5) { $parts[4] } else { 'winget' }
+            Source           = if ($parts.Count -ge 5) { $parts[4] } else { $null }
         }
     }
 
@@ -1745,12 +1745,17 @@ function Get-PackageDependencies {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]
-        [string]$PackageId
+        [string]$PackageId,
+
+        [AllowNull()]
+        [string]$Source
     )
 
     try {
         Write-Log "Checking dependencies for package: $PackageId" -Level INFO
-        $showResult = Invoke-WingetDependencyCommand -Arguments @('show', '--id', $PackageId, '--exact')
+        $resolvedSource = Resolve-WingetPackageSource -PackageId $PackageId -DeclaredSource $Source
+        $showArguments = New-WingetArgumentList -Operation show -PackageId $PackageId -Source $resolvedSource
+        $showResult = Invoke-WingetDependencyCommand -Arguments $showArguments
         if ($null -eq $showResult -or $showResult.Status -ne 'Succeeded' -or $null -eq $showResult.ExitCode -or $showResult.ExitCode -ne 0) {
             $exitCode = if ($showResult -and $showResult.PSObject.Properties['ExitCode']) { $showResult.ExitCode } else { $null }
             Write-Log "Dependency discovery is unknown for $PackageId (exit code: $exitCode)" -Level WARNING
@@ -1816,7 +1821,10 @@ function Install-PackageDependencies {
         [array]$Dependencies,
 
         [Parameter(Mandatory = $true)]
-        [string]$PackageName
+        [string]$PackageName,
+
+        [AllowNull()]
+        [string]$Source
     )
 
     if ($Dependencies.Count -eq 0) {
@@ -1841,7 +1849,9 @@ function Install-PackageDependencies {
 
         try {
             Write-Log "Checking dependency: $dependencyId" -Level INFO
-            $checkResult = Invoke-WingetDependencyCommand -Arguments @('list', '--id', $dependencyId, '--exact')
+            $dependencySource = Resolve-WingetPackageSource -PackageId $dependencyId
+            $checkArguments = New-WingetArgumentList -Operation list -PackageId $dependencyId -Source $dependencySource
+            $checkResult = Invoke-WingetDependencyCommand -Arguments $checkArguments
             if ($checkResult -and $checkResult.PSObject.Properties['ExitCode']) {
                 $checkExitCode = $checkResult.ExitCode
             }
@@ -1858,10 +1868,12 @@ function Install-PackageDependencies {
                 }
                 else {
                     Write-Log "Installing dependency: $dependencyId" -Level INFO
-                    $installResult = Invoke-WingetDependencyCommand -Arguments @(
-                        'install', '--id', $dependencyId, '--exact', '--silent',
-                        '--accept-source-agreements', '--accept-package-agreements'
-                    )
+                    $installArguments = New-WingetArgumentList `
+                        -Operation install `
+                        -PackageId $dependencyId `
+                        -Source $dependencySource `
+                        -AdditionalArguments @('--silent', '--accept-source-agreements', '--accept-package-agreements')
+                    $installResult = Invoke-WingetDependencyCommand -Arguments $installArguments
                     if ($installResult -and $installResult.PSObject.Properties['ExitCode']) {
                         $installExitCode = $installResult.ExitCode
                     }
@@ -1955,7 +1967,15 @@ function Write-PackageDependencyFallbackNotice {
 
     $dependencySummary = ($unresolved | ForEach-Object { "$($_.PackageId) ($($_.Status))" }) -join ', '
     $firstDependencyId = [string]$unresolved[0].PackageId
-    $message = "Dependency preflight for $PackageName was incomplete: $dependencySummary. Continuing to WinGet, which processes manifest dependencies by default. If it fails, run: winget install --id $firstDependencyId --exact, then retry."
+    try {
+        $dependencySource = Resolve-WingetPackageSource -PackageId $firstDependencyId
+        $recoveryArguments = New-WingetArgumentList -Operation install -PackageId $firstDependencyId -Source $dependencySource
+        $recoveryCommand = 'winget ' + ($recoveryArguments -join ' ')
+    }
+    catch {
+        $recoveryCommand = "No manual WinGet command is available because '$firstDependencyId' has no unambiguous catalog source."
+    }
+    $message = "Dependency preflight for $PackageName was incomplete: $dependencySummary. Continuing to WinGet, which processes manifest dependencies by default. If it fails, run: $recoveryCommand, then retry."
     Write-Log $message -Level WARNING
     Write-PackageDependencyMessage -Message "  [WARN] $message" -Status warning
 }
@@ -1966,7 +1986,7 @@ function Update-Applications {
         Updates selected applications using winget upgrade.
 
     .DESCRIPTION
-        Updates one or more applications using 'winget upgrade --id {WingetId}'.
+        Updates one or more applications using an exact catalog ID and source.
         Shows progress and logs all operations.
 
     .PARAMETER Updates
@@ -2022,10 +2042,11 @@ function Update-Applications {
         Write-Host "  New Version: $($update.AvailableVersion)" -ForegroundColor Gray
 
         try {
-            $dependencyDiscovery = Get-PackageDependencies -PackageId $update.Id
+            $updateSource = Resolve-WingetPackageSource -PackageId ([string]$update.Id) -DeclaredSource ([string]$update.Source)
+            $dependencyDiscovery = Get-PackageDependencies -PackageId $update.Id -Source $updateSource
             $dependencyResult = $null
             if ($dependencyDiscovery.Status -eq 'succeeded') {
-                $dependencyResult = Install-PackageDependencies -Dependencies $dependencyDiscovery.Dependencies -PackageName $update.Name
+                $dependencyResult = Install-PackageDependencies -Dependencies $dependencyDiscovery.Dependencies -PackageName $update.Name -Source $updateSource
             }
             Write-PackageDependencyFallbackNotice -PackageName $update.Name -DiscoveryResult $dependencyDiscovery -InstallResult $dependencyResult
 
@@ -2043,26 +2064,32 @@ function Update-Applications {
                     Start-Sleep -Seconds 2
                 }
 
-                # Build winget command with appropriate flags
-                $wingetCmd = "winget upgrade --id `"$($update.Id)`" --silent --accept-source-agreements --accept-package-agreements"
+                $upgradeArguments = New-WingetArgumentList `
+                    -Operation upgrade `
+                    -PackageId ([string]$update.Id) `
+                    -Source $updateSource `
+                    -AdditionalArguments @('--silent', '--accept-source-agreements', '--accept-package-agreements')
 
                 # For architecture-specific errors, try with --force flag
                 if ($retryCount -gt 0 -and $lastExitCode -eq -1978335212) {
-                    $wingetCmd += " --force"
+                    $upgradeArguments = New-WingetArgumentList `
+                        -Operation upgrade `
+                        -PackageId ([string]$update.Id) `
+                        -Source $updateSource `
+                        -AdditionalArguments @('--silent', '--accept-source-agreements', '--accept-package-agreements', '--force')
                     Write-Log "Adding --force flag due to installer type mismatch" -Level INFO
                 }
 
-                # For source errors, try with explicit source
+                # Retain the catalog-selected source for source-related failures.
                 if ($retryCount -gt 0 -and $lastExitCode -eq -1978335226) {
-                    $wingetCmd = "winget upgrade --id `"$($update.Id)`" --source winget --silent --accept-source-agreements --accept-package-agreements"
-                    Write-Log "Specifying explicit source due to unsupported source error" -Level INFO
+                    Write-Log "Retrying with the catalog-selected WinGet source" -Level INFO
                 }
 
-                Write-Log "Executing: $wingetCmd" -Level INFO
+                Write-Log ("Executing: winget {0}" -f ($upgradeArguments -join ' ')) -Level INFO
 
-                # Execute winget and capture output
-                $output = & cmd /c "$wingetCmd 2>&1"
-                $exitCode = $LASTEXITCODE
+                $upgradeResult = Invoke-WingetDependencyCommand -Arguments $upgradeArguments
+                $output = @($upgradeResult.Output)
+                $exitCode = $upgradeResult.ExitCode
                 $lastExitCode = $exitCode
 
                 # Log the output for debugging
@@ -2111,13 +2138,15 @@ function Update-Applications {
 
                 # Provide helpful suggestions based on error type
                 if ($lastExitCode -eq -1978335212) {
-                    Write-Host "  [HINT] Try updating manually with: winget upgrade --id `"$($update.Id)`" --interactive" -ForegroundColor Cyan
+                    $interactiveUpgradeArguments = New-WingetArgumentList -Operation upgrade -PackageId ([string]$update.Id) -Source $updateSource -AdditionalArguments @('--interactive')
+                    Write-Host ("  [HINT] Try updating manually with: winget {0}" -f ($interactiveUpgradeArguments -join ' ')) -ForegroundColor Cyan
                 }
                 elseif ($lastExitCode -eq -1978335226) {
                     Write-Host "  [HINT] Package may need to be updated from a different source" -ForegroundColor Cyan
                 }
                 elseif ($lastExitCode -eq -1978334975) {
-                    Write-Host "  [HINT] Try running: winget upgrade --id `"$($update.Id)`" --interactive" -ForegroundColor Cyan
+                    $interactiveUpgradeArguments = New-WingetArgumentList -Operation upgrade -PackageId ([string]$update.Id) -Source $updateSource -AdditionalArguments @('--interactive')
+                    Write-Host ("  [HINT] Try running: winget {0}" -f ($interactiveUpgradeArguments -join ' ')) -ForegroundColor Cyan
                 }
 
                 $failCount++
@@ -2728,10 +2757,11 @@ function Install-Application {
                 Write-Log "Installing via winget: $($App.WingetId)" -Level INFO
                 Write-Verbose "Installing $($App.Name) using winget ID: $($App.WingetId)"
 
-                $dependencyDiscovery = Get-PackageDependencies -PackageId $App.WingetId
+                $wingetSource = Resolve-WingetPackageSource -PackageId ([string]$App.WingetId) -DeclaredSource ([string]$App.WingetSource)
+                $dependencyDiscovery = Get-PackageDependencies -PackageId $App.WingetId -Source $wingetSource
                 $dependencyResult = $null
                 if ($dependencyDiscovery.Status -eq 'succeeded') {
-                    $dependencyResult = Install-PackageDependencies -Dependencies $dependencyDiscovery.Dependencies -PackageName $App.Name
+                    $dependencyResult = Install-PackageDependencies -Dependencies $dependencyDiscovery.Dependencies -PackageName $App.Name -Source $wingetSource
                 }
                 Write-PackageDependencyFallbackNotice -PackageName $App.Name -DiscoveryResult $dependencyDiscovery -InstallResult $dependencyResult
 
@@ -2756,10 +2786,15 @@ function Install-Application {
                         -Id 2
                 }
                 Write-Host "  [2/3] [INSTALL] Downloading and installing package..." -ForegroundColor Yellow
-                Write-Verbose "Executing: winget install --id $($App.WingetId) --silent --accept-source-agreements --accept-package-agreements"
-
-                $result = winget install --id $App.WingetId --silent --accept-source-agreements --accept-package-agreements 2>&1
-
+                $installArguments = New-WingetArgumentList `
+                    -Operation install `
+                    -PackageId ([string]$App.WingetId) `
+                    -Source $wingetSource `
+                    -AdditionalArguments @('--silent', '--accept-source-agreements', '--accept-package-agreements')
+                Write-Verbose ("Executing: winget {0}" -f ($installArguments -join ' '))
+                $installResult = Invoke-WingetDependencyCommand -Arguments $installArguments
+                $result = @($installResult.Output)
+                $global:LASTEXITCODE = if ($null -eq $installResult.ExitCode) { 1 } else { [int]$installResult.ExitCode }
                 Write-Verbose "winget exit code: $LASTEXITCODE"
                 if ($result) {
                     Write-Verbose "winget output: $result"
@@ -2853,7 +2888,7 @@ function Uninstall-Application {
         Uninstalls a specific application using winget.
 
     .DESCRIPTION
-        Uninstalls an application using 'winget uninstall --id {WingetId} --silent'.
+        Uninstalls an application using an exact catalog ID and source.
         Logs all operations and shows progress.
 
     .PARAMETER App
@@ -2945,9 +2980,17 @@ function Uninstall-Application {
         }
 
         Write-Host "  [UNINSTALL] Removing $($App.Name)..." -ForegroundColor Yellow
-        Write-Log "Executing: winget uninstall --id $($App.WingetId) --silent" -Level INFO
 
-        $result = winget uninstall --id $App.WingetId --silent 2>&1
+        $wingetSource = Resolve-WingetPackageSource -PackageId ([string]$App.WingetId) -DeclaredSource ([string]$App.WingetSource)
+        $uninstallArguments = New-WingetArgumentList `
+            -Operation uninstall `
+            -PackageId ([string]$App.WingetId) `
+            -Source $wingetSource `
+            -AdditionalArguments @('--silent')
+        Write-Log ("Executing: winget {0}" -f ($uninstallArguments -join ' ')) -Level INFO
+        $uninstallResult = Invoke-WingetDependencyCommand -Arguments $uninstallArguments
+        $result = @($uninstallResult.Output)
+        $global:LASTEXITCODE = if ($null -eq $uninstallResult.ExitCode) { 1 } else { [int]$uninstallResult.ExitCode }
 
         if ($TotalCount -gt 0) {
             Write-Progress -Activity "Uninstalling $($App.Name)" `
