@@ -558,7 +558,28 @@ try {
     Assert-Condition -Condition ($guiContent.Contains($expectedMessage) -and $cliContent.Contains($expectedMessage)) -Message 'Both entry points show the exact accessible unverified-release message.'
     Assert-Condition -Condition (-not $guiContent.Contains('raw.githubusercontent.com/mytech-today-now/OO/main/Install-OOShutUp10.ps1') -and -not $cliContent.Contains('raw.githubusercontent.com/mytech-today-now/OO/main/Install-OOShutUp10.ps1')) -Message 'Neither entry point keeps the mutable O&O main URL.'
     $fallbackContent = [System.IO.File]::ReadAllText($fallbackScriptPath)
-    Assert-Condition -Condition ($fallbackContent.Contains('Invoke-WebRequest -Uri $shutupUrl -OutFile $exePath') -and $fallbackContent.Contains('$shortcut.TargetPath = $exePath') -and $fallbackContent -notmatch '(?im)^\s*(?:Start-Process|&\s*\$exePath)') -Message 'The local script downloads the executable and creates a shortcut without applying privacy settings.'
+    $fallbackParseErrors = $null
+    $fallbackAst = [System.Management.Automation.Language.Parser]::ParseFile($fallbackScriptPath, [ref]$null, [ref]$fallbackParseErrors)
+    Assert-Condition -Condition (-not $fallbackParseErrors) -Message 'The legacy O&O entry parses as a fail-closed script.'
+    $fallbackCommandAsts = @($fallbackAst.FindAll({
+        param($node)
+        $node -is [System.Management.Automation.Language.CommandAst]
+    }, $true))
+    $fallbackCommandNames = @($fallbackCommandAsts | ForEach-Object { $_.GetCommandName() })
+    $allowedFallbackCommands = @('Write-Host', 'exit')
+    $unsafeFallbackCommands = @($fallbackCommandNames | Where-Object { $_ -notin $allowedFallbackCommands })
+    $fallbackMemberCalls = @($fallbackAst.FindAll({
+        param($node)
+        $node -is [System.Management.Automation.Language.InvokeMemberExpressionAst]
+    }, $true))
+    $forbiddenFallbackSource = '(?i)Invoke-WebRequest|Invoke-RestMethod|Start-BitsTransfer|System\.Net\.WebClient|DownloadFile|Start-Process|Invoke-Expression|New-Item|Set-Content|Add-Content|CreateShortcut|OOSU10\.exe|dl5\.oo-software\.com'
+    Assert-Condition -Condition ($unsafeFallbackCommands.Count -eq 0 -and $fallbackMemberCalls.Count -eq 0 -and $fallbackContent -notmatch $forbiddenFallbackSource) -Message 'The legacy O&O entry contains no downloader, executor, file operation, or shortcut fallback.'
+    Assert-Condition -Condition ($fallbackContent.Contains('Select O&O ShutUp10 in App Installer to use the pinned trust path.') -and $fallbackContent.Contains('No approved release is currently configured') -and $fallbackContent -match '(?im)^exit\s+1\s*$' -and $fallbackContent -notmatch '(?i)installed successfully') -Message 'Direct legacy invocation directs users to the pinned route, reports its unconfigured state, and exits as failed without claiming installation.'
+
+    $payloadManifestPath = Join-Path $repositoryRoot 'payload-manifest.json'
+    $payloadManifest = [System.IO.File]::ReadAllText($payloadManifestPath) | ConvertFrom-Json
+    $trustModulePath = 'modules/OOShutUp10Trust.psm1'
+    Assert-Condition -Condition (@($payloadManifest.features.cli) -contains $trustModulePath -and @($payloadManifest.features.gui) -contains $trustModulePath) -Message 'Both executable feature allowlists include the trust module used by their O&O route.'
 
     Write-Host "O&O trust checks passed ($checkCount assertions)." -ForegroundColor Cyan
 }

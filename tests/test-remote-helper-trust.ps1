@@ -271,6 +271,161 @@ try {
     Assert-Condition -Condition ($readmeText.Contains('hosts') -and $readmeText.Contains('restore-point') -and $changelogText.Contains('SHA-256')) -Message 'README and changelog document the remote helper trust status.'
     Assert-Condition -Condition ([string]::Join('|', (Get-ExecutionPolicy -List | ForEach-Object { '{0}={1}' -f $_.Scope, $_.ExecutionPolicy })) -ceq $policyBefore) -Message 'Offline trust checks leave all execution policy scopes unchanged.'
 
+    $mcafeeRelease = Get-RemoteExecutableHelperRelease -HelperId McAfee
+    $mcafeeUri = 'https://download.mcafee.com/molbin/iss-loc/SupportTools/MCPR/MCPR.exe'
+    Assert-Condition -Condition ($mcafeeRelease.Uri -ceq $mcafeeUri -and $null -eq $mcafeeRelease.Sha256 -and $null -eq $mcafeeRelease.SignerThumbprint) -Message 'McAfee source is only a locator; its production digest and signer pins remain unset.'
+
+    $executableState = [PSCustomObject]@{
+        DownloadCalls = 0
+        SignatureCalls = 0
+        ProcessCalls = 0
+        ExitCode = 0
+        SignerThumbprint = ('A' * 40)
+        SeenPath = $null
+        SeenDirectories = @()
+        Arguments = @()
+        Bytes = $null
+        AclProtected = $false
+        AccessRuleSids = @()
+    }
+    $mcafeeBytes = [byte[]]@(77, 90, 0, 1, 2, 3, 4, 5)
+    $mcafeeDigest = Get-TestSha256 -Bytes $mcafeeBytes
+    $expectedSigner = 'A' * 40
+    $executableDownload = {
+        param($RequestedUri)
+        $executableState.DownloadCalls++
+        if ($RequestedUri -cne $mcafeeUri) {
+            throw 'unexpected fake transport source'
+        }
+        return ,$mcafeeBytes
+    }.GetNewClosure()
+    $signatureVerifier = {
+        param($LiteralPath, $ExpectedThumbprint)
+        $executableState.SignatureCalls++
+        return [PSCustomObject]@{
+            Status = 'Valid'
+            Thumbprint = $executableState.SignerThumbprint
+        }
+    }.GetNewClosure()
+    $executableExecutor = {
+        param($LiteralPath, $ProcessArguments)
+        $executableState.ProcessCalls++
+        $executableState.SeenPath = $LiteralPath
+        $executableState.SeenDirectories = @($executableState.SeenDirectories + (Split-Path -Parent $LiteralPath))
+        $executableState.Arguments = @($ProcessArguments)
+        $executableState.Bytes = [System.IO.File]::ReadAllBytes($LiteralPath)
+        try {
+            $stagingAcl = Get-Acl -LiteralPath (Split-Path -Parent $LiteralPath) -ErrorAction Stop
+            $executableState.AclProtected = [bool]$stagingAcl.AreAccessRulesProtected
+            $executableState.AccessRuleSids = @(
+                $stagingAcl.GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier]) |
+                    ForEach-Object { $_.IdentityReference.Value }
+            )
+        }
+        catch {
+            $executableState.AclProtected = $false
+            $executableState.AccessRuleSids = @()
+        }
+        return [PSCustomObject]@{ ExitCode = $executableState.ExitCode }
+    }.GetNewClosure()
+
+    $missingMcafeePin = Invoke-VerifiedRemoteExecutableHelper -HelperId McAfee -Uri $mcafeeRelease.Uri -ExpectedSha256 $mcafeeRelease.Sha256 -ExpectedSignerThumbprint $mcafeeRelease.SignerThumbprint -DownloadScript $executableDownload -SignatureVerifierScript $signatureVerifier -ExecutorScript $executableExecutor -TempRoot $tempRoot
+    Assert-Condition -Condition (-not $missingMcafeePin.Success -and $missingMcafeePin.FailureReason -eq 'release-not-configured' -and $missingMcafeePin.RequestStatus -eq 'not-attempted' -and $missingMcafeePin.VerificationStatus -eq 'unverified') -Message 'Missing McAfee identity pins return an unverified blocked result before a request.'
+    Assert-Condition -Condition ($executableState.DownloadCalls -eq 0 -and $executableState.SignatureCalls -eq 0 -and $executableState.ProcessCalls -eq 0) -Message 'Missing McAfee pins reach neither fake transport, signature check, nor process executor.'
+
+    $failedTransfer = {
+        param($RequestedUri)
+        $executableState.DownloadCalls++
+        throw 'simulated MCPR transfer failure'
+    }.GetNewClosure()
+    $transferFailure = Invoke-VerifiedRemoteExecutableHelper -HelperId McAfee -Uri $mcafeeUri -ExpectedSha256 $mcafeeDigest -DownloadScript $failedTransfer -ExecutorScript $executableExecutor -TempRoot $tempRoot
+    Assert-Condition -Condition (-not $transferFailure.Success -and $transferFailure.RequestStatus -eq 'failed' -and $transferFailure.FailureReason -eq 'download-failed') -Message 'A failed MCPR transfer returns a distinct failure result.'
+    Assert-Condition -Condition ($executableState.ProcessCalls -eq 0 -and $transferFailure.CleanupStatus -eq 'not-required') -Message 'A failed MCPR transfer does not execute or create a staging artifact.'
+
+    $changedExecutableBytes = [byte[]]@(77, 90, 8, 7, 6, 5, 4, 3)
+    $changedExecutableDownload = {
+        param($RequestedUri)
+        $executableState.DownloadCalls++
+        return ,$changedExecutableBytes
+    }.GetNewClosure()
+    $digestMismatch = Invoke-VerifiedRemoteExecutableHelper -HelperId McAfee -Uri $mcafeeUri -ExpectedSha256 $mcafeeDigest -DownloadScript $changedExecutableDownload -ExecutorScript $executableExecutor -TempRoot $tempRoot
+    Assert-Condition -Condition (-not $digestMismatch.Success -and $digestMismatch.VerificationStatus -eq 'rejected' -and $digestMismatch.FailureReason -eq 'digest-mismatch') -Message 'MCPR bytes that do not match the approved digest are rejected.'
+    Assert-Condition -Condition ($executableState.ProcessCalls -eq 0 -and $digestMismatch.CleanupStatus -eq 'not-required') -Message 'A digest mismatch cannot reach the executor or create a staging artifact.'
+
+    $executableState.DownloadCalls = 0
+    $unapprovedSource = Invoke-VerifiedRemoteExecutableHelper -HelperId McAfee -Uri ($mcafeeUri + '?download=1') -ExpectedSha256 $mcafeeDigest -DownloadScript $executableDownload -ExecutorScript $executableExecutor -TempRoot $tempRoot
+    Assert-Condition -Condition (-not $unapprovedSource.Success -and $unapprovedSource.RequestStatus -eq 'not-attempted' -and $unapprovedSource.FailureReason -eq 'source-not-allowed') -Message 'A modified MCPR source URL is rejected before transport.'
+    Assert-Condition -Condition ($executableState.DownloadCalls -eq 0 -and $executableState.ProcessCalls -eq 0) -Message 'Rejected MCPR source metadata reaches neither the fake transport nor executor.'
+
+    $aclProbe = Invoke-VerifiedRemoteExecutableHelper -HelperId McAfee -Uri $mcafeeUri -ExpectedSha256 $mcafeeDigest -ExpectedSignerThumbprint $expectedSigner -DownloadScript $executableDownload -SignatureVerifierScript $signatureVerifier -ExecutorScript $executableExecutor -TempRoot $tempRoot
+    if ($aclProbe.Success) {
+        Assert-Condition -Condition ($aclProbe.CleanupStatus -eq 'cleaned' -and -not (Test-Path -LiteralPath $aclProbe.TempDirectory)) -Message 'The production executable boundary stages and cleans MCPR when protected ACL setup is available.'
+        Assert-Condition -Condition ($executableState.AclProtected -and @($executableState.AccessRuleSids | Where-Object { $_ -notin @([System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value, 'S-1-5-18', 'S-1-5-32-544') }).Count -eq 0) -Message 'Production executable staging has a protected DACL limited to the user, SYSTEM, and Administrators.'
+    }
+    elseif ($aclProbe.FailureReason -eq 'staging-protection-failed') {
+        Assert-Condition -Condition (-not $aclProbe.Success -and $aclProbe.ExecutionStatus -eq 'not-started' -and $executableState.ProcessCalls -eq 0) -Message 'Production fails closed when the host blocks private ACL setup.'
+        $moduleSource = [System.IO.File]::ReadAllText($modulePath)
+        $aclCall = 'Set-RemoteHelperPrivateDirectoryAcl -LiteralPath $directoryPath'
+        if ($moduleSource.Split(@($aclCall), [System.StringSplitOptions]::None).Length -ne 2) {
+            throw 'Expected exactly one production executable-helper ACL boundary.'
+        }
+        $testModulePath = Join-Path $tempRoot 'RemotePowerShellTrust.psm1'
+        $testModuleSource = $moduleSource.Replace($aclCall, '# Test harness stub: this host blocks ACL updates.')
+        [System.IO.File]::WriteAllText($testModulePath, $testModuleSource, $bytesEncoding)
+        Import-Module -Name $testModulePath -Force -DisableNameChecking -ErrorAction Stop
+        Write-Host '[SKIP] Runtime private-ACL setup is blocked by this host; remaining executable-helper cases use a test-only ACL boundary stub.' -ForegroundColor Yellow
+    }
+    else {
+        throw "Unexpected MCPR private-staging probe result: $($aclProbe.FailureReason)"
+    }
+
+    $executableState.DownloadCalls = 0
+    $executableState.SignatureCalls = 0
+    $executableState.ProcessCalls = 0
+    $executableState.SeenDirectories = @()
+    $signerMismatchIdentity = {
+        param($LiteralPath, $ExpectedThumbprint)
+        $executableState.SignatureCalls++
+        return [PSCustomObject]@{ Status = 'Valid'; Thumbprint = ('B' * 40) }
+    }.GetNewClosure()
+    $signerMismatch = Invoke-VerifiedRemoteExecutableHelper -HelperId McAfee -Uri $mcafeeUri -ExpectedSha256 $mcafeeDigest -ExpectedSignerThumbprint $expectedSigner -DownloadScript $executableDownload -SignatureVerifierScript $signerMismatchIdentity -ExecutorScript $executableExecutor -TempRoot $tempRoot
+    Assert-Condition -Condition (-not $signerMismatch.Success -and $signerMismatch.FailureReason -eq 'signer-mismatch' -and $signerMismatch.VerificationStatus -eq 'rejected') -Message 'A valid but unexpected MCPR signer is rejected before execution.'
+    Assert-Condition -Condition ($executableState.ProcessCalls -eq 0 -and $signerMismatch.CleanupStatus -eq 'cleaned' -and -not (Test-Path -LiteralPath $signerMismatch.TempDirectory)) -Message 'Signer mismatch cannot execute and removes only its owned staged file and directory.'
+
+    $executableState.ExitCode = $null
+    $unknownChild = Invoke-VerifiedRemoteExecutableHelper -HelperId McAfee -Uri $mcafeeUri -ExpectedSha256 $mcafeeDigest -DownloadScript $executableDownload -ExecutorScript $executableExecutor -TempRoot $tempRoot
+    Assert-Condition -Condition (-not $unknownChild.Success -and $unknownChild.ExecutionStatus -eq 'unknown' -and $null -eq $unknownChild.ExitCode -and $unknownChild.FailureReason -eq 'child-result-unavailable') -Message 'A child that provides no exit code remains unknown rather than success.'
+    Assert-Condition -Condition ($unknownChild.CleanupStatus -eq 'cleaned' -and -not (Test-Path -LiteralPath $unknownChild.TempDirectory)) -Message 'An unknown MCPR child outcome still cleans its owned staging artifacts.'
+
+    $executableState.ProcessCalls = 0
+    $executableState.SeenDirectories = @()
+    $executableState.ExitCode = 23
+    $childFailure = Invoke-VerifiedRemoteExecutableHelper -HelperId McAfee -Uri $mcafeeUri -ExpectedSha256 $mcafeeDigest -DownloadScript $executableDownload -ExecutorScript $executableExecutor -TempRoot $tempRoot -ProcessArguments @('-p')
+    Assert-Condition -Condition (-not $childFailure.Success -and $childFailure.ExecutionStatus -eq 'failed' -and $childFailure.ExitCode -eq 23 -and $childFailure.FailureReason -eq 'child-nonzero-exit') -Message 'A verified MCPR child failure preserves its exact nonzero exit code.'
+    Assert-Condition -Condition ($childFailure.CleanupStatus -eq 'cleaned' -and -not (Test-Path -LiteralPath $childFailure.TempDirectory)) -Message 'A failed MCPR child still cleans its owned staged file and directory.'
+
+    $executableState.ExitCode = 0
+    $verifiedExecutable = Invoke-VerifiedRemoteExecutableHelper -HelperId McAfee -Uri $mcafeeUri -ExpectedSha256 $mcafeeDigest -ExpectedSignerThumbprint $expectedSigner -DownloadScript $executableDownload -SignatureVerifierScript $signatureVerifier -ExecutorScript $executableExecutor -TempRoot $tempRoot -ProcessArguments @('-p')
+    Assert-Condition -Condition ($verifiedExecutable.Success -and $verifiedExecutable.VerificationStatus -eq 'verified' -and $verifiedExecutable.ExecutionStatus -eq 'succeeded' -and $verifiedExecutable.ExitCode -eq 0) -Message 'Digest- and signer-matching MCPR bytes reach the fake executor and return success.'
+    Assert-Condition -Condition ($executableState.ProcessCalls -eq 2 -and [string]::Join('|', [string[]]$executableState.Arguments) -ceq '-p') -Message 'Only verified MCPR reaches the executor with the selected -p argument.'
+    Assert-Condition -Condition ((Get-TestSha256 -Bytes $executableState.Bytes) -eq $mcafeeDigest -and $verifiedExecutable.ActualSha256 -eq $mcafeeDigest) -Message 'The executor receives the staged bytes whose hash was verified.'
+    Assert-Condition -Condition ($verifiedExecutable.CleanupStatus -eq 'cleaned' -and -not (Test-Path -LiteralPath $verifiedExecutable.TempDirectory)) -Message 'The successful MCPR child leaves no owned staging file or directory.'
+    $uniqueExecutedStageDirectories = @($executableState.SeenDirectories | Sort-Object -Unique)
+    Assert-Condition -Condition ($executableState.SeenDirectories.Count -eq 2 -and $uniqueExecutedStageDirectories.Count -eq 2) -Message 'Separate MCPR executions use distinct randomized staging directories.'
+
+    $remainingExecutableStages = @(Get-ChildItem -LiteralPath $tempRoot -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -match '^app-installer-executable-helper-' })
+    Assert-Condition -Condition ($remainingExecutableStages.Count -eq 0) -Message 'All MCPR temporary staging directories owned by the fake scenarios were removed.'
+    $remoteHelperSourceFiles = @(
+        (Join-Path $PSScriptRoot '..\apps\uninstall-mcafee.ps1'),
+        (Join-Path $PSScriptRoot '..\modules\RemotePowerShellTrust.psm1')
+    )
+    foreach ($sourceFile in $remoteHelperSourceFiles) {
+        $sourceText = Get-Content -LiteralPath $sourceFile -Raw
+        Assert-Condition -Condition ($sourceText -notmatch '(?i)Invoke-WebRequest|Start-Process\s+-FilePath\s+\$mcprPath' -and $sourceText -notmatch '(?i)-ExecutionPolicy\b' -and $sourceText -notmatch 'Invoke-Expression') -Message "McAfee production helper code uses the verified boundary without direct unverified launch: $(Split-Path $sourceFile -Leaf)"
+    }
+    $productionTrustSource = [System.IO.File]::ReadAllText($modulePath)
+    Assert-Condition -Condition ($productionTrustSource.Contains('$directorySecurity.SetAccessRuleProtection($true, $false)') -and $productionTrustSource.Contains('S-1-5-18') -and $productionTrustSource.Contains('S-1-5-32-544') -and $productionTrustSource.Contains('Set-Acl -LiteralPath $LiteralPath') -and $productionTrustSource.Contains('$request.AllowAutoRedirect = $false')) -Message 'Production executable staging retains protected DACL checks, restricted principals, and disabled HTTP redirects.'
+
     Write-Host "Remote helper trust checks passed ($checkCount assertions)." -ForegroundColor Cyan
 }
 finally {

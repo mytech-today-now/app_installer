@@ -363,6 +363,10 @@ Run a downloaded script only when the signature status is `Valid` and the signer
 
 Do not use `Unblock-File` or a policy change as a substitute for checking a signature or independently verifying a digest.
 
+## McAfee removal helper
+
+McAfee Uninstaller is blocked in this checkout. Its catalog entry returns a failed custom-script result before downloading MCPR or checking/removing installed products because no independently reviewed digest or Authenticode signer pin is configured. When a pin is approved, the shared verifier stages MCPR in a unique protected temporary directory, checks every configured identity, reports the child exit code, and removes only its owned staging files. No live MCPR download or execution is part of offline validation.
+
 ## Optional remote hosts and restore-point helpers
 
 The Hosts File Manager and Manage Restore Points helpers remain unavailable in this checkout because their reviewed immutable source URLs and independent SHA-256 pins are not configured. Selecting either app fails closed before a request, persistent setup, shortcut creation, or helper execution. No live helper source was queried for this decision. Do not launch either helper from a mutable branch URL.
@@ -838,7 +842,7 @@ Edit the `Category` property in the application registry to organize apps differ
 - All downloads use HTTPS
 - winget packages are verified by Microsoft
 - Custom scripts download from official sources only
-- McAfee removal uses official MCPR tool
+- McAfee removal remains blocked until an independently reviewed MCPR digest or signer identity is configured.
 - No credentials or sensitive data stored
 - All installations run with user consent
 - Logs contain no sensitive information

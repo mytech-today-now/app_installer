@@ -166,6 +166,13 @@ Write-Output 'This execution path declares no result.'
     Assert-Condition ($belarcResult.Status -eq 'Failure' -and $belarcResult.ExitCode -eq 1) 'Belarc with absent production pins returns a failed custom-app result'
     Assert-Condition ($belarcResult.ResultKind -eq 'NativeProcess') 'Belarc exposes its verified installer child result to the custom-app runner'
 
+    $mcafeeCatalogEntries = @(Get-ApplicationRegistry | Where-Object { $_.ScriptName -ceq 'uninstall-mcafee.ps1' })
+    Assert-Condition ($mcafeeCatalogEntries.Count -eq 1 -and $mcafeeCatalogEntries[0].Platform -ceq 'Windows' -and -not $mcafeeCatalogEntries[0].WingetId) 'The McAfee manifest entry maps to one Windows custom script without a package-manager fallback'
+    $mcafeeScriptPath = Join-Path $repositoryRoot ('apps\' + $mcafeeCatalogEntries[0].ScriptName)
+    $mcafeeResult = Invoke-AppScript -ScriptPath $mcafeeScriptPath
+    Assert-Condition ($mcafeeResult.Status -eq 'Failure' -and $mcafeeResult.ExitCode -eq 1) 'McAfee with absent production identity pins maps to a failed custom-app result'
+    Assert-Condition ($mcafeeResult.ResultKind -eq 'PowerShell') 'The blocked McAfee helper result is returned through the shared PowerShell app-script contract'
+
     $appsPath = Join-Path $testRoot 'apps'
     New-Item -ItemType Directory -Path $appsPath -Force | Out-Null
     $wrapperFixturePath = Join-Path $appsPath 'fixture.ps1'
@@ -180,6 +187,10 @@ exit 0
 
     $guiSource = [System.IO.File]::ReadAllText((Join-Path $repositoryRoot 'app-installer.ps1'))
     $cliSource = [System.IO.File]::ReadAllText((Join-Path $repositoryRoot 'app-installer-cli.ps1'))
+    $guiSuccessContract = 'if ($appScriptResult.Status -in @(''PowerShellSuccess'', ''NativeProcessSuccess'') -or $scriptExitCode -eq -1978335191)'
+    $cliSuccessContract = 'if ($appScriptResult.Status -in @(''PowerShellSuccess'', ''NativeProcessSuccess''))'
+    Assert-Condition ($guiSource.Contains($guiSuccessContract) -and $cliSource.Contains($cliSuccessContract)) 'GUI and CLI completion mapping accepts only declared success states; the blocked McAfee exit code remains a failure'
+    Assert-Condition ($guiSource.Contains('$scriptPath = Join-Path $script:AppsPath $App.ScriptName') -and $guiSource.Contains('AppInstallerCore\Invoke-AppScript -ScriptPath $scriptPath') -and $cliSource.Contains('$scriptPath = Join-Path $script:AppsPath $App.ScriptName') -and $cliSource.Contains('AppInstallerCore\Invoke-AppScript -ScriptPath $scriptPath')) 'GUI and CLI dispatch the McAfee catalog script through the shared custom-app result boundary'
     Assert-Condition ($guiSource.Contains('Write-Log "Using custom script: $scriptPath"')) 'GUI custom-script log line remains present'
     Assert-Condition ($cliSource.Contains('Write-Log "Using custom script: $scriptPath"')) 'CLI custom-script log line remains present'
     Assert-Condition ($guiSource.Contains('elseif ($appScriptResult.Status -eq ''Unknown'')') -and $guiSource.Contains('[UNKNOWN] $unknownMessage')) 'GUI reports an unknown result without marking the app installed'

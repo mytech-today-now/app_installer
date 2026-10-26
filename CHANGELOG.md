@@ -8,6 +8,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), wit
 
 ### Added
 
+- Added offline fake transport, signature, and process coverage for a verified executable helper, including McAfee fail-closed behavior while its production trust identity remains unset.
 - Added install ownership manifests and offline install, upgrade, repair, rollback, and retained-data uninstall coverage for the user-scoped EXE payload.
 - Added an executable lifecycle management command with dry-run support and explicit keep-data and remove-owned-files options.
 - Added protected semantic-version GitHub releases for the unsigned x64 EXE, with SHA-256, builder provenance, compatibility and payload metadata, and test evidence.
@@ -26,6 +27,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), wit
 
 ### Changed
 
+- McAfee removal now fails closed before download or product removal until an independently reviewed MCPR digest or signer pin is configured. When configured, MCPR runs only from a private staged path after verification, and its child exit code is reported.
 - Defined the GUI version in VERSION as the executable, file-resource, artifact-name, and tag version while preserving the CLI's separate version.
 - Self-install now preserves unowned files, user profiles, and inherited ACLs, detects changed owned files, and reports preserved code or retained rollback paths.
 - Legacy migration preserves files absent from the incoming package, and uninstall fails closed when no valid ownership hash baseline exists.
