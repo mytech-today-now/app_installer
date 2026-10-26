@@ -6,7 +6,7 @@
 $ErrorActionPreference = 'Stop'
 if ($env:OS -notmatch 'Windows') {
     Write-Host '[SKIP] Fake winget command tests require Windows command resolution.' -ForegroundColor Yellow
-    exit 0
+    exit 77
 }
 
 $repositoryRoot = Split-Path -Parent $PSScriptRoot

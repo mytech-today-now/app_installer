@@ -283,8 +283,14 @@ try {
         -ExecutorScript $runExecutor
     Assert-Condition -Condition (-not $mutableUriResult.Success -and $mutableUriResult.FailureReason -eq 'source-not-immutable' -and $mutableUriResult.DownloadStatus -eq 'not-attempted') -Message 'Mutable branch URLs are rejected before network access.'
 
-    $unconfiguredResult = Invoke-VerifiedOOShutUp10Script -Uri $release.Uri -ExpectedSha256 $release.Sha256 -TempRoot $tempRoot
-    Assert-Condition -Condition (-not $unconfiguredResult.Success -and $unconfiguredResult.FailureReason -eq 'release-not-configured' -and $unconfiguredResult.DownloadStatus -eq 'not-attempted') -Message 'Production fails closed without an approved immutable O&O release.'
+    $unconfiguredNetworkAttempts = New-Object 'System.Collections.Generic.List[int]'
+    $unconfiguredNetworkProbe = { param($RequestedUri) $unconfiguredNetworkAttempts.Add(1); return ,([byte[]]@()) }.GetNewClosure()
+    $unconfiguredResult = Invoke-VerifiedOOShutUp10Script `
+        -Uri $release.Uri `
+        -ExpectedSha256 $release.Sha256 `
+        -TempRoot $tempRoot `
+        -DownloadScript $unconfiguredNetworkProbe
+    Assert-Condition -Condition (-not $unconfiguredResult.Success -and $unconfiguredResult.FailureReason -eq 'release-not-configured' -and $unconfiguredResult.DownloadStatus -eq 'not-attempted' -and $unconfiguredNetworkAttempts.Count -eq 0) -Message 'Production fails closed without a release pin and makes no network call.'
 
     # Run two isolated operations in parallel using fake bytes and a no-op executor.
     $encodedPayload = [Convert]::ToBase64String($approvedBytes)
@@ -318,8 +324,23 @@ try {
     $script:OOShutUp10TrustModulePath = [System.IO.Path]::GetFullPath($productionModulePath)
     $script:AppsPath = $fallbackRoot
     $script:InstalledApps = @{}
+    $fixtureDirectory = Join-Path $testRoot 'fixture'
+    New-Item -ItemType Directory -Path $fixtureDirectory -ErrorAction Stop | Out-Null
+    $fixtureExecutablePath = Join-Path $fixtureDirectory 'OOSU10.exe'
+    [System.IO.File]::WriteAllBytes($fixtureExecutablePath, [byte[]]@(77, 90, 0, 0, 0, 0))
+    $script:OOFixtureExecutablePath = $fixtureExecutablePath
     function Write-Log { param($Message, $Level) }
-    function Safe-TestPath { param($Path) return $true }
+    function Safe-TestPath {
+        param($Path, [string]$PathType = 'Any')
+        if ($Path -eq 'C:\Program Files\OOShutUp10\OOSU10.exe') {
+            if (-not $script:OOFixtureExecutablePath) { return $false }
+            if ($PathType -eq 'Leaf') {
+                return (Test-Path -LiteralPath $script:OOFixtureExecutablePath -PathType Leaf)
+            }
+            return (Test-Path -LiteralPath $script:OOFixtureExecutablePath)
+        }
+        return $false
+    }
 
     Invoke-Expression (Get-FunctionDefinitionText -Path $cliPath -Name 'New-InstallerActionResult')
     Invoke-Expression (Get-FunctionDefinitionText -Path $cliPath -Name 'Get-InstallerActionStatus')
@@ -335,8 +356,15 @@ try {
     function Test-WingetAvailable { return $false }
     function Get-ItemProperty { param([string[]]$Path, $ErrorAction) return @() }
     function Safe-TestPath {
-        param($Path)
-        return ($Path -eq 'C:\Program Files\OOShutUp10\OOSU10.exe')
+        param($Path, [string]$PathType = 'Any')
+        if ($Path -eq 'C:\Program Files\OOShutUp10\OOSU10.exe') {
+            if (-not $script:OOFixtureExecutablePath) { return $false }
+            if ($PathType -eq 'Leaf') {
+                return (Test-Path -LiteralPath $script:OOFixtureExecutablePath -PathType Leaf)
+            }
+            return (Test-Path -LiteralPath $script:OOFixtureExecutablePath)
+        }
+        return $false
     }
     function Get-Item {
         param([string]$Path, $ErrorAction)
@@ -354,6 +382,7 @@ try {
     # Restore the real helper for subsequent fail-closed integration checks.
     Invoke-Expression $cliRemoteHelperText
 
+    $script:OOFixtureExecutablePath = $null
     $queue = @(
         @{ Name = 'O&O ShutUp10'; ScriptName = 'shutup10.ps1'; WingetId = $null },
         @{ Name = 'Other App A'; ScriptName = 'other-a.ps1'; WingetId = 'Example.A' },
@@ -363,9 +392,56 @@ try {
     $installOutcome = Install-Application -App $queue[0]
     $currentQueueOrder = @($queue | ForEach-Object { $_.Name })
 
-    Assert-Condition -Condition (-not $installOutcome -and -not $script:InstalledApps.ContainsKey('O&O ShutUp10')) -Message 'Remote release failure leaves O&O not installed in CLI state.'
+    Assert-Condition -Condition ($installOutcome.Status -eq 'Failed' -and -not $installOutcome.Success -and -not $script:InstalledApps.ContainsKey('O&O ShutUp10')) -Message 'Remote release failure leaves O&O not installed in CLI state.'
+    Assert-Condition -Condition ($installOutcome.InstallerExecutionStatus -eq 'not-started' -and $installOutcome.ExecutableStatus -eq 'missing' -and $installOutcome.PrivacySettingsStatus -eq 'not-applied' -and $installOutcome.DownloadStatus -eq 'not-attempted') -Message 'CLI reports execution, executable, and privacy-setting status separately when the release is unconfigured.'
     Assert-Condition -Condition (-not (Test-Path -LiteralPath $localMarkerPath)) -Message 'An unverified local fallback is not invoked after remote failure.'
     Assert-Condition -Condition ([string]::Join('|', $currentQueueOrder) -eq [string]::Join('|', $originalQueueOrder)) -Message 'A failed O&O item leaves the selected queue in its original resumable order.'
+
+    # Inject child outcomes and map only the expected product path to a private fixture file.
+    function Install-OOShutUp10FromRemote { return $script:InjectedOOInstallerResult }
+    $script:InstalledApps = @{ 'O&O ShutUp10' = 'stale' }
+    $script:OOFixtureExecutablePath = $null
+    $script:InjectedOOInstallerResult = [PSCustomObject]@{
+        Success = $true; InstallationStatus = 'succeeded'; FailureReason = $null
+        DownloadStatus = 'verified'; VerificationStatus = 'verified'; ExitCode = 0; RecoveryMessage = $null
+    }
+    $missingExecutableResult = Install-Application -App $queue[0]
+    Assert-Condition -Condition (-not $missingExecutableResult.Success -and $missingExecutableResult.Status -eq 'Failed' -and (Get-InstallerActionStatus -Result $missingExecutableResult) -eq 'Failed' -and -not $script:InstalledApps.ContainsKey('O&O ShutUp10')) -Message 'A successful child with no executable is not counted as installed or completed in CLI state.'
+    Assert-Condition -Condition ($missingExecutableResult.InstallerExecutionStatus -eq 'succeeded' -and $missingExecutableResult.ExecutableStatus -eq 'missing' -and $missingExecutableResult.PrivacySettingsStatus -eq 'not-applied') -Message 'CLI keeps child success, missing executable, and unapplied settings distinct.'
+    Assert-Condition -Condition ($missingExecutableResult.RecoveryMessage -match 'result could not be confirmed.*before retrying') -Message 'CLI tells the user to check O&O before retrying when the executable is absent.'
+    Assert-Condition -Condition (-not (Test-Path -LiteralPath $localMarkerPath) -and -not (Test-Path -LiteralPath $settingsMarkerPath)) -Message 'The missing-executable case runs neither the local fallback nor privacy-setting changes.'
+
+    $script:OOFixtureExecutablePath = $fixtureExecutablePath
+    $script:InstalledApps = @{}
+    $presentExecutableResult = Install-Application -App $queue[0]
+    Assert-Condition -Condition ($presentExecutableResult.Success -and $presentExecutableResult.Status -eq 'Completed' -and (Get-InstallerActionStatus -Result $presentExecutableResult) -eq 'Completed' -and $script:InstalledApps.ContainsKey('O&O ShutUp10')) -Message 'A successful child and present executable fixture are required for CLI install success.'
+    Assert-Condition -Condition ($presentExecutableResult.InstallerExecutionStatus -eq 'succeeded' -and $presentExecutableResult.ExecutableStatus -eq 'present' -and $presentExecutableResult.PrivacySettingsStatus -eq 'not-applied' -and $presentExecutableResult.Message -match 'Privacy settings were not applied') -Message 'CLI reports executable presence separately and does not claim privacy settings were applied.'
+
+    $script:OOFixtureExecutablePath = $null
+    $script:InstalledApps = @{}
+    $script:InjectedOOInstallerResult = [PSCustomObject]@{
+        Success = $false; InstallationStatus = 'failed'; FailureReason = 'child-nonzero-exit'
+        DownloadStatus = 'downloaded'; VerificationStatus = 'verified'; ExitCode = 7; RecoveryMessage = $null
+    }
+    $nonzeroExecutableResult = Install-Application -App $queue[0]
+    Assert-Condition -Condition (-not $nonzeroExecutableResult.Success -and $nonzeroExecutableResult.InstallerExecutionStatus -eq 'failed' -and $nonzeroExecutableResult.ExecutableStatus -eq 'missing' -and -not $script:InstalledApps.ContainsKey('O&O ShutUp10')) -Message 'A nonzero child exit with no executable remains failed and unregistered.'
+
+    $script:InjectedOOInstallerResult = [PSCustomObject]@{
+        Success = $false; InstallationStatus = 'unknown'; FailureReason = 'child-result-unavailable'
+        DownloadStatus = 'downloaded'; VerificationStatus = 'verified'; ExitCode = $null; RecoveryMessage = $null
+    }
+    $unknownExecutableResult = Install-Application -App $queue[0]
+    Assert-Condition -Condition (-not $unknownExecutableResult.Success -and $unknownExecutableResult.InstallerExecutionStatus -eq 'unknown' -and $unknownExecutableResult.ExecutableStatus -eq 'missing' -and $unknownExecutableResult.RecoveryMessage -match 'result could not be confirmed') -Message 'An unknown child result stays unconfirmed and recommends checking O&O before retrying.'
+
+    $script:InjectedOOInstallerResult = [PSCustomObject]@{
+        Success = $false; InstallationStatus = 'not-started'; FailureReason = 'cancelled'
+        DownloadStatus = 'cancelled'; VerificationStatus = 'not-verified'; ExitCode = $null; RecoveryMessage = $null
+    }
+    $cancelledInstallerResult = Install-Application -App $queue[0]
+    Assert-Condition -Condition (-not $cancelledInstallerResult.Success -and $cancelledInstallerResult.InstallerExecutionStatus -eq 'not-started' -and $cancelledInstallerResult.Message -match 'cancelled.*No O&O changes were made') -Message 'Pre-execution cancellation is reported as cancelled without claiming an installation.'
+
+    # Restore the production helper before exercising the selected-app queue.
+    Invoke-Expression $cliRemoteHelperText
 
     # Exercise queue continuation and explicit user cancellation without running a package manager.
     $script:SelectedAppAttempts = @()
@@ -419,6 +495,7 @@ try {
     Invoke-Expression (Get-FunctionDefinitionText -Path $guiPath -Name 'Install-Application')
 
     $script:InstalledApps = @{}
+    $script:OOFixtureExecutablePath = $null
     $script:StatusLabel = [PSCustomObject]@{ Text = ''; ForeColor = [System.Drawing.Color]::Empty }
     $script:AppProgressBar = [PSCustomObject]@{ Visible = $false }
     $guiQueue = @(
@@ -430,10 +507,29 @@ try {
     $guiOutcome = Install-Application -App $guiQueue[0]
     $currentGuiQueueOrder = @($guiQueue | ForEach-Object { $_.Name })
     Assert-Condition -Condition (-not $guiOutcome -and -not $script:InstalledApps.ContainsKey('O&O ShutUp10')) -Message 'Remote release failure leaves O&O not installed in GUI state.'
-    Assert-Condition -Condition ($script:StatusLabel.Text -eq 'The O&O installer could not be verified. No O&O changes were made. Review the local installer or retry after the release source is verified.') -Message 'The GUI status label visibly reports the unverified O&O result.'
+    Assert-Condition -Condition ($script:StatusLabel.Text -match 'Installer execution: not-started; executable: missing; privacy settings: not-applied.*The O&O installer could not be verified') -Message 'The GUI visibly reports the unverified O&O result and separate state fields.'
     Assert-Condition -Condition (-not $script:AppProgressBar.Visible -and -not (Test-Path -LiteralPath $localMarkerPath)) -Message 'GUI failure hides progress and does not invoke the local fallback.'
     Assert-Condition -Condition ([string]::Join('|', $currentGuiQueueOrder) -eq [string]::Join('|', $originalGuiQueueOrder)) -Message 'A failed GUI O&O item preserves the selected queue order.'
     Assert-Condition -Condition ($script:OutputMessages -contains $script:StatusLabel.Text) -Message 'The GUI announces the fallback text through its visible output channel.'
+
+    function Install-OOShutUp10FromRemote { return $script:InjectedOOInstallerResult }
+    $script:InjectedOOInstallerResult = [PSCustomObject]@{
+        Success = $true; InstallationStatus = 'succeeded'; FailureReason = $null
+        DownloadStatus = 'verified'; VerificationStatus = 'verified'; ExitCode = 0; RecoveryMessage = $null
+    }
+    $script:OOFixtureExecutablePath = $null
+    $script:InstalledApps = @{ 'O&O ShutUp10' = 'stale' }
+    $missingGuiExecutableOutcome = Install-Application -App $guiQueue[0]
+    Assert-Condition -Condition (-not $missingGuiExecutableOutcome -and -not $script:InstalledApps.ContainsKey('O&O ShutUp10') -and $script:LastOOShutUp10Result.ExecutableStatus -eq 'missing') -Message 'A successful GUI helper with no executable does not leave O&O marked installed.'
+    Assert-Condition -Condition ($script:StatusLabel.Text -match 'Installer execution: succeeded; executable: missing; privacy settings: not-applied.*result could not be confirmed.*before retrying' -and $script:StatusLabel.Text -match [regex]::Escape($script:LastOOShutUp10Result.RecoveryMessage)) -Message 'The GUI gives the O&O recovery message when executable presence cannot be confirmed.'
+
+    $script:OOFixtureExecutablePath = $fixtureExecutablePath
+    $script:InstalledApps = @{}
+    $script:OutputMessages = @()
+    $presentGuiExecutableOutcome = Install-Application -App $guiQueue[0]
+    Assert-Condition -Condition ($presentGuiExecutableOutcome -and $script:InstalledApps.ContainsKey('O&O ShutUp10') -and $script:LastOOShutUp10Result.ExecutableStatus -eq 'present') -Message 'The GUI records install success only with a present executable fixture.'
+    Assert-Condition -Condition ($script:LastOOShutUp10Result.PrivacySettingsStatus -eq 'not-applied' -and $script:StatusLabel.Text -match 'Privacy settings were not applied') -Message 'The GUI separates installed executable state from privacy-settings application.'
+    Assert-Condition -Condition (-not (Test-Path -LiteralPath $settingsMarkerPath) -and -not (Test-Path -LiteralPath $localMarkerPath)) -Message 'Injected GUI outcomes do not run privacy-setting code or the local fallback.'
 
     $guiContent = [System.IO.File]::ReadAllText($guiPath)
     $cliContent = [System.IO.File]::ReadAllText($cliPath)
@@ -442,7 +538,7 @@ try {
     Assert-Condition -Condition ($guiRemoteHelperText.Contains("elseif (`$result.FailureReason -eq 'execution-policy-blocked')") -and $guiRemoteHelperText.Contains('Write-Output $result.RecoveryMessage')) -Message 'The GUI visibly reports the sanitized child policy-block message.'
     Assert-Condition -Condition ($cliRemoteHelperText.Contains("elseif (`$result.FailureReason -eq 'execution-policy-blocked')") -and $cliRemoteHelperText.Contains('Write-Host $result.RecoveryMessage')) -Message 'The CLI visibly reports the sanitized child policy-block message.'
     $guiInstallFunctionText = Get-FunctionDefinitionText -Path $guiPath -Name 'Install-Application'
-    Assert-Condition -Condition ($guiInstallFunctionText.Contains('execution-policy-blocked') -and $guiInstallFunctionText.Contains('$remoteResult.RecoveryMessage') -and $guiInstallFunctionText.Contains('return $false')) -Message 'The GUI policy-block path remains failed and displays the same recovery text.'
+    Assert-Condition -Condition ($guiInstallFunctionText.Contains('New-OOShutUp10ProductResult') -and $guiInstallFunctionText.Contains('$productResult.Message') -and $guiInstallFunctionText.Contains('return $false')) -Message 'The GUI reports product verification failures through its truthful status message and returns failure.'
     foreach ($entryPath in @($guiPath, $cliPath)) {
         $installText = Get-FunctionDefinitionText -Path $entryPath -Name 'Install-Application'
         $parseErrors = $null
@@ -456,12 +552,13 @@ try {
         }, $true)
         if (-not $ooBranch) { throw "O&O handling branch was not found in $(Split-Path $entryPath -Leaf)." }
         $ooBranchText = $ooBranch.Clauses[0].Item2.Extent.Text
-        Assert-Condition -Condition ($ooBranchText.Contains('return $false') -and -not $ooBranchText.Contains('$scriptPath')) -Message "$(Split-Path $entryPath -Leaf) fails the O&O item before the generic local-script path."
+        Assert-Condition -Condition ($ooBranchText.Contains('New-OOShutUp10ProductResult') -and $ooBranchText.Contains('PathType Leaf') -and -not $ooBranchText.Contains('$scriptPath')) -Message "$(Split-Path $entryPath -Leaf) checks the executable and fails the O&O item before the generic local-script path."
     }
     $expectedMessage = 'The O&O installer could not be verified. No O&O changes were made. Review the local installer or retry after the release source is verified.'
     Assert-Condition -Condition ($guiContent.Contains($expectedMessage) -and $cliContent.Contains($expectedMessage)) -Message 'Both entry points show the exact accessible unverified-release message.'
     Assert-Condition -Condition (-not $guiContent.Contains('raw.githubusercontent.com/mytech-today-now/OO/main/Install-OOShutUp10.ps1') -and -not $cliContent.Contains('raw.githubusercontent.com/mytech-today-now/OO/main/Install-OOShutUp10.ps1')) -Message 'Neither entry point keeps the mutable O&O main URL.'
-    Assert-Condition -Condition (Test-Path -LiteralPath $fallbackScriptPath -PathType Leaf) -Message 'The repository local O&O installer remains available for separate review.'
+    $fallbackContent = [System.IO.File]::ReadAllText($fallbackScriptPath)
+    Assert-Condition -Condition ($fallbackContent.Contains('Invoke-WebRequest -Uri $shutupUrl -OutFile $exePath') -and $fallbackContent.Contains('$shortcut.TargetPath = $exePath') -and $fallbackContent -notmatch '(?im)^\s*(?:Start-Process|&\s*\$exePath)') -Message 'The local script downloads the executable and creates a shortcut without applying privacy settings.'
 
     Write-Host "O&O trust checks passed ($checkCount assertions)." -ForegroundColor Cyan
 }

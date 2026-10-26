@@ -118,10 +118,17 @@ function Safe-TestPath {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true, Position = 0)]
-        [string]$Path
+        [string]$Path,
+
+        [Parameter(Mandatory = $false)]
+        [ValidateSet('Any', 'Leaf', 'Container')]
+        [string]$PathType = 'Any'
     )
     try {
-        return (Test-Path $Path -ErrorAction SilentlyContinue)
+        if ($PathType -eq 'Any') {
+            return (Test-Path $Path -ErrorAction SilentlyContinue)
+        }
+        return (Test-Path $Path -PathType $PathType -ErrorAction SilentlyContinue)
     }
     catch {
         return $false
@@ -2878,7 +2885,7 @@ function Install-OOShutUp10FromRemote {
         $releaseVersion, $result.DownloadStatus, $result.VerificationStatus, $result.InstallationStatus, $result.ExitCode, $result.FailureReason) -Level INFO
 
     if ($result.Success) {
-        Write-Output "  [OK] O&O ShutUp10 installation completed." -Color ([System.Drawing.Color]::Green)
+        Write-Output '  [OK] O&O installer script exited successfully; executable presence is pending verification.' -Color ([System.Drawing.Color]::Green)
     }
     elseif ($result.FailureReason -eq 'cancelled') {
         Write-Output 'O&O installer verification was cancelled. No O&O changes were made.' -Color ([System.Drawing.Color]::Orange)
@@ -2927,61 +2934,69 @@ function Install-Application {
             # A missing or rejected pin fails this selected item without using another source.
             $remoteResult = Install-OOShutUp10FromRemote
 
-            if ($remoteResult.Success) {
-                # Register O&O ShutUp10 as installed
-                $ooShutUpPath = "C:\Program Files\OOShutUp10\OOSU10.exe"
-                if (Safe-TestPath $ooShutUpPath) {
-                    try {
-                        $fileInfo = Get-Item $ooShutUpPath -ErrorAction SilentlyContinue
-                        $version = if ($fileInfo.VersionInfo.FileVersion) {
-                            $fileInfo.VersionInfo.FileVersion
-                        } else {
-                            "Installed"
-                        }
-                        $script:InstalledApps["O&O ShutUp10"] = $version
-                        Write-Log "Registered O&O ShutUp10 as installed: $version" -Level INFO
+            $ooShutUpPath = "C:\Program Files\OOShutUp10\OOSU10.exe"
+            $executableStatus = if (Safe-TestPath -Path $ooShutUpPath -PathType Leaf) { 'present' } else { 'missing' }
+            if (Get-Command -Name New-OOShutUp10ProductResult -ErrorAction SilentlyContinue) {
+                $productResult = New-OOShutUp10ProductResult -InstallerResult $remoteResult -ExecutableStatus $executableStatus
+            }
+            else {
+                $installerExecutionStatus = if ($remoteResult.InstallationStatus) { [string]$remoteResult.InstallationStatus } else { 'unknown' }
+                $recoveryMessage = 'The O&O result could not be confirmed. Check whether O&O ShutUp10 is installed before retrying.'
+                $productResult = [PSCustomObject]@{
+                    Status = 'Failed'; Success = $false
+                    InstallerExecutionStatus = $installerExecutionStatus
+                    ExecutableStatus = $executableStatus
+                    PrivacySettingsStatus = 'not-applied'
+                    DownloadStatus = $remoteResult.DownloadStatus
+                    VerificationStatus = $remoteResult.VerificationStatus
+                    ExitCode = $remoteResult.ExitCode
+                    FailureReason = 'trust-check-unavailable'
+                    Message = "Installer execution: $installerExecutionStatus; executable: $executableStatus; privacy settings: not-applied. $recoveryMessage"
+                    RecoveryMessage = $recoveryMessage
+                }
+            }
+            $script:LastOOShutUp10Result = $productResult
+
+            if ($productResult.ExecutableStatus -eq 'present') {
+                try {
+                    $fileInfo = Get-Item $ooShutUpPath -ErrorAction SilentlyContinue
+                    $version = if ($fileInfo.VersionInfo.FileVersion) {
+                        $fileInfo.VersionInfo.FileVersion
+                    } else {
+                        'Installed'
                     }
-                    catch {
-                        $script:InstalledApps["O&O ShutUp10"] = "Installed"
-                        Write-Log "Registered O&O ShutUp10 as installed" -Level INFO
-                    }
+                    $script:InstalledApps['O&O ShutUp10'] = $version
+                    Write-Log "Registered O&O ShutUp10 as installed: $version" -Level INFO
                 }
-
-                # Hide secondary progress bar
-                if ($script:AppProgressBar) {
-                    $script:AppProgressBar.Visible = $false
+                catch {
+                    $script:InstalledApps['O&O ShutUp10'] = 'Installed'
+                    Write-Log 'Registered O&O ShutUp10 as installed' -Level INFO
                 }
-
-                # Update status - success
-                if ($script:StatusLabel) {
-                    $script:StatusLabel.Text = "[OK] $($App.Name) installed successfully!"
-                    $script:StatusLabel.ForeColor = [System.Drawing.Color]::Green
-                    [System.Windows.Forms.Application]::DoEvents()
-                }
-
-                return $true
+            }
+            else {
+                $script:InstalledApps.Remove('O&O ShutUp10')
             }
 
-            # Do not run the local script or any other source without its own approved trust pin.
             if ($script:AppProgressBar) {
                 $script:AppProgressBar.Visible = $false
             }
+
+            if ($productResult.Success) {
+                if ($script:StatusLabel) {
+                    $script:StatusLabel.Text = "[OK] $($productResult.Message)"
+                    $script:StatusLabel.ForeColor = [System.Drawing.Color]::Green
+                    [System.Windows.Forms.Application]::DoEvents()
+                }
+                Write-Output "  [OK] $($productResult.Message)" -Color ([System.Drawing.Color]::Green)
+                return $true
+            }
+
             if ($script:StatusLabel) {
-                if ($remoteResult.FailureReason -eq 'execution-policy-blocked') {
-                    $script:StatusLabel.Text = $remoteResult.RecoveryMessage
-                }
-                elseif ($remoteResult.FailureReason -eq 'cancelled') {
-                    $script:StatusLabel.Text = 'O&O installer verification was cancelled. No O&O changes were made.'
-                }
-                elseif ($remoteResult.InstallationStatus -eq 'not-started') {
-                    $script:StatusLabel.Text = 'The O&O installer could not be verified. No O&O changes were made. Review the local installer or retry after the release source is verified.'
-                }
-                else {
-                    $script:StatusLabel.Text = 'O&O installation failed or its result is unknown. Review O&O status before retrying.'
-                }
+                $script:StatusLabel.Text = $productResult.Message
                 $script:StatusLabel.ForeColor = [System.Drawing.Color]::Red
                 [System.Windows.Forms.Application]::DoEvents()
             }
+            Write-Output $productResult.Message -Color ([System.Drawing.Color]::Yellow)
             return $false
         }
 
@@ -6518,7 +6533,7 @@ function Install-SelectedApplications {
         foreach ($app in $appsToShow) {
             $version = $script:InstalledApps[$app.Name]
             if ($app.Name -eq "O&O ShutUp10") {
-                $confirmMessage += "  - $($app.Name) ($version) [Will re-run configuration]`r`n"
+                $confirmMessage += "  - $($app.Name) ($version) [Will run the approved installer]`r`n"
             }
             else {
                 $confirmMessage += "  - $($app.Name) ($version)`r`n"
@@ -6743,6 +6758,16 @@ function Install-SelectedApplications {
             elseif ($script:SkipCurrent) {
                 $listViewItem.SubItems[2].Text = "Skipped"
                 $listViewItem.ForeColor = [System.Drawing.Color]::Orange
+            }
+            elseif ($app.Name -eq 'O&O ShutUp10' -and $script:LastOOShutUp10Result) {
+                if ($script:LastOOShutUp10Result.ExecutableStatus -eq 'present') {
+                    $listViewItem.SubItems[2].Text = 'Present; installer result failed'
+                    $listViewItem.ForeColor = [System.Drawing.Color]::Orange
+                }
+                else {
+                    $listViewItem.SubItems[2].Text = 'Not confirmed'
+                    $listViewItem.ForeColor = [System.Drawing.Color]::Red
+                }
             }
         }
 

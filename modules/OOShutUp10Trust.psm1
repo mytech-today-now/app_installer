@@ -23,6 +23,84 @@ function Get-OOShutUp10PinnedRelease {
     }
 }
 
+function New-OOShutUp10ProductResult {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [psobject]$InstallerResult,
+
+        [Parameter(Mandatory = $true)]
+        [ValidateSet('present', 'missing', 'not-checked')]
+        [string]$ExecutableStatus
+    )
+
+    $installationStatusProperty = $InstallerResult.PSObject.Properties['InstallationStatus']
+    $installerExecutionStatus = if ($installationStatusProperty) {
+        [string]$installationStatusProperty.Value
+    }
+    else {
+        'unknown'
+    }
+    $successProperty = $InstallerResult.PSObject.Properties['Success']
+    $installerReportedSuccess = $null -ne $successProperty -and [bool]$successProperty.Value
+    $failureReasonProperty = $InstallerResult.PSObject.Properties['FailureReason']
+    $failureReason = if ($failureReasonProperty) { [string]$failureReasonProperty.Value } else { $null }
+    $helperRecoveryProperty = $InstallerResult.PSObject.Properties['RecoveryMessage']
+    $recoveryMessage = if ($helperRecoveryProperty) { [string]$helperRecoveryProperty.Value } else { $null }
+
+    $success = $installerReportedSuccess -and
+        $installerExecutionStatus -eq 'succeeded' -and
+        $ExecutableStatus -eq 'present'
+
+    if ($success) {
+        $message = 'O&O installer completed and OOSU10.exe is present. Privacy settings were not applied.'
+        $recoveryMessage = $null
+    }
+    elseif ($installerReportedSuccess -and $installerExecutionStatus -eq 'succeeded' -and $ExecutableStatus -eq 'missing') {
+        $failureReason = 'executable-not-found'
+        $recoveryMessage = 'The O&O result could not be confirmed. Check whether O&O ShutUp10 is installed before retrying.'
+        $message = $recoveryMessage
+    }
+    elseif ($failureReason -eq 'cancelled' -and $installerExecutionStatus -eq 'not-started') {
+        $recoveryMessage = 'O&O installer verification was cancelled. No O&O changes were made.'
+        $message = $recoveryMessage
+    }
+    elseif ($installerExecutionStatus -eq 'not-started') {
+        $recoveryMessage = 'The O&O installer could not be verified. No O&O changes were made. Review the local installer or retry after the release source is verified.'
+        $message = $recoveryMessage
+    }
+    elseif ($failureReason -eq 'execution-policy-blocked' -and $recoveryMessage) {
+        $message = $recoveryMessage
+    }
+    elseif ($installerExecutionStatus -eq 'failed') {
+        $recoveryMessage = 'The O&O installer did not complete successfully. Check whether O&O ShutUp10 is installed before retrying.'
+        $message = $recoveryMessage
+    }
+    else {
+        $failureReason = if ($failureReason) { $failureReason } else { 'result-unconfirmed' }
+        $recoveryMessage = 'The O&O result could not be confirmed. Check whether O&O ShutUp10 is installed before retrying.'
+        $message = $recoveryMessage
+    }
+
+    if (-not $success) {
+        $message = "Installer execution: $installerExecutionStatus; executable: $ExecutableStatus; privacy settings: not-applied. $message"
+    }
+
+    return [PSCustomObject]@{
+        Status                   = if ($success) { 'Completed' } else { 'Failed' }
+        Success                  = [bool]$success
+        InstallerExecutionStatus = $installerExecutionStatus
+        ExecutableStatus         = $ExecutableStatus
+        PrivacySettingsStatus    = 'not-applied'
+        DownloadStatus           = if ($InstallerResult.PSObject.Properties['DownloadStatus']) { [string]$InstallerResult.DownloadStatus } else { 'unknown' }
+        VerificationStatus       = if ($InstallerResult.PSObject.Properties['VerificationStatus']) { [string]$InstallerResult.VerificationStatus } else { 'unknown' }
+        ExitCode                 = if ($InstallerResult.PSObject.Properties['ExitCode']) { $InstallerResult.ExitCode } else { $null }
+        FailureReason            = $failureReason
+        Message                  = $message
+        RecoveryMessage          = $recoveryMessage
+    }
+}
+
 function Test-OOImmutableReleaseUri {
     [CmdletBinding()]
     param(
@@ -567,4 +645,4 @@ function Invoke-VerifiedOOShutUp10Script {
     return $result
 }
 
-Export-ModuleMember -Function Get-OOShutUp10PinnedRelease, Invoke-VerifiedOOShutUp10Script
+Export-ModuleMember -Function Get-OOShutUp10PinnedRelease, New-OOShutUp10ProductResult, Invoke-VerifiedOOShutUp10Script

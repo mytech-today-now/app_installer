@@ -4,7 +4,9 @@
 param(
     [Parameter(Mandatory = $true)]
     [ValidateSet('Desktop-5.1', 'Core-7.6.7')]
-    [string]$Engine
+    [string]$Engine,
+
+    [switch]$InjectFailureForTest
 )
 
 $ErrorActionPreference = 'Stop'
@@ -35,25 +37,42 @@ if ($engineExitCode -ne 0 -or -not $engineMatches) {
     throw ('[UNAVAILABLE] Expected {0}; found {1}.' -f $expectedEngine, $actualEngine)
 }
 
-$tests = @(
-    'other_files/test-syntax.ps1',
-    'tests/test-github-actions-workflow.ps1',
-    'tests/test-compatibility-contract.ps1',
-    'tests/test-engine-compatibility-runtime.ps1',
-    'tests/test-executable-metadata.ps1',
-    'tests/test-executable-resource-update.ps1',
-    'tests/test-execution-policy-launchers.ps1',
-    'tests/test-runtime-engine-discovery-offline.ps1',
-    'tests/test-runtime-prerequisite-plan-offline.ps1',
-    'tests/test-startup-entrypoints-offline.ps1',
-    'tests/test-cli-whatif.ps1'
-)
+$passedTestCount = 0
+$skippedTestCount = 0
+$skippedCheckCount = 0
+$unavailableTestCount = 0
 
-if ($Engine -eq 'Core-7.6.7') {
-    $tests += @(
-        'tests/test-executable-build.ps1',
-        'tests/test-executable-payload.ps1'
+if ($InjectFailureForTest) {
+    $tests = @('tests/fixtures/ci-intentional-failure.ps1')
+    Write-Output '[TEST MODE] Running the fixed failing fixture to verify nonzero propagation.'
+}
+else {
+    $tests = @(
+        'other_files/test-syntax.ps1',
+        'tests/test-github-actions-workflow.ps1',
+        'tests/test-ci-regression-suite-failure.ps1',
+        'tests/test-compatibility-contract.ps1',
+        'tests/test-engine-compatibility-runtime.ps1',
+        'tests/test-executable-metadata.ps1',
+        'tests/test-executable-resource-update.ps1',
+        'tests/test-execution-policy-launchers.ps1',
+        'tests/test-runtime-engine-discovery-offline.ps1',
+        'tests/test-runtime-prerequisite-plan-offline.ps1',
+        'tests/test-startup-entrypoints-offline.ps1',
+        'tests/test-startup-helper-trust.ps1',
+        'tests/test-ooshutup10-trust.ps1',
+        'tests/test-package-manager-command-security.ps1',
+        'tests/test-monthly-update-scheduling.ps1',
+        'tests/test-monthly-update-results.ps1',
+        'tests/test-cli-whatif.ps1'
     )
+
+    if ($Engine -eq 'Core-7.6.7') {
+        $tests += @(
+            'tests/test-executable-build.ps1',
+            'tests/test-executable-payload.ps1'
+        )
+    }
 }
 
 Write-Output ('[ENGINE] {0} at {1}' -f $actualEngine, $enginePath)
@@ -64,12 +83,35 @@ foreach ($relativePath in $tests) {
     }
 
     Write-Output ('[RUN] {0} under {1}' -f $relativePath, $actualEngine)
-    & $enginePath -NoProfile -File $testPath
+    $testOutput = @(& $enginePath -NoProfile -File $testPath 2>&1)
     $testExitCode = $LASTEXITCODE
-    if ($testExitCode -ne 0) {
-        throw ('[FAIL] {0} under {1} exited with code {2}.' -f $relativePath, $actualEngine, $testExitCode)
+
+    foreach ($outputLine in $testOutput) {
+        Write-Output $outputLine
     }
+
+    $skipLines = @($testOutput | Where-Object { [string]$_ -match '^\[SKIP\]\s*\S' })
+    if ($testExitCode -eq 77) {
+        if ($skipLines.Count -eq 0) {
+            Write-Output ('[FAIL] {0} exited with skip code 77 without an explicit [SKIP] reason.' -f $relativePath)
+            exit 1
+        }
+
+        $skippedTestCount++
+        Write-Output ('[SKIP] {0}: {1}' -f $relativePath, ([string]$skipLines[0]).Substring(7).Trim())
+        continue
+    }
+
+    if ($testExitCode -ne 0) {
+        Write-Output ('[FAIL] {0} under {1} exited with code {2}.' -f $relativePath, $actualEngine, $testExitCode)
+        exit $testExitCode
+    }
+
+    $skippedCheckCount += $skipLines.Count
+    $passedTestCount++
     Write-Output ('[PASS] {0} under {1}' -f $relativePath, $actualEngine)
 }
 
-Write-Output '[NOT RUN] tests/test-compatibility-runtime-current-host.ps1 requires a supported Windows client. The standard windows-2025 runner is Windows Server 2025 and remains outside the App Installer runtime support matrix.'
+$unavailableTestCount++
+Write-Output '[UNAVAILABLE] tests/test-compatibility-runtime-current-host.ps1 requires a supported Windows client. The standard windows-2025 runner is Windows Server 2025 and remains outside the App Installer runtime support matrix.'
+Write-Output ('[SUMMARY] passed tests={0}; skipped tests={1}; skipped checks={2}; unavailable tests={3}' -f $passedTestCount, $skippedTestCount, $skippedCheckCount, $unavailableTestCount)

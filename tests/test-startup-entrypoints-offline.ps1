@@ -3,7 +3,7 @@
 $ErrorActionPreference = 'Stop'
 if (-not ($env:OS -match 'Windows')) {
     Write-Host '[SKIP] GUI entrypoint integration requires Windows Forms.' -ForegroundColor Yellow
-    exit 0
+    exit 77
 }
 
 $repositoryRoot = Split-Path -Parent $PSScriptRoot

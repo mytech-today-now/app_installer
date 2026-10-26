@@ -5,7 +5,7 @@
 $ErrorActionPreference = 'Stop'
 if ($env:OS -notmatch 'Windows') {
     Write-Host '[SKIP] CLI ShouldProcess integration checks require Windows command resolution.' -ForegroundColor Yellow
-    exit 0
+    exit 77
 }
 
 $repositoryRoot = Split-Path -Parent $PSScriptRoot

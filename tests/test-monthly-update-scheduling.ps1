@@ -6,7 +6,7 @@
 $ErrorActionPreference = 'Stop'
 if ($env:OS -notmatch 'Windows') {
     Write-Host '[SKIP] Monthly task integration uses Windows CLI behavior.' -ForegroundColor Yellow
-    exit 0
+    exit 77
 }
 
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
@@ -91,6 +91,7 @@ function New-Scenario {
     foreach ($fileName in @('app-installer-cli.ps1', 'apps-manifest.json', 'platform-detect.ps1', 'compatibility.json')) {
         Copy-Item -LiteralPath (Join-Path $repositoryRoot $fileName) -Destination $checkoutRoot -Force
     }
+    Copy-Item -LiteralPath (Join-Path $repositoryRoot 'VERSION') -Destination $checkoutRoot -Force
     $sourceManifest = Get-Content -LiteralPath (Join-Path $repositoryRoot 'apps-manifest.json') -Raw | ConvertFrom-Json
     $packageFixture = @($sourceManifest.apps | Where-Object { $_.packages.winget -ceq 'Box.Box' } | Select-Object -First 1)
     if ($packageFixture.Count -ne 1) {
@@ -112,11 +113,64 @@ function New-Scenario {
     $checkoutAppsPath = Join-Path $checkoutRoot 'apps'
     New-Item -ItemType Directory -Path $checkoutAppsPath -Force | Out-Null
     Copy-Item -LiteralPath (Join-Path (Join-Path $repositoryRoot 'apps') 'winget-update.ps1') -Destination $checkoutAppsPath -Force
-    foreach ($moduleName in @('AppInstallerCore.psm1', 'InstallerCompatibility.psm1', 'InstallerRuntimeDiscovery.psm1')) {
+    Set-Content -LiteralPath (Join-Path $checkoutAppsPath 'fixture-unused.ps1') -Value '# Harmless offline payload fixture; it is not referenced or invoked.' -Encoding UTF8
+    $appScriptName = if ($packageFixture[0].scriptName) { [string]$packageFixture[0].scriptName } else { [string]$packageFixture[0].script }
+    if (-not [string]::IsNullOrWhiteSpace($appScriptName)) {
+        $sourceAppScriptPath = Join-Path (Join-Path $repositoryRoot 'apps') $appScriptName
+        if (-not (Test-Path -LiteralPath $sourceAppScriptPath -PathType Leaf)) {
+            throw "The monthly task fixture application script is missing: $appScriptName"
+        }
+        Copy-Item -LiteralPath $sourceAppScriptPath -Destination $checkoutAppsPath -Force
+    }
+
+    $runtimeModuleNames = @(
+        'AppInstallerCore.psm1',
+        'InstallerCompatibility.psm1',
+        'InstallerPayload.psm1',
+        'InstallerPrerequisitePlan.psm1',
+        'InstallerRuntimeDiscovery.psm1',
+        'WingetBootstrap.psm1'
+    )
+    foreach ($moduleName in $runtimeModuleNames) {
         $sourceModulePath = Join-Path (Join-Path $repositoryRoot 'modules') $moduleName
         $targetModulePath = Join-Path (Join-Path $checkoutRoot 'modules') $moduleName
         Copy-Item -LiteralPath $sourceModulePath -Destination $targetModulePath -Force
     }
+
+    $cliPayloadFiles = @(
+        'app-installer-cli.ps1',
+        'apps-manifest.json',
+        'compatibility.json',
+        'modules/AppInstallerCore.psm1',
+        'modules/InstallerCompatibility.psm1',
+        'modules/InstallerPayload.psm1',
+        'modules/InstallerPrerequisitePlan.psm1',
+        'modules/InstallerRuntimeDiscovery.psm1',
+        'modules/WingetBootstrap.psm1',
+        'platform-detect.ps1'
+    )
+    $payloadFixture = [PSCustomObject]@{
+        formatVersion = 1
+        productVersionFile = 'VERSION'
+        generatedIntegrityFile = 'payload-integrity.json'
+        requiredFiles = @($cliPayloadFiles + @('payload-manifest.json', 'VERSION'))
+        fileSets = @(
+            [PSCustomObject]@{ path = 'apps'; extensions = @('.ps1') },
+            [PSCustomObject]@{ path = 'modules'; extensions = @('.ps1', '.psm1') }
+        )
+        features = [PSCustomObject]@{ cli = $cliPayloadFiles }
+        exclusions = [PSCustomObject]@{
+            directoryNames = @('.git', 'tests', 'fixtures', 'logs', 'temp', 'tmp')
+            fileNamePrefixes = @('.env')
+            extensions = @('.log', '.tmp', '.bak', '.exe', '.dll', '.key')
+        }
+    }
+    [System.IO.File]::WriteAllText(
+        (Join-Path $checkoutRoot 'payload-manifest.json'),
+        ($payloadFixture | ConvertTo-Json -Depth 10),
+        (New-Object System.Text.UTF8Encoding($false))
+    )
+    New-Item -ItemType Directory -Path (Join-Path $checkoutRoot '.git') -Force | Out-Null
 
     $installedUpdaterPath = Join-Path (Join-Path (Join-Path $userProfile 'myTech.Today\AppInstaller') 'apps') 'winget-update.ps1'
     $statePath = Join-Path $scenarioRoot 'fake-task-state.json'
@@ -462,7 +516,7 @@ function Initialize-TestTree {
 try {
     Initialize-TestTree
 
-    $status = New-Scenario -Name 'status' -Action 'Status'
+    $status = New-Scenario -Name 'status' -Action 'Status' -InputText ('Q' + [Environment]::NewLine)
     $statusDigest = Get-FileDigest -Path $status.StatePath
     $statusResult = Invoke-Scenario -Scenario $status
     Assert-Condition -Condition ($statusResult.ExitCode -eq 0) -Message 'Status action exits successfully'

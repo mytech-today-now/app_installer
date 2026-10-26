@@ -102,7 +102,7 @@ function New-FailedProbeResult {
 try {
     if ($env:OS -ne 'Windows_NT') {
         Write-Host '[SKIP] PowerShell engine discovery tests require Windows registry and executable paths.' -ForegroundColor Yellow
-        exit 0
+        exit 77
     }
 
     New-Item -ItemType Directory -Path $tempRoot -Force | Out-Null
