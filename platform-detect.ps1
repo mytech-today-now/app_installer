@@ -251,7 +251,7 @@ function Get-PackageManagerCommand {
                         -Operation install `
                         -PackageId $WingetId `
                         -Source $WingetSource `
-                        -AdditionalArguments @('--silent', '--accept-source-agreements', '--accept-package-agreements', '--force')
+                        -AdditionalArguments @('--silent', '--accept-source-agreements', '--accept-package-agreements')
                 }
                 catch {
                     return [pscustomobject]@{

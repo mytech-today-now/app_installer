@@ -856,7 +856,7 @@ Edit the `Category` property in the application registry to organize apps differ
 - ✅ **Feature Parity** - Both GUI and CLI scripts share the same `Safe-TestPath` helper and `Unblock-File` integration
 
 ### v2.0.5 (GUI) / v2.1.0 (Platform-Detect) - 2026-03-14
-- ✅ **Chrome Install Fix** - Added `--force` flag to winget install for reliable Chrome installation
+- ✅ **Chrome Install Fix (historical)** - A previous adapter passed `--force` for Chrome; the current shared adapter omits it and uses WinGet's normal install behavior.
 - ✅ **Exit Code Preservation** - `platform-detect.ps1` returns actual exit codes instead of hardcoded `1`
 - ✅ **Smart Success Detection** - Output pattern matching for "already installed" / "Successfully installed"
 - ✅ **WinGet Already-Installed Handling** - GUI accepts `-1978335191` as success from custom scripts
@@ -899,7 +899,7 @@ See [CHANGELOG.md](CHANGELOG.md) for detailed version history.
 
 **Recent Versions:**
 - **v2.0.6 (GUI) / v2.0.2 (CLI)** - Access Denied fix (Safe-TestPath), security warning fix (Unblock-File)
-- **v2.0.5 (GUI) / v2.1.0 (Platform-Detect)** - Chrome install fix, exit code preservation, smart success detection
+- **v2.0.5 (GUI) / v2.1.0 (Platform-Detect)** - Historical Chrome workaround (the `--force` flag is no longer added), exit code preservation, smart success detection
 - **v2.0.4 (GUI)** - Self-healing dependencies at system install path
 - **v2.0.3 (GUI)** - O&O ShutUp10 non-interactive fix
 - **v2.0.0 (GUI & CLI)** - Major cross-platform release

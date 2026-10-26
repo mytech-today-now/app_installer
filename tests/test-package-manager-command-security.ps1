@@ -169,8 +169,9 @@ exec "$PACKAGE_MANAGER_TEST_PWSH" -NoLogo -NoProfile -File "$PACKAGE_MANAGER_TES
     Assert-Condition -Condition ($catalogWingetMappings.Count -eq $manifestWingetMappingCount -and $unsupportedSourceCount -eq 0) -Message 'Catalog schema requires a supported source for every WinGet package ID'
     Assert-Condition -Condition (@($catalogWingetMappings | Where-Object { $_.WingetSource -ceq 'msstore' -and $_.WingetId -ceq 'XPFD23M0L795KD' }).Count -eq 1 -and @($catalogWingetMappings | Where-Object { $_.WingetSource -ceq 'msstore' }).Count -eq 1) -Message 'The Microsoft Store catalog mapping is explicitly classified as msstore'
     $appRows = @(
-        [pscustomobject]@{ Platform = 'Windows'; Manager = 'winget'; AppName = '7zip'; Field = 'WingetId'; ManifestField = 'winget'; Expected = @('install', '--id', '7zip.7zip', '--exact', '--source', 'winget', '--silent', '--accept-source-agreements', '--accept-package-agreements', '--force') },
-        [pscustomobject]@{ Platform = 'Windows'; Manager = 'winget'; AppName = 'avira'; Field = 'WingetId'; ManifestField = 'winget'; Expected = @('install', '--id', 'XPFD23M0L795KD', '--source', 'msstore', '--silent', '--accept-source-agreements', '--accept-package-agreements', '--force') },
+        [pscustomobject]@{ Platform = 'Windows'; Manager = 'winget'; AppName = '7zip'; Field = 'WingetId'; ManifestField = 'winget'; Expected = @('install', '--id', '7zip.7zip', '--exact', '--source', 'winget', '--silent', '--accept-source-agreements', '--accept-package-agreements') },
+        [pscustomobject]@{ Platform = 'Windows'; Manager = 'winget'; AppName = 'chrome'; Field = 'WingetId'; ManifestField = 'winget'; Expected = @('install', '--id', 'Google.Chrome', '--exact', '--source', 'winget', '--silent', '--accept-source-agreements', '--accept-package-agreements') },
+        [pscustomobject]@{ Platform = 'Windows'; Manager = 'winget'; AppName = 'avira'; Field = 'WingetId'; ManifestField = 'winget'; Expected = @('install', '--id', 'XPFD23M0L795KD', '--source', 'msstore', '--silent', '--accept-source-agreements', '--accept-package-agreements') },
         [pscustomobject]@{ Platform = 'macOS'; Manager = 'brew'; AppName = '7zip'; Field = 'BrewCask'; ManifestField = 'brewCask'; Expected = @('install', '--cask', 'the-unarchiver') },
         [pscustomobject]@{ Platform = 'macOS'; Manager = 'brew'; AppName = 'php'; Field = 'BrewFormula'; ManifestField = 'brewFormula'; Expected = @('install', 'php') },
         [pscustomobject]@{ Platform = 'Linux'; Manager = 'apt'; AppName = '7zip'; Field = 'AptPackage'; ManifestField = 'apt'; Expected = @('apt', 'install', '-y', 'p7zip-full') },
@@ -216,6 +217,9 @@ exec "$PACKAGE_MANAGER_TEST_PWSH" -NoLogo -NoProfile -File "$PACKAGE_MANAGER_TES
             $actualArguments = @($actualArguments[0])
         }
         Assert-ArgumentList -Actual $actualArguments -Expected $testCase.Expected -Context ("{0} capture: {1}" -f $testCase.Manager, $run.DisplayText)
+        if ($testCase.Manager -eq 'winget') {
+            Assert-Condition -Condition ($actualArguments -notcontains '--force') -Message "$($testCase.AppName) WinGet adapter argv omits --force"
+        }
         Assert-Condition -Condition ($run.DisplayText.Contains('fake manager output')) -Message "$($testCase.Manager) native output remains available for diagnostics"
     }
     $script:QuietAssertions = $false
@@ -226,7 +230,7 @@ exec "$PACKAGE_MANAGER_TEST_PWSH" -NoLogo -NoProfile -File "$PACKAGE_MANAGER_TES
     $script:PackageManager = 'winget'
     $catalogDerivedCommand = Get-PackageManagerCommand -WingetId '7zip.7zip'
     Assert-Condition -Condition ($catalogDerivedCommand.IsValid -and $catalogDerivedCommand.Executable -eq 'winget') -Message 'Cross-platform adapter resolves omitted source metadata from the catalog'
-    Assert-ArgumentList -Actual $catalogDerivedCommand.Arguments -Expected @('install', '--id', '7zip.7zip', '--exact', '--source', 'winget', '--silent', '--accept-source-agreements', '--accept-package-agreements', '--force') -Context 'Catalog-derived adapter source'
+    Assert-ArgumentList -Actual $catalogDerivedCommand.Arguments -Expected @('install', '--id', '7zip.7zip', '--exact', '--source', 'winget', '--silent', '--accept-source-agreements', '--accept-package-agreements') -Context 'Catalog-derived adapter source'
     Remove-Item -LiteralPath $capturePath -Force -ErrorAction SilentlyContinue
     $env:PACKAGE_MANAGER_CAPTURE_PATH = $capturePath
     $catalogDerivedProcess = Invoke-PackageManagerProcess -Executable $catalogDerivedCommand.Executable -Arguments $catalogDerivedCommand.Arguments

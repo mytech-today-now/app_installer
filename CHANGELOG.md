@@ -44,6 +44,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), wit
 
 ### Fixed
 
+- Removed the unconditional `--force` option from cross-platform WinGet installs; WinGet's default handling of non-security issues now applies to every mapped package.
+
 - Corrected the Windows 11 26H2 Home and Pro end-of-updates date in `compatibility.json` to 2028-10-10.
 - Preserved accurate winget update result states and process exit codes, including partial or unknown outcomes and log-write failures.
 - Prevented normal CLI shutdown from implicitly creating an elevated monthly update task.
