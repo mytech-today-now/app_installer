@@ -62,6 +62,8 @@ else {
         'tests/test-startup-helper-trust.ps1',
         'tests/test-ooshutup10-trust.ps1',
         'tests/test-package-manager-command-security.ps1',
+        'tests/test-update-scan-status.ps1',
+        'tests/test-update-argv-security.ps1',
         'tests/test-monthly-update-scheduling.ps1',
         'tests/test-monthly-update-results.ps1',
         'tests/test-cli-whatif.ps1'

@@ -6,6 +6,7 @@
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing -ErrorAction Stop
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
+Import-Module (Join-Path $repositoryRoot 'modules\AppInstallerCore.psm1') -Force -ErrorAction Stop
 $script:assertionCount = 0
 $script:logs = @()
 $script:visibleMessages = @()
@@ -156,7 +157,7 @@ function New-CommandResult {
 $tableWithUpdate = @(
     'Name  Id  Version  Available  Source',
     '--------------------------------------------------------',
-    'Example Application  Example.App  1.0  1.1  winget',
+    'Google Chrome  Google.Chrome  1.0  1.1  winget',
     '1 upgrade available'
 ) -join [Environment]::NewLine
 $tableWithoutUpdates = @(
@@ -177,7 +178,7 @@ $scanCases = @(
     @{ Name = 'error message output'; Result = (New-CommandResult -Output 'Failed when searching source: private detail token=do-not-log'); ExpectedStatus = 'Unknown'; ExpectedExitCode = 0; ExpectedReason = 'missing-header' },
     @{ Name = 'missing separator'; Result = (New-CommandResult -Output (@('Name  Id  Version  Available  Source', 'Example Application  Example.App  1.0  1.1  winget', '1 upgrade available') -join [Environment]::NewLine)); ExpectedStatus = 'Unknown'; ExpectedExitCode = 0; ExpectedReason = 'missing-separator' },
     @{ Name = 'malformed row'; Result = (New-CommandResult -Output (@('Name  Id  Version  Available  Source', '--------------------------------------------------------', 'Example Application  Example.App  1.0', '1 upgrade available') -join [Environment]::NewLine)); ExpectedStatus = 'Unknown'; ExpectedExitCode = 0; ExpectedReason = 'malformed-row' },
-    @{ Name = 'truncated table'; Result = (New-CommandResult -Output (@('Name  Id  Version  Available  Source', '--------------------------------------------------------', 'Example Application  Example.App  1.0  1.1  winget') -join [Environment]::NewLine)); ExpectedStatus = 'Unknown'; ExpectedExitCode = 0; ExpectedReason = 'missing-summary' },
+    @{ Name = 'truncated table'; Result = (New-CommandResult -Output (@('Name  Id  Version  Available  Source', '--------------------------------------------------------', 'Google Chrome  Google.Chrome  1.0  1.1  winget') -join [Environment]::NewLine)); ExpectedStatus = 'Unknown'; ExpectedExitCode = 0; ExpectedReason = 'missing-summary' },
     @{ Name = 'localized table'; Result = (New-CommandResult -Output (@('Nombre  Identificador  Versión  Disponible  Origen', '--------------------------------------------------------', 'Aplicación de ejemplo  Example.App  1.0  1.1  winget', '1 actualización disponible') -join [Environment]::NewLine)); ExpectedStatus = 'Unknown'; ExpectedExitCode = 0; ExpectedReason = 'missing-header' }
 )
 
@@ -202,7 +203,7 @@ foreach ($entrypoint in $entrypoints) {
         Assert-Condition -Condition ($script:commandArguments.Count -eq 1 -and $script:commandArguments[0] -ceq 'upgrade') -Message "$($entrypoint.Name): $($case.Name) uses the read-only upgrade query"
         Assert-Condition -Condition ($script:packageMutationCount -eq 0) -Message "$($entrypoint.Name): $($case.Name) performs no package mutation"
         if ($case.Name -eq 'valid populated table') {
-            Assert-Condition -Condition ($result.Updates.Count -eq 1 -and $result.Updates[0].Id -ceq 'Example.App') -Message "$($entrypoint.Name): validated table returns the expected update"
+            Assert-Condition -Condition ($result.Updates.Count -eq 1 -and $result.Updates[0].Id -ceq 'Google.Chrome' -and $result.Updates[0].Source -ceq 'winget') -Message "$($entrypoint.Name): validated table returns the catalog-backed update and source"
         }
         if ($case.Name -eq 'nonzero command exit') {
             $loggedText = ($script:logs | ForEach-Object Message) -join ' '

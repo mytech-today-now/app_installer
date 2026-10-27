@@ -140,6 +140,31 @@ function Initialize-InstallerDirectories {
 
 #region Application Registry
 
+function Test-WingetPackageIdentifier {
+    [CmdletBinding()]
+    param(
+        [AllowNull()]
+        [AllowEmptyString()]
+        [object]$PackageId
+    )
+
+    return ($PackageId -is [string] -and [regex]::IsMatch(
+            $PackageId,
+            '\A[A-Za-z0-9][A-Za-z0-9._+-]*\z',
+            [System.Text.RegularExpressions.RegexOptions]::CultureInvariant
+        ))
+}
+
+function Test-WingetPackageSource {
+    [CmdletBinding()]
+    param(
+        [AllowNull()]
+        [object]$Source
+    )
+
+    return ($Source -is [string] -and $Source -cin @('winget', 'msstore'))
+}
+
 function Get-ApplicationRegistry {
     <#
     .SYNOPSIS
@@ -193,10 +218,10 @@ function Get-ApplicationRegistry {
                     continue
                 }
 
-                if ($wingetId -isnot [string] -or -not [regex]::IsMatch([string]$wingetId, '\A[A-Za-z0-9][A-Za-z0-9._+-]*\z')) {
+                if (-not (Test-WingetPackageIdentifier -PackageId $wingetId)) {
                     throw "Application '$($catalogApp.name)' has an invalid WinGet package ID."
                 }
-                if ($wingetSource -isnot [string] -or $wingetSource -cnotin @('winget', 'msstore')) {
+                if (-not (Test-WingetPackageSource -Source $wingetSource)) {
                     throw "Application '$($catalogApp.name)' must declare a supported WinGet source (winget or msstore)."
                 }
 
@@ -300,10 +325,10 @@ function New-WingetArgumentList {
         [string[]]$AdditionalArguments = @()
     )
 
-    if (-not [regex]::IsMatch($PackageId, '\A[A-Za-z0-9][A-Za-z0-9._+-]*\z')) {
+    if (-not (Test-WingetPackageIdentifier -PackageId $PackageId)) {
         throw 'The WinGet package ID does not match the accepted identifier format. No package command was run.'
     }
-    if ([string]::IsNullOrWhiteSpace($Source) -or $Source -cnotin @('winget', 'msstore')) {
+    if (-not (Test-WingetPackageSource -Source $Source)) {
         throw 'A supported explicit WinGet source is required. No package command was run.'
     }
 
@@ -748,6 +773,8 @@ Export-ModuleMember -Function @(
     'Get-InstallerProfilesPath',
     'Initialize-InstallerDirectories',
     'Get-ApplicationRegistry',
+    'Test-WingetPackageIdentifier',
+    'Test-WingetPackageSource',
     'Get-WingetPackageSource',
     'Resolve-WingetPackageSource',
     'New-WingetArgumentList',

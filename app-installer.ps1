@@ -2144,12 +2144,29 @@ function ConvertFrom-WingetUpgradeTable {
             return New-UpdateScanResult -Status Unknown -Reason 'malformed-row'
         }
 
+        $packageId = $parts[1]
+        if (-not (Test-WingetPackageIdentifier -PackageId $packageId)) {
+            return New-UpdateScanResult -Status Unknown -Reason 'invalid-package-id'
+        }
+
+        $declaredSource = if ($parts.Count -ge 5) { $parts[4] } else { $null }
+        if ($null -ne $declaredSource -and -not (Test-WingetPackageSource -Source $declaredSource)) {
+            return New-UpdateScanResult -Status Unknown -Reason 'invalid-package-source'
+        }
+
+        try {
+            $resolvedSource = Resolve-WingetPackageSource -PackageId $packageId -DeclaredSource $declaredSource
+        }
+        catch {
+            return New-UpdateScanResult -Status Unknown -Reason 'unmapped-package-source'
+        }
+
         $updates += [PSCustomObject]@{
             Name             = $parts[0]
-            Id               = $parts[1]
+            Id               = $packageId
             CurrentVersion   = $parts[2]
             AvailableVersion = $parts[3]
-            Source           = if ($parts.Count -ge 5) { $parts[4] } else { 'winget' }
+            Source           = $resolvedSource
         }
     }
 
@@ -2610,7 +2627,19 @@ function Update-Applications {
         Write-Output "[UPDATE] Updating $($update.Name)..." -Color ([System.Drawing.Color]::Blue)
 
         try {
+            if (-not (Test-WingetPackageIdentifier -PackageId $update.Id)) {
+                throw 'The WinGet update ID is invalid. No package command was run.'
+            }
+            if ($null -ne $update.Source -and -not (Test-WingetPackageSource -Source $update.Source)) {
+                throw 'The WinGet update source is invalid. No package command was run.'
+            }
+
             $updateSource = Resolve-WingetPackageSource -PackageId ([string]$update.Id) -DeclaredSource ([string]$update.Source)
+            $baseUpgradeArguments = New-WingetArgumentList `
+                -Operation upgrade `
+                -PackageId ([string]$update.Id) `
+                -Source $updateSource `
+                -AdditionalArguments @('--silent', '--accept-source-agreements', '--accept-package-agreements')
             $dependencyDiscovery = Get-PackageDependencies -PackageId $update.Id -Source $updateSource
             $dependencyResult = $null
             if ($dependencyDiscovery.Status -eq 'succeeded') {
@@ -2632,19 +2661,11 @@ function Update-Applications {
                     Start-Sleep -Seconds 2
                 }
 
-                $upgradeArguments = New-WingetArgumentList `
-                    -Operation upgrade `
-                    -PackageId ([string]$update.Id) `
-                    -Source $updateSource `
-                    -AdditionalArguments @('--silent', '--accept-source-agreements', '--accept-package-agreements')
+                $upgradeArguments = [string[]]@($baseUpgradeArguments)
 
                 # For architecture-specific errors, try with --force flag
                 if ($retryCount -gt 0 -and $lastExitCode -eq -1978335212) {
-                    $upgradeArguments = New-WingetArgumentList `
-                        -Operation upgrade `
-                        -PackageId ([string]$update.Id) `
-                        -Source $updateSource `
-                        -AdditionalArguments @('--silent', '--accept-source-agreements', '--accept-package-agreements', '--force')
+                    $upgradeArguments += '--force'
                     Write-Log "Adding --force flag due to installer type mismatch" -Level INFO
                 }
 
