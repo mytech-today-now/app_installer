@@ -115,8 +115,13 @@ try {
     $desktopProbe = New-EngineProbe -Version '5.1.0' -Edition 'Desktop' -FormsMajor 4 -DrawingMajor 4
     $hostInfo = Get-InstallerHostInfo
 
-    $none = Resolve-InstallerRuntime -Component WindowsCli -ApplicationPath $applicationPath -CandidateRecords @() -AllowTestCandidates
-    Assert-Condition -Condition (-not $none.IsSupported -and $none.Attempts.Count -eq 0 -and $none.Reason.Contains('No documented PowerShell executable candidates')) -Message 'No candidates is a deterministic failure with no process probe.'
+    $script:probeCallLog.Clear()
+    $none = Resolve-InstallerRuntime -Component WindowsCli -ApplicationPath $applicationPath -CandidateRecords @() -AllowTestCandidates -ProbeInvoker {
+        param($candidate, $component, $target, $timeout)
+        $script:probeCallLog.Add($candidate.Engine)
+        throw 'An empty candidate set must not invoke the process probe.'
+    }
+    Assert-Condition -Condition (-not $none.IsSupported -and $none.Attempts.Count -eq 0 -and $none.Reason.Contains('No documented PowerShell executable candidates') -and $script:probeCallLog.Count -eq 0) -Message 'No candidates is a deterministic failure with no process probe.'
 
     $coreOnly = Resolve-InstallerRuntime -Component WindowsCli -ApplicationPath $applicationPath -CandidateRecords @($core) -AllowTestCandidates -ProbeInvoker {
         param($candidate, $component, $target, $timeout)
@@ -151,6 +156,14 @@ try {
         New-SuccessfulProbeResult -Probe $oldVersion
     }
     Assert-Condition -Condition (-not $oldEngine.IsSupported -and $oldEngine.Attempts[0].Reason -match 'outside the supported engine matrix') -Message 'A too-old PowerShell Core version is rejected.'
+
+    $newerUnsupportedCore = New-EngineProbe -Version '7.6.8' -Edition 'Core'
+    $unsupportedCoreFallback = Resolve-InstallerRuntime -Component WindowsCli -ApplicationPath $applicationPath -CandidateRecords @($core, $desktop) -AllowTestCandidates -ProbeInvoker {
+        param($candidate, $component, $target, $timeout)
+        if ($candidate.Engine -eq 'Core') { New-SuccessfulProbeResult -Probe $newerUnsupportedCore }
+        else { New-SuccessfulProbeResult -Probe $desktopProbe }
+    }
+    Assert-Condition -Condition ($unsupportedCoreFallback.IsSupported -and $unsupportedCoreFallback.Selected.Engine -eq 'Desktop' -and $unsupportedCoreFallback.Attempts.Count -eq 2 -and -not $unsupportedCoreFallback.Attempts[0].IsCompatible -and $unsupportedCoreFallback.Attempts[0].Probe.Version -eq '7.6.8' -and $unsupportedCoreFallback.Attempts[0].Reason -match 'outside the supported engine matrix') -Message 'Core 7.6.8 is rejected before compatible Desktop 5.1 is selected under the exact pinned engine matrix.'
 
     $wrongEdition = New-EngineProbe -Version '5.1.0' -Edition 'Desktop'
     $wrongEditionResult = Resolve-InstallerRuntime -Component WindowsCli -ApplicationPath $applicationPath -CandidateRecords @($core) -AllowTestCandidates -ProbeInvoker {
@@ -222,12 +235,14 @@ try {
     }
     Assert-Condition -Condition (-not $maliciousPaths.IsSupported -and $maliciousPaths.Attempts.Count -eq 4 -and $script:probeCallLog.Count -eq 0) -Message 'Relative, wrong-name, directory, and command-shaped paths are rejected before process launch.'
 
+    $script:probeCallLog.Clear()
     $allIncompatible = Resolve-InstallerRuntime -Component WindowsCli -ApplicationPath $applicationPath -CandidateRecords @($core, $desktop) -AllowTestCandidates -ProbeInvoker {
         param($candidate, $component, $target, $timeout)
+        $script:probeCallLog.Add($candidate.Engine)
         if ($candidate.Engine -eq 'Core') { New-SuccessfulProbeResult -Probe $oldVersion }
         else { New-FailedProbeResult -Reason 'The child exited with code 7.' }
     }
-    Assert-Condition -Condition (-not $allIncompatible.IsSupported -and $allIncompatible.Attempts.Count -eq 2) -Message 'All candidates incompatible produces a closed failure after each candidate is checked once.'
+    Assert-Condition -Condition (-not $allIncompatible.IsSupported -and $allIncompatible.Attempts.Count -eq 2 -and @($allIncompatible.Attempts | Where-Object { $_.IsCompatible }).Count -eq 0 -and $script:probeCallLog.Count -eq 2 -and $script:probeCallLog[0] -eq 'Core' -and $script:probeCallLog[1] -eq 'Desktop') -Message 'All candidates failing produces a closed failure after each candidate is checked once.'
 
     $policyCallsBefore = $script:probeCallLog.Count
     $policyResult = Resolve-InstallerRuntime -Component WindowsCli -ApplicationPath $applicationPath -CandidateRecords @($core, $desktop) -AllowTestCandidates -ProbeInvoker {
@@ -297,11 +312,20 @@ try {
     $handoffAccepted = Test-InstallerRuntimeHandoff -Component WindowsCli
     Assert-Condition -Condition ($handoffAccepted -and [string]::IsNullOrEmpty($env:APP_INSTALLER_RUNTIME_HANDOFF_PATH)) -Message 'A matching one-time runtime handoff is accepted and cleared to prevent recursion.'
 
-    $actualCandidate = @(Get-InstallerRuntimeCandidates | Select-Object -First 1)
-    Assert-Condition -Condition ($actualCandidate.Count -eq 1) -Message 'The current Windows host exposes at least one documented PowerShell candidate.'
-    $actualProbeResult = Invoke-InstallerRuntimeProbe -ExecutablePath $actualCandidate[0].Path -Component WindowsCli -ApplicationPath $applicationPath -TimeoutSeconds 12
-    $actualEngineResult = if ($actualProbeResult.Success) { Test-InstallerRuntimeProbe -Candidate $actualCandidate[0] -Probe $actualProbeResult.Probe -Component WindowsCli -HostInfo $hostInfo } else { [PSCustomObject]@{ IsCompatible = $false; Reason = $actualProbeResult.Reason } }
-    Assert-Condition -Condition ($actualProbeResult.Success -and $actualEngineResult.IsCompatible) -Message 'The safe child-process probe validates a real installed engine and parses the application entry point.'
+    $actualCandidates = @(Get-InstallerRuntimeCandidates)
+    Assert-Condition -Condition ($actualCandidates.Count -gt 0) -Message 'The current Windows host exposes at least one documented PowerShell candidate.'
+    $actualResolution = Resolve-InstallerRuntime -Component WindowsCli -ApplicationPath $applicationPath -CandidateRecords $actualCandidates -HostInfo $hostInfo -TimeoutSeconds 12
+    foreach ($actualAttempt in $actualResolution.Attempts) {
+        $actualVersion = if ($null -ne $actualAttempt.Probe) { [string]$actualAttempt.Probe.Version } else { 'unavailable' }
+        $actualOutcome = if ($actualAttempt.IsCompatible) { 'compatible' } else { 'rejected' }
+        $actualDetail = if ($actualAttempt.Reason) { ': ' + [string]$actualAttempt.Reason } else { '' }
+        Write-Host ('[HOST CANDIDATE] {0} {1} {2}{3}' -f $actualAttempt.Candidate.Engine, $actualVersion, $actualOutcome, $actualDetail)
+    }
+    if ($actualResolution.IsSupported) {
+        $selectedVersion = ($actualResolution.Attempts | Where-Object { $_.Candidate.Path -eq $actualResolution.Selected.Path } | Select-Object -First 1).Probe.Version
+        Write-Host ('[HOST SELECTED] {0} {1} at {2}' -f $actualResolution.Selected.Engine, $selectedVersion, $actualResolution.Selected.Path)
+    }
+    Assert-Condition -Condition ($actualResolution.IsSupported -and $null -ne $actualResolution.Selected) -Message 'The production resolver selects a compatible real installed engine and reports rejected candidates as diagnostics.'
 
     $manifest = Get-InstallerCompatibilityManifest
     $assertedOrder = @($manifest.windowsExecutable.engineSelectionOrder)
