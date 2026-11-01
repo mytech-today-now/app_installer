@@ -1,6 +1,10 @@
 {
   "contractVersion": 1,
-  "lastReviewed": "2026-10-20",
+  "lastReviewed": "2026-11-01",
+  "reviewPolicy": {
+    "maximumAgeDays": 180,
+    "requiredBeforeRelease": true
+  },
   "windowsClient": {
     "productType": "WinNT",
     "installationType": "Client",
@@ -29,7 +33,7 @@
       "dotNetFrameworkSource": "https://learn.microsoft.com/en-us/dotnet/framework/get-started/system-requirements",
       "windowsPowerShellSource": "https://learn.microsoft.com/en-us/powershell/scripting/install/installing-windows-powershell?view=powershell-7.6",
       "powerShellSource": "https://learn.microsoft.com/en-us/powershell/scripting/install/powershell-support-lifecycle?view=powershell-7.6",
-      "powerShellReleaseSource": "https://github.com/PowerShell/PowerShell/releases/tag/v7.6.7",
+      "powerShellReleaseSource": "https://github.com/PowerShell/PowerShell/releases/tag/v7.6.9",
       "winGetSource": "https://learn.microsoft.com/en-us/windows/package-manager/winget/"
     },
     "unsupportedFamilies": [
@@ -61,7 +65,7 @@
     },
     "powerShellCore": {
       "edition": "Core",
-      "version": "7.6.7",
+      "version": "7.6.9",
       "gui": true,
       "cli": true,
       "nonWindowsCli": true,
@@ -73,7 +77,7 @@
     "entryPoint": "install.bat",
     "bundledPowerShellRuntime": false,
     "engineSelectionOrder": [
-      "PowerShell Core 7.6.7",
+      "PowerShell Core 7.6.9",
       "Windows PowerShell Desktop 5.1"
     ],
     "runtimeDiscovery": {
@@ -83,7 +87,7 @@
         "%ProgramFiles(x86)%\\PowerShell\\7\\pwsh.exe",
         "%LOCALAPPDATA%\\Programs\\PowerShell\\7\\pwsh.exe",
         "%LOCALAPPDATA%\\Microsoft\\PowerShell\\pwsh.exe",
-        "%LOCALAPPDATA%\\Programs\\myTech.Today\\AppInstaller\\PowerShell\\7.6.7\\pwsh.exe",
+        "%LOCALAPPDATA%\\Programs\\myTech.Today\\AppInstaller\\PowerShell\\7.6.9\\pwsh.exe",
         "%SystemRoot%\\Sysnative\\WindowsPowerShell\\v1.0\\powershell.exe",
         "%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"
       ],
@@ -107,14 +111,14 @@
       "consentRequiredProvisioning": true,
       "provisioning": {
         "engine": "Core",
-        "version": "7.6.7",
+        "version": "7.6.9",
         "architecture": "X64",
-        "artifactName": "PowerShell-7.6.7-win-x64.zip",
-        "source": "https://github.com/PowerShell/PowerShell/releases/download/v7.6.7/PowerShell-7.6.7-win-x64.zip",
-        "sha256": "D2F952EBDBF24386CB8923553AA58E41A846DB35A6155EA04C58142A4B16DBB7",
+        "artifactName": "PowerShell-7.6.9-win-x64.zip",
+        "source": "https://github.com/PowerShell/PowerShell/releases/download/v7.6.9/PowerShell-7.6.9-win-x64.zip",
+        "sha256": "CE7484804C0F0AD4DDA10C958E71ACDAF7EEBFB22505C1B480F89E0E9F1DA94D",
         "signer": "Microsoft Corporation",
         "installScope": "current-user",
-        "installLocation": "%LOCALAPPDATA%\\Programs\\myTech.Today\\AppInstaller\\PowerShell\\7.6.7",
+        "installLocation": "%LOCALAPPDATA%\\Programs\\myTech.Today\\AppInstaller\\PowerShell\\7.6.9",
         "requiresAdministrator": false,
         "modifiesPath": false,
         "modifiesDefaultEngine": false
@@ -169,14 +173,14 @@
   },
   "nonWindowsCli": {
     "platformScope": "Keep the OS and package-manager filters in platform-detect.ps1 unchanged.",
-    "engine": "PowerShell Core 7.6.7",
+    "engine": "PowerShell Core 7.6.9",
     "gui": false,
     "supportLifecycle": "https://learn.microsoft.com/en-us/powershell/scripting/install/powershell-support-lifecycle?view=powershell-7.6",
     "verification": "tests/test-compatibility-contract.ps1"
   },
   "recovery": {
     "windows": "Use a Windows 11 Home or Pro x64 client release listed here and still within its end-of-servicing date. If none are both current and listed, update Windows and use an App Installer release with a refreshed compatibility contract.",
-    "engine": "Use Windows PowerShell 5.1 on a supported Windows host or install PowerShell Core 7.6.7 only while its published support lifecycle remains active. If the pinned version has reached end of support, use an App Installer release with a current compatibility contract.",
+    "engine": "Use Windows PowerShell 5.1 on a supported Windows host or install PowerShell Core 7.6.9 only while its published support lifecycle remains active. If the pinned version has reached end of support, use an App Installer release with a current compatibility contract.",
     "gui": "Use the CLI entry point when Windows Forms or the required desktop runtime is unavailable."
   }
 }

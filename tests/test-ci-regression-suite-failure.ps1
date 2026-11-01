@@ -13,7 +13,7 @@ else {
         throw '[UNAVAILABLE] PowerShell Core executable could not be resolved for the failure-propagation check.'
     }
     $enginePath = $engineCommand.Source
-    $engineName = 'Core-7.6.7'
+    $engineName = 'Core-7.6.9'
 }
 
 if (-not (Test-Path -LiteralPath $enginePath -PathType Leaf)) {

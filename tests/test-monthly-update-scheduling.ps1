@@ -125,6 +125,7 @@ function New-Scenario {
 
     $runtimeModuleNames = @(
         'AppInstallerCore.psm1',
+        'PackageCommand.psm1',
         'InstallerCompatibility.psm1',
         'InstallerPayload.psm1',
         'InstallerPrerequisitePlan.psm1',
@@ -142,6 +143,7 @@ function New-Scenario {
         'apps-manifest.json',
         'compatibility.json',
         'modules/AppInstallerCore.psm1',
+        'modules/PackageCommand.psm1',
         'modules/InstallerCompatibility.psm1',
         'modules/InstallerPayload.psm1',
         'modules/InstallerPrerequisitePlan.psm1',
@@ -195,6 +197,10 @@ function New-Scenario {
 @echo off
 >>"%FAKE_NATIVE_WINGET_TRACE%" echo %*
 if /I "%1"=="show" echo Fake dependency metadata.
+if /I "%1"=="list" if "%FAKE_WINGET_INSTALLED%"=="1" (
+  echo Name Id Version
+  echo Box Drive Box.Box 1.0
+)
 exit /b %FAKE_WINGET_EXIT_CODE%
 '@
     [System.IO.File]::WriteAllText((Join-Path $scenarioBinPath 'winget.cmd'), $fakeNativeWingetText, [System.Text.Encoding]::ASCII)
@@ -534,7 +540,7 @@ try {
     $installAllCalls = [string](Get-Content -LiteralPath $installAll.NativeWingetTracePath -Raw)
     Assert-Condition -Condition ($installAllResult.Output -match 'Loaded 1 applications for Windows') -Message 'Single-app registry remains an array in both PowerShell engines'
     Assert-Condition -Condition ($installAllResult.Output -match 'Successful: 1' -and $installAllResult.Output -match 'Failed: 0') -Message 'InstallAll classifies a successful fake package operation'
-    Assert-Condition -Condition ($installAllCalls -match '(?m)^install --id Box\.Box --exact --source winget --silent --accept-source-agreements --accept-package-agreements') -Message 'InstallAll invokes the fake manager with exact catalog ID and source'
+    Assert-Condition -Condition ($installAllCalls -match '(?m)^install --id Box\.Box --exact --source winget --silent(\r?$)') -Message 'InstallAll invokes the fake manager without accepting package or source agreements'
 
     $installAllFailure = New-Scenario -Name 'install-all-failure' -Action 'InstallAll' -WingetExitCode 23
     $installAllFailureResult = Invoke-Scenario -Scenario $installAllFailure
@@ -547,16 +553,15 @@ try {
 
     $installMissing = New-Scenario -Name 'install-missing-success' -Action 'InstallMissing' -TraceAllWingetCalls
     $installMissingResult = Invoke-Scenario -Scenario $installMissing
-    $installMissingCalls = @(([string](Get-Content -LiteralPath $installMissing.WingetTracePath -Raw)) -split '\r?\n' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
     Assert-Condition -Condition ($installMissingResult.Output -match 'Installed: 1' -and $installMissingResult.Output -match 'Skipped: 0' -and $installMissingResult.Output -match 'Failed: 0') -Message 'InstallMissing installs an absent app through the fake manager'
-    $installMissingNativeCalls = [string](Get-Content -LiteralPath $installMissing.NativeWingetTracePath -Raw)
-    Assert-Condition -Condition ($installMissingCalls.Count -eq 1 -and $installMissingCalls[0] -match '^list\|' -and $installMissingNativeCalls -match '(?m)^install --id Box\.Box --exact --source winget --silent --accept-source-agreements --accept-package-agreements') -Message 'InstallMissing queries installed state and installs with exact catalog ID and source'
+    $installMissingNativeCalls = @(([string](Get-Content -LiteralPath $installMissing.NativeWingetTracePath -Raw)) -split '\r?\n' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    Assert-Condition -Condition ($installMissingNativeCalls.Count -eq 3 -and $installMissingNativeCalls[0] -ceq 'list --disable-interactivity' -and $installMissingNativeCalls[1] -ceq 'show --id Box.Box --exact --source winget --disable-interactivity' -and $installMissingNativeCalls[2] -ceq 'install --id Box.Box --exact --source winget --silent') -Message 'InstallMissing queries installed state and installs through the captured shared argv without accepting agreements'
 
     $installMissingInstalled = New-Scenario -Name 'install-missing-already-installed' -Action 'InstallMissing' -NonInteractive -FakeWingetReportsInstalled -TraceAllWingetCalls
     $installMissingInstalledResult = Invoke-Scenario -Scenario $installMissingInstalled
-    $installMissingInstalledCalls = @(([string](Get-Content -LiteralPath $installMissingInstalled.WingetTracePath -Raw)) -split '\r?\n' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    $installMissingInstalledCalls = @(([string](Get-Content -LiteralPath $installMissingInstalled.NativeWingetTracePath -Raw)) -split '\r?\n' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
     Assert-Condition -Condition ($installMissingInstalledResult.Output -match 'already installed' -and $installMissingInstalledResult.Output -match 'Skipped: 1') -Message 'Noninteractive InstallMissing skips an already installed app'
-    Assert-Condition -Condition ($installMissingInstalledCalls.Count -eq 1 -and $installMissingInstalledCalls[0] -match '^list\|' -and $installMissingInstalledCalls -notmatch '^install\|') -Message 'InstallMissing does not reinstall an already installed app without confirmation'
+    Assert-Condition -Condition ($installMissingInstalledCalls.Count -eq 1 -and $installMissingInstalledCalls[0] -ceq 'list --disable-interactivity') -Message 'InstallMissing does not reinstall an already installed app without confirmation'
 
     $installMissingPreview = New-Scenario -Name 'install-missing-whatif' -Action 'InstallMissing' -WhatIf -TraceAllWingetCalls
     $installMissingPreviewResult = Invoke-Scenario -Scenario $installMissingPreview
@@ -566,12 +571,12 @@ try {
     $missingWinget = New-Scenario -Name 'missing-winget' -Action 'InstallAll' -InputText ('N' + [Environment]::NewLine) -FakeWingetUnavailable
     $missingWingetResult = Invoke-Scenario -Scenario $missingWinget
     Assert-Condition -Condition ($missingWingetResult.ExitCode -eq 0 -and $missingWingetResult.Output -match 'winget.*not available|not available.*winget') -Message 'Missing WinGet is reported and safely declined'
-    Assert-Condition -Condition ([string]::IsNullOrWhiteSpace([string](Get-Content -LiteralPath $missingWinget.WingetTracePath -Raw))) -Message 'Missing WinGet does not launch a package process'
+    Assert-Condition -Condition ([string]::IsNullOrWhiteSpace([string](Get-Content -LiteralPath $missingWinget.WingetTracePath -Raw)) -and [string]::IsNullOrWhiteSpace([string](Get-Content -LiteralPath $missingWinget.NativeWingetTracePath -Raw))) -Message 'Missing WinGet does not launch a package process'
 
     $invalidAction = New-Scenario -Name 'invalid-action' -Action 'NotARealAction'
     $invalidActionResult = Invoke-Scenario -Scenario $invalidAction
     Assert-Condition -Condition (($invalidActionResult.Output + $invalidActionResult.Error) -match "Cannot validate argument on parameter 'Action'") -Message 'Unsupported CLI actions fail explicitly during parameter binding'
-    Assert-Condition -Condition ([string]::IsNullOrWhiteSpace([string](Get-Content -LiteralPath $invalidAction.WingetTracePath -Raw))) -Message 'An invalid action launches no package process'
+    Assert-Condition -Condition ([string]::IsNullOrWhiteSpace([string](Get-Content -LiteralPath $invalidAction.WingetTracePath -Raw)) -and [string]::IsNullOrWhiteSpace([string](Get-Content -LiteralPath $invalidAction.NativeWingetTracePath -Raw))) -Message 'An invalid action launches no package process'
 
     $missingProfile = Join-Path $testRoot 'failed-action\missing-profile.json'
     $failedAction = New-Scenario -Name 'failed-action' -Action 'InstallProfile' -ProfilePath $missingProfile
@@ -685,7 +690,7 @@ try {
     Assert-Condition -Condition ($replacementResult.Output.Contains('ERROR: Injected final task creation failure.')) -Message 'Scheduler creation failure is shown exactly'
     Assert-Condition -Condition ($restoredTask.Count -eq 1 -and $restoredTask[0].Xml -ceq $replacement.OldTaskXml) -Message 'Failed replacement restores the previous task definition intact'
     Assert-Condition -Condition ($replacementResult.Output -match 'previous application-owned task was restored and verified') -Message 'Replacement failure reports verified rollback'
-    $replacementUpdateCalls = @(([string](Get-Content -LiteralPath $replacement.WingetTracePath -Raw)) -split '\r?\n' | Where-Object { $_ -match '(?i)update|install' })
+    $replacementUpdateCalls = @(([string](Get-Content -LiteralPath $replacement.NativeWingetTracePath -Raw)) -split '\r?\n' | Where-Object { $_ -match '(?i)update|install' })
     Assert-Condition -Condition ($replacementUpdateCalls.Count -eq 0) -Message 'Failed replacement does not start the update action'
     Assert-Condition -Condition (@($replacementState.Tasks | Where-Object { $_.Path -match '\.pending-' }).Count -eq 0) -Message 'Failed replacement leaves no staging task'
 
@@ -718,7 +723,7 @@ try {
     $scopedUpdateResult = Invoke-Scenario -Scenario $scopedUpdate
     $scopedUpdateCalls = @(([string](Get-Content -LiteralPath $scopedUpdate.WingetTracePath -Raw)) -split '\r?\n' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
     Assert-Condition -Condition ($scopedUpdateResult.ExitCode -eq 0 -and $scopedUpdateCalls.Count -eq 1) -Message 'Scoped updater returns success for the selected package'
-    Assert-Condition -Condition ($scopedUpdateCalls[0] -ceq 'upgrade|--id|Google.Chrome|--exact|--source|winget|--accept-source-agreements|--accept-package-agreements') -Message 'Scoped updater uses exact catalog identity and source argument ordering'
+    Assert-Condition -Condition ($scopedUpdateCalls[0] -ceq 'upgrade|--id|Google.Chrome|--exact|--source|winget|--disable-interactivity') -Message 'Scoped updater uses exact catalog identity, source, and fail-closed interactivity policy'
 
     $failedUpdate = New-Scenario -Name 'scoped-update-network-failure' -Action 'Updater' -Mode updater -PackageIds 'Google.Chrome' -WingetExitCode 23
     $failedUpdateResult = Invoke-Scenario -Scenario $failedUpdate
@@ -734,7 +739,7 @@ try {
     $cliText = Get-Content (Join-Path $repositoryRoot 'app-installer-cli.ps1') -Raw
     $updaterText = Get-Content (Join-Path $repositoryRoot 'apps\winget-update.ps1') -Raw
     Assert-Condition -Condition ($cliText -notmatch '(?s)finally\s*\{[^}]*Install-MonthlyUpdateTask') -Message 'Task installation is not called from a finally block'
-    Assert-Condition -Condition ($updaterText.Contains('New-WingetArgumentList') -and $updaterText -notmatch '(?im)winget\s+(update|upgrade)\s+--all') -Message 'Updater builds scoped arguments and has no unscoped all-package action'
+    Assert-Condition -Condition ($updaterText.Contains('New-WingetPackageCommand') -and $updaterText -notmatch '(?im)winget\s+(update|upgrade)\s+--all') -Message 'Updater builds scoped command specifications and has no unscoped all-package action'
     Write-Host (' ' + [Environment]::NewLine + "[OK] Monthly scheduling regression checks passed ($checkCount assertions).") -ForegroundColor Green
 }
 finally {

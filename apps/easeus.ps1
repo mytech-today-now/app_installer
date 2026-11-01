@@ -38,7 +38,7 @@ try {
     Write-Host "  Installing via winget..." -ForegroundColor Yellow
 
     . "$PSScriptRoot/../platform-detect.ps1"
-    $result = Invoke-WingetPackageCommand -Operation install -PackageId 'EASEUSAG.EaseUSTodoBackupFree' -AdditionalArguments @('--silent', '--accept-source-agreements', '--accept-package-agreements')
+    $result = Invoke-WingetPackageCommand -Operation install -PackageId 'EASEUSAG.EaseUSTodoBackupFree' -AdditionalArguments @('--silent')
 
     if ($LASTEXITCODE -eq 0) {
         Write-Host "  [OK] EaseUS Todo Backup Free installed successfully!" -ForegroundColor Green

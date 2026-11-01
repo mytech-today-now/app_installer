@@ -1,0 +1,251 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Reviewed allowlist for every tests/test-*.ps1 script. Included, skipped, and unavailable dispositions are explicit per CI engine.",
+  "documentedCounts": {
+    "totalScripts": 36,
+    "Desktop-5.1": { "included": 30, "skipped": 4, "unavailable": 2 },
+    "Core-7.6.9": { "included": 33, "skipped": 1, "unavailable": 2 }
+  },
+  "tests": [
+    {
+      "path": "tests/test-belarc-installer-trust.ps1",
+      "prerequisites": "Windows and PowerShell 5.1 or later; writable temporary directory.",
+      "boundary": "Synthetic payload bytes with fake download, signature, and process callbacks. The test copy omits the ACL write; no network request or executable launch.",
+      "engines": { "Desktop-5.1": { "status": "included" }, "Core-7.6.9": { "status": "included" } }
+    },
+    {
+      "path": "tests/test-ci-regression-inventory.ps1",
+      "prerequisites": "PowerShell 5.1 or later; repository test directory.",
+      "boundary": "Reads the inventory, test filenames, runner, and README; no system state changes.",
+      "engines": { "Desktop-5.1": { "status": "included" }, "Core-7.6.9": { "status": "included" } }
+    },
+    {
+      "path": "tests/test-ci-regression-suite-failure.ps1",
+      "prerequisites": "Windows and the same PowerShell engine as the active matrix leg.",
+      "boundary": "Runs the fixed child fixture that exits 31 and checks propagation; no installer or provider action.",
+      "engines": { "Desktop-5.1": { "status": "included" }, "Core-7.6.9": { "status": "included" } }
+    },
+    {
+      "path": "tests/test-cli-runtime-handoff.ps1",
+      "prerequisites": "Windows process and path behavior; PowerShell 5.1 or later.",
+      "boundary": "Uses a fake WinGet command, temporary profile roots, and WhatIf; no live package provider.",
+      "engines": { "Desktop-5.1": { "status": "included" }, "Core-7.6.9": { "status": "included" } }
+    },
+    {
+      "path": "tests/test-cli-whatif.ps1",
+      "prerequisites": "Windows command resolution; PowerShell 5.1 or later.",
+      "boundary": "Uses fake provider commands and WhatIf assertions; no live package installation.",
+      "engines": { "Desktop-5.1": { "status": "included" }, "Core-7.6.9": { "status": "included" } }
+    },
+    {
+      "path": "tests/test-native-cli-boundaries.ps1",
+      "prerequisites": "Native Linux or macOS host; PowerShell Core 7.6.9; writable temporary directory; chmod utility.",
+      "boundary": "Uses temporary fake package-manager and pwsh commands with captured argv; install.sh runs from a path with spaces and the WhatIf branch is AST-isolated. It does not call a live provider or mutate host state.",
+      "engines": {
+        "Desktop-5.1": {
+          "status": "skipped",
+          "reason": "Native CLI boundary checks require a Linux or macOS PowerShell Core runner."
+        },
+        "Core-7.6.9": {
+          "status": "skipped",
+          "reason": "The Windows Core matrix skips this test; native Linux and macOS jobs run it directly."
+        }
+      }
+    },
+    {
+      "path": "tests/test-compatibility-contract.ps1",
+      "prerequisites": "PowerShell 5.1 or later.",
+      "boundary": "Reads the compatibility manifest and source contracts; no host mutation or provisioning.",
+      "engines": { "Desktop-5.1": { "status": "included" }, "Core-7.6.9": { "status": "included" } }
+    },
+    {
+      "path": "tests/test-compatibility-review-freshness.ps1",
+      "prerequisites": "PowerShell 5.1 or later; repository compatibility contract.",
+      "boundary": "Injects deterministic dates, captures stale warnings and release gating, and hashes compatibility.json before and after. Reads recorded URLs only; no network request or contract mutation.",
+      "engines": { "Desktop-5.1": { "status": "included" }, "Core-7.6.9": { "status": "included" } }
+    },
+    {
+      "path": "tests/test-compatibility-runtime-current-host.ps1",
+      "prerequisites": "A supported Windows 11 client build, edition, architecture, and required GUI runtime.",
+      "boundary": "Read-only host and runtime inspection with assembly loading; no setup or package operation.",
+      "engines": {
+        "Desktop-5.1": { "status": "unavailable", "reason": "The standard windows-2025 CI host is Windows Server 2025, outside the Windows 11 client runtime contract." },
+        "Core-7.6.9": { "status": "unavailable", "reason": "The standard windows-2025 CI host is Windows Server 2025, outside the Windows 11 client runtime contract." }
+      }
+    },
+    {
+      "path": "tests/test-custom-app-script-results.ps1",
+      "prerequisites": "Windows and PowerShell 5.1 or later; writable temporary directory.",
+      "boundary": "Uses temporary fake native commands and a fake Start-Process boundary; no package manager or browser launch.",
+      "engines": { "Desktop-5.1": { "status": "included" }, "Core-7.6.9": { "status": "included" } }
+    },
+    {
+      "path": "tests/test-engine-compatibility-runtime.ps1",
+      "prerequisites": "PowerShell 5.1 or later.",
+      "boundary": "Evaluates synthetic host and engine records; no runtime installation or GUI launch.",
+      "engines": { "Desktop-5.1": { "status": "included" }, "Core-7.6.9": { "status": "included" } }
+    },
+    {
+      "path": "tests/test-executable-build.ps1",
+      "prerequisites": "Windows, PowerShell Core 7.6.9, and the repository build tools.",
+      "boundary": "Builds clean temporary source copies and fixture artifacts; does not sign, publish, or install the executable.",
+      "engines": {
+        "Desktop-5.1": { "status": "skipped", "reason": "The executable build integration is pinned to the Core 7.6.9 matrix leg." },
+        "Core-7.6.9": { "status": "included" }
+      }
+    },
+    {
+      "path": "tests/test-executable-install-lifecycle.ps1",
+      "prerequisites": "Windows and PowerShell 5.1 or later; writable temporary directory.",
+      "boundary": "Exercises install, upgrade, repair, and uninstall logic against generated temporary payloads only; reads ACLs but does not alter OS installation state.",
+      "engines": { "Desktop-5.1": { "status": "included" }, "Core-7.6.9": { "status": "included" } }
+    },
+    {
+      "path": "tests/test-executable-metadata.ps1",
+      "prerequisites": "Windows and PowerShell 5.1 or later.",
+      "boundary": "Validates local executable metadata and repository contracts; no signing or release publication.",
+      "engines": { "Desktop-5.1": { "status": "included" }, "Core-7.6.9": { "status": "included" } }
+    },
+    {
+      "path": "tests/test-executable-payload.ps1",
+      "prerequisites": "Windows and PowerShell Core 7.6.9.",
+      "boundary": "Checks payload files and packaging fixtures in temporary directories; no install or release publication.",
+      "engines": {
+        "Desktop-5.1": { "status": "skipped", "reason": "The executable payload integration is pinned to the Core 7.6.9 matrix leg." },
+        "Core-7.6.9": { "status": "included" }
+      }
+    },
+    {
+      "path": "tests/test-executable-resource-update.ps1",
+      "prerequisites": "Windows and PowerShell 5.1 or later; repository executable resources.",
+      "boundary": "Uses isolated local resource fixtures and temporary outputs; no signing or publication.",
+      "engines": { "Desktop-5.1": { "status": "included" }, "Core-7.6.9": { "status": "included" } }
+    },
+    {
+      "path": "tests/test-execution-policy-launchers.ps1",
+      "prerequisites": "Windows and PowerShell 5.1 or later.",
+      "boundary": "Checks launcher source and fake process handoffs; does not change execution policy or launch installers.",
+      "engines": { "Desktop-5.1": { "status": "included" }, "Core-7.6.9": { "status": "included" } }
+    },
+    {
+      "path": "tests/test-github-actions-workflow.ps1",
+      "prerequisites": "PowerShell 5.1 or later; repository workflow files.",
+      "boundary": "Static workflow, release, and inventory contract checks; does not invoke GitHub Actions or release operations.",
+      "engines": { "Desktop-5.1": { "status": "included" }, "Core-7.6.9": { "status": "included" } }
+    },
+    {
+      "path": "tests/test-gui-queue-state.ps1",
+      "prerequisites": "Windows and PowerShell 5.1 or later; writable temporary directory.",
+      "boundary": "Uses isolated queue files and stubbed UI/process behavior; no live GUI installation or package command.",
+      "engines": { "Desktop-5.1": { "status": "included" }, "Core-7.6.9": { "status": "included" } }
+    },
+    {
+      "path": "tests/test-gui-startup-capability.ps1",
+      "prerequisites": "PowerShell 5.1 or later.",
+      "boundary": "Uses synthetic host/engine records and injected Forms loader and CLI runner; does not load Windows Forms or install apps.",
+      "engines": { "Desktop-5.1": { "status": "included" }, "Core-7.6.9": { "status": "included" } }
+    },
+    {
+      "path": "tests/test-instruction-html-security.ps1",
+      "prerequisites": "PowerShell 5.1 or later; writable temporary directory.",
+      "boundary": "Uses local HTML fixtures, a temporary mismatched source, and an injected external-link opener; no HTTP request, browser launch, or package operation.",
+      "engines": { "Desktop-5.1": { "status": "included" }, "Core-7.6.9": { "status": "included" } }
+    },
+    {
+      "path": "tests/test-install-bat-elevation.ps1",
+      "prerequisites": "Windows, cmd.exe, pwsh.exe, and the installed .NET Framework C# compiler.",
+      "boundary": "Uses compiled fake launchers, stubbed Start-Process, and temporary batch fixtures; it does not request elevation or run WinGet.",
+      "engines": { "Desktop-5.1": { "status": "included" }, "Core-7.6.9": { "status": "included" } }
+    },
+    {
+      "path": "tests/test-installer-release-assets.ps1",
+      "prerequisites": "Windows and PowerShell Core 7.6.9; the executable and adjacent build manifest from the preceding CI build step.",
+      "boundary": "Stages simulated release assets under a temporary directory and uses fake source/API inputs; no network, upload, signing, or publication.",
+      "engines": {
+        "Desktop-5.1": { "status": "skipped", "reason": "The release asset script requires Core 7.6.9 and the executable produced by the Core build step." },
+        "Core-7.6.9": { "status": "included" }
+      }
+    },
+    {
+      "path": "tests/test-monthly-update-results.ps1",
+      "prerequisites": "Windows and PowerShell 5.1 or later; writable temporary directory.",
+      "boundary": "Uses fake WinGet executables and isolated profiles; no package provider call or scheduled task.",
+      "engines": { "Desktop-5.1": { "status": "included" }, "Core-7.6.9": { "status": "included" } }
+    },
+    {
+      "path": "tests/test-monthly-update-scheduling.ps1",
+      "prerequisites": "Windows and PowerShell 5.1 or later; writable temporary directory.",
+      "boundary": "Uses fake schtasks and WinGet commands with isolated profiles; no real scheduled task or package operation.",
+      "engines": { "Desktop-5.1": { "status": "included" }, "Core-7.6.9": { "status": "included" } }
+    },
+    {
+      "path": "tests/test-ooshutup10-trust.ps1",
+      "prerequisites": "Windows and PowerShell 5.1 or later; writable temporary directory.",
+      "boundary": "Uses fake download, signature, and executor callbacks; no network request or executable launch.",
+      "engines": { "Desktop-5.1": { "status": "included" }, "Core-7.6.9": { "status": "included" } }
+    },
+    {
+      "path": "tests/test-package-dependency-outcomes.ps1",
+      "prerequisites": "Windows, System.Drawing, PowerShell 5.1 or later, and writable temporary files.",
+      "boundary": "All package commands are injected fakes; no live WinGet operation.",
+      "engines": { "Desktop-5.1": { "status": "included" }, "Core-7.6.9": { "status": "included" } }
+    },
+    {
+      "path": "tests/test-package-manager-command-security.ps1",
+      "prerequisites": "PowerShell 5.1 or later; writable temporary directory.",
+      "boundary": "Routes package adapters through fake executables and captures argv; no package provider call.",
+      "engines": { "Desktop-5.1": { "status": "included" }, "Core-7.6.9": { "status": "included" } }
+    },
+    {
+      "path": "tests/test-remote-helper-trust.ps1",
+      "prerequisites": "Windows and PowerShell 5.1 or later; writable temporary directory.",
+      "boundary": "Uses fake transport, signature, and process callbacks; checks policy read-only and stubs test ACL writes; no helper download or launch.",
+      "engines": { "Desktop-5.1": { "status": "included" }, "Core-7.6.9": { "status": "included" } }
+    },
+    {
+      "path": "tests/test-runtime-engine-discovery-offline.ps1",
+      "prerequisites": "Windows and PowerShell 5.1 or later; Windows registry/process behavior for the host diagnostic case.",
+      "boundary": "Uses synthetic runtime candidates and injected probe callbacks; no runtime provisioning or installer launch.",
+      "engines": { "Desktop-5.1": { "status": "included" }, "Core-7.6.9": { "status": "included" } }
+    },
+    {
+      "path": "tests/test-runtime-prerequisite-plan-offline.ps1",
+      "prerequisites": "PowerShell 5.1 or later.",
+      "boundary": "Evaluates synthetic host and prerequisite records; no downloads or runtime installation.",
+      "engines": { "Desktop-5.1": { "status": "included" }, "Core-7.6.9": { "status": "included" } }
+    },
+    {
+      "path": "tests/test-startup-entrypoints-offline.ps1",
+      "prerequisites": "A supported Windows 11 client with an interactive desktop and the exact supported PowerShell engine being validated.",
+      "boundary": "Checks the supported client and engine, then launches the selected engine's real GUI in an isolated startup harness with fake network and WinGet commands and temporary profiles. This client GUI integration is outside the Server 2025 hosted matrix.",
+      "engines": {
+        "Desktop-5.1": { "status": "unavailable", "reason": "Requires a supported interactive Windows client and Windows PowerShell 5.1 GUI runtime; the standard windows-2025 runner is Server 2025." },
+        "Core-7.6.9": { "status": "unavailable", "reason": "Requires a supported interactive Windows client and exact PowerShell Core 7.6.9; the standard windows-2025 runner is Server 2025." }
+      }
+    },
+    {
+      "path": "tests/test-startup-helper-trust.ps1",
+      "prerequisites": "Windows and PowerShell 5.1 or later; writable temporary directory.",
+      "boundary": "Uses fake network and process boundaries; no package-manager fallback, download, or helper launch.",
+      "engines": { "Desktop-5.1": { "status": "included" }, "Core-7.6.9": { "status": "included" } }
+    },
+    {
+      "path": "tests/test-update-argv-security.ps1",
+      "prerequisites": "PowerShell 5.1 or later; temporary fake executable path.",
+      "boundary": "Captures arguments sent to fake package-manager commands; no live provider operation.",
+      "engines": { "Desktop-5.1": { "status": "included" }, "Core-7.6.9": { "status": "included" } }
+    },
+    {
+      "path": "tests/test-update-scan-status.ps1",
+      "prerequisites": "PowerShell 5.1 or later; temporary test state.",
+      "boundary": "Uses synthetic scan outcomes and fake provider responses; no live package provider.",
+      "engines": { "Desktop-5.1": { "status": "included" }, "Core-7.6.9": { "status": "included" } }
+    },
+    {
+      "path": "tests/test-winget-bootstrap.ps1",
+      "prerequisites": "Windows and PowerShell 5.1 or later; writable temporary directory and local package-fixture support.",
+      "boundary": "Uses synthetic package archives, fake download and install callbacks, and isolated files; no release request, package download, or Add-AppxPackage call.",
+      "engines": { "Desktop-5.1": { "status": "included" }, "Core-7.6.9": { "status": "included" } }
+    }
+  ]
+}

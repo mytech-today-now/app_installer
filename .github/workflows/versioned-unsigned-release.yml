@@ -38,6 +38,15 @@ jobs:
               throw 'The release tag must be protected by a GitHub ruleset or tag protection rule.'
           }
 
+      - name: Require a fresh compatibility source review
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          pwsh -NoProfile -File .\tools\Test-CompatibilityReview.ps1 -RequireFresh
+          if ($LASTEXITCODE -ne 0) {
+              exit $LASTEXITCODE
+          }
+
       - name: Validate tag against VERSION and script metadata
         shell: powershell
         run: |
@@ -87,8 +96,8 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $pwsh = (Get-Command pwsh.exe -ErrorAction Stop).Source
           $actualPowerShell = [string]::Join('', @(& $pwsh -NoProfile -Command '$PSVersionTable.PSVersion.ToString()')).Trim()
-          if ($LASTEXITCODE -ne 0 -or $actualPowerShell -cne '7.6.7') {
-              throw ('PowerShell Core 7.6.7 is required for release packaging; found {0}.' -f $actualPowerShell)
+          if ($LASTEXITCODE -ne 0 -or $actualPowerShell -cne '7.6.9') {
+              throw ('PowerShell Core 7.6.9 is required for release packaging; found {0}.' -f $actualPowerShell)
           }
 
           & $pwsh -NoProfile -File .\tools\Test-InstallerReleaseTag.ps1 -TagName $env:RELEASE_TAG
@@ -109,7 +118,7 @@ jobs:
               -DefaultBranch $env:RELEASE_DEFAULT_BRANCH `
               -WorkflowName $env:RELEASE_WORKFLOW_NAME `
               -RunId $env:RELEASE_RUN_ID `
-              -PassedEnginesCsv 'Desktop-5.1,Core-7.6.7' `
+              -PassedEnginesCsv 'Desktop-5.1,Core-7.6.9' `
               -OutputDirectory $assetDirectory
           if ($LASTEXITCODE -ne 0) {
               exit $LASTEXITCODE

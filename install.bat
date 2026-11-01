@@ -167,9 +167,9 @@ call :SHOW_RUNTIME_PLAN
 exit /b 1
 
 :SHOW_RUNTIME_PLAN
-echo [PLAN] Required prerequisite: PowerShell Core 7.6.7 for Windows x64.
-echo [PLAN] Official source: https://github.com/PowerShell/PowerShell/releases/download/v7.6.7/PowerShell-7.6.7-win-x64.zip
-echo [PLAN] Expected SHA-256: D2F952EBDBF24386CB8923553AA58E41A846DB35A6155EA04C58142A4B16DBB7
+echo [PLAN] Required prerequisite: PowerShell Core 7.6.9 for Windows x64.
+echo [PLAN] Official source: https://github.com/PowerShell/PowerShell/releases/download/v7.6.9/PowerShell-7.6.9-win-x64.zip
+echo [PLAN] Expected SHA-256: CE7484804C0F0AD4DDA10C958E71ACDAF7EEBFB22505C1B480F89E0E9F1DA94D
 echo [PLAN] The ZIP can be extracted for the current user without administrator privileges. It does not change PATH or the default PowerShell engine.
 echo [INFO] No PowerShell engine was available to run the compatibility preflight. No download, install, elevation, or application action was started.
 echo Install the pinned runtime from the official source, then retry on a supported Windows 11 x64 client.

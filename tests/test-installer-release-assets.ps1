@@ -1,4 +1,4 @@
-#Requires -Version 7.6.7
+#Requires -Version 7.6.9
 #Requires -PSEdition Core
 
 [CmdletBinding()]
@@ -58,7 +58,7 @@ $tagName = $versionContract.TagName
 $sourceCommit = [string]$buildManifest.source.revision
 $outputDirectory = Join-Path $tempRoot 'release-assets'
 $workflowName = 'Windows Build and PowerShell Compatibility'
-$testEngines = @('Desktop-5.1', 'Core-7.6.7')
+$testEngines = @('Desktop-5.1', 'Core-7.6.9')
 $runId = '123456789'
 
 try {
@@ -125,7 +125,7 @@ try {
     Assert-ReleaseCondition -Condition ($releaseAssets.Manifest.release.tag -ceq $tagName -and $releaseAssets.Manifest.release.sourceCommit -ceq $sourceCommit) -Message 'Release metadata must identify the exact source tag and commit.'
     Assert-ReleaseCondition -Condition ($releaseAssets.Manifest.payloadInventory.fileCount -eq @($buildManifest.payload.files).Count -and @($releaseAssets.Manifest.payloadInventory.files).Count -eq @($buildManifest.payload.files).Count) -Message 'The release manifest must include the complete payload inventory.'
     Assert-ReleaseCondition -Condition (@($releaseAssets.Manifest.release.testEvidence | Where-Object { $_.result -ceq 'passed' }).Count -eq 2) -Message 'The release manifest must record both passing PowerShell engines.'
-    Assert-ReleaseCondition -Condition ($releaseAssets.Manifest.buildToolchain.powerShell.version -ceq '7.6.7' -and $releaseAssets.Manifest.compatibility.sha256 -match '^[0-9a-f]{64}$') -Message 'The release manifest must include the pinned build toolchain and compatibility digest.'
+    Assert-ReleaseCondition -Condition ($releaseAssets.Manifest.buildToolchain.powerShell.version -ceq '7.6.9' -and $releaseAssets.Manifest.compatibility.sha256 -match '^[0-9a-f]{64}$') -Message 'The release manifest must include the pinned build toolchain and compatibility digest.'
     $releaseNotesText = Get-Content -LiteralPath $releaseAssets.ReleaseNotesPath -Raw
     Assert-ReleaseCondition -Condition ($releaseNotesText.Contains($expectedExecutable) -and $releaseNotesText.Contains('GUI script version 2.0.6; the bundled CLI keeps its separate script version 2.0.2')) -Message 'Release notes must name the exact executable and preserve the GUI to CLI version mapping.'
     Assert-ReleaseCondition -Condition (-not $releaseNotesText.Contains([string][char]0x2014)) -Message 'Release notes must not contain an em dash.'

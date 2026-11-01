@@ -38,7 +38,7 @@ try {
     Write-Host "  Installing via winget..." -ForegroundColor Yellow
 
     . "$PSScriptRoot/../platform-detect.ps1"
-    $result = Invoke-WingetPackageCommand -Operation install -PackageId 'Spacejock.yWriter7' -AdditionalArguments @('--silent', '--accept-source-agreements', '--accept-package-agreements')
+    $result = Invoke-WingetPackageCommand -Operation install -PackageId 'Spacejock.yWriter7' -AdditionalArguments @('--silent')
 
     if ($LASTEXITCODE -eq 0) {
         Write-Host "  [OK] yWriter installed successfully!" -ForegroundColor Green

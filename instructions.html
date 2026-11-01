@@ -160,10 +160,10 @@
         <h3>Windows (Full GUI Support)</h3>
         <ul>
             <li><strong>Operating Systems:</strong> Windows 11 25H2 build 26200 or 26H2 build 26300, Home or Pro, x64. See <a href="compatibility.json">the compatibility contract</a> for end-of-servicing dates.</li>
-            <li><strong>PowerShell:</strong> Windows PowerShell Desktop 5.1 or PowerShell Core 7.6.7.</li>
+            <li><strong>PowerShell:</strong> Windows PowerShell Desktop 5.1 or PowerShell Core 7.6.9.</li>
             <li><strong>Interface:</strong> Full graphical user interface (GUI) with Windows Forms</li>
             <li><strong>Runtime:</strong> Windows PowerShell GUI requires .NET Framework 4.7.2 or later. PowerShell Core GUI requires Windows Desktop runtime 10 and loadable Windows Forms assemblies.</li>
-            <li><strong>Executable:</strong> The unsigned IExpress package does not bundle PowerShell. It checks fixed and registered installation locations, prefers PowerShell Core 7.6.7, then Windows PowerShell 5.1, and does not search PATH or install a runtime.</li>
+            <li><strong>Executable:</strong> The unsigned IExpress package does not bundle PowerShell. It checks fixed and registered installation locations, prefers PowerShell Core 7.6.9, then Windows PowerShell 5.1, and does not search PATH or install a runtime.</li>
             <li><strong>Unsupported:</strong> Windows 10, Windows Server, Enterprise or Education editions, x86, ARM64, and Windows releases not listed in the contract.</li>
         </ul>
     </div>
@@ -171,7 +171,7 @@
     <div class="info">
         <h3>macOS &amp; Linux (CLI Mode)</h3>
         <ul>
-            <li><strong>PowerShell:</strong> PowerShell Core 7.6.7 on platforms listed in <a href="https://learn.microsoft.com/en-us/powershell/scripting/install/powershell-support-lifecycle?view=powershell-7.6">Microsoft's PowerShell support lifecycle</a>.</li>
+            <li><strong>PowerShell:</strong> PowerShell Core 7.6.9 on platforms listed in <a href="https://learn.microsoft.com/en-us/powershell/scripting/install/powershell-support-lifecycle?view=powershell-7.6">Microsoft's PowerShell support lifecycle</a>.</li>
             <li><strong>Interface:</strong> Command-line interface (CLI) - automatically launched</li>
             <li><strong>Note:</strong> The GUI requires Windows Forms which is only available on Windows. When you run <code>app-installer.ps1</code> on macOS or Linux, it automatically launches the CLI version (<code>app-installer-cli.ps1</code>) for a seamless experience.</li>
         </ul>
@@ -432,12 +432,12 @@
         <tr>
             <td><strong>Operating System</strong></td>
             <td>Windows 11 25H2 build 26200 or 26H2 build 26300, Home or Pro, x64</td>
-            <td>Platforms supported by PowerShell Core 7.6.7</td>
+            <td>Platforms supported by PowerShell Core 7.6.9</td>
         </tr>
         <tr>
             <td><strong>PowerShell</strong></td>
-            <td>Windows PowerShell Desktop 5.1 or PowerShell Core 7.6.7</td>
-            <td>PowerShell Core 7.6.7</td>
+            <td>Windows PowerShell Desktop 5.1 or PowerShell Core 7.6.9</td>
+            <td>PowerShell Core 7.6.9</td>
         </tr>
         <tr>
             <td><strong>Privileges</strong></td>

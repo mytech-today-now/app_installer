@@ -53,7 +53,7 @@ function New-TestHostInfo {
 function New-TestEngineInfo {
     param(
         [string]$Edition = 'Core',
-        [string]$Version = '7.6.7'
+        [string]$Version = '7.6.9'
     )
 
     return [PSCustomObject]@{ PSEdition = $Edition; PSVersion = [version]$Version }

@@ -38,7 +38,7 @@ try {
     Write-Host "  Installing via winget..." -ForegroundColor Yellow
 
     . "$PSScriptRoot/../platform-detect.ps1"
-    $result = Invoke-WingetPackageCommand -Operation install -PackageId 'ALCPU.CoreTemp' -AdditionalArguments @('--silent', '--accept-source-agreements', '--accept-package-agreements')
+    $result = Invoke-WingetPackageCommand -Operation install -PackageId 'ALCPU.CoreTemp' -AdditionalArguments @('--silent')
 
     if ($LASTEXITCODE -eq 0) {
         Write-Host "  [OK] Core Temp installed successfully!" -ForegroundColor Green

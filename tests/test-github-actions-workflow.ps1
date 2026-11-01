@@ -6,12 +6,15 @@ $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $workflowPath = Join-Path $repositoryRoot '.github\workflows\windows-build-compatibility.yml'
 $releaseWorkflowPath = Join-Path $repositoryRoot '.github\workflows\versioned-unsigned-release.yml'
 $suitePath = Join-Path $PSScriptRoot 'Invoke-CIRegressionSuite.ps1'
+$inventoryPath = Join-Path $PSScriptRoot 'ci-regression-inventory.json'
 $failurePropagationTestPath = Join-Path $PSScriptRoot 'test-ci-regression-suite-failure.ps1'
 $buildTestPath = Join-Path $PSScriptRoot 'test-executable-build.ps1'
 $releaseAssetTestPath = Join-Path $PSScriptRoot 'test-installer-release-assets.ps1'
 $buildConfigurationPath = Join-Path $repositoryRoot 'tools\installer-exe-build.json'
 $compatibilityPath = Join-Path $repositoryRoot 'compatibility.json'
 $releaseAssetPreparationPath = Join-Path $repositoryRoot 'tools\New-InstallerReleaseAssets.ps1'
+$clientGuiChecklistPath = Join-Path $repositoryRoot 'WINDOWS_CLIENT_GUI_RELEASE_CHECKLIST.md'
+$releaseProtectionVerificationPath = Join-Path $repositoryRoot 'RELEASE_PROTECTION_VERIFICATION.md'
 
 function Assert-WorkflowCondition {
     param(
@@ -28,16 +31,57 @@ function Assert-WorkflowCondition {
     }
 }
 
+function Get-WorkflowInventoryEntry {
+    param(
+        [Parameter(Mandatory = $true)]
+        [object[]]$InventoryTests,
+
+        [Parameter(Mandatory = $true)]
+        [string]$FileName
+    )
+
+    $matches = @($InventoryTests | Where-Object { [System.IO.Path]::GetFileName([string]$_.path) -ceq $FileName })
+    if ($matches.Count -ne 1) {
+        throw ('Expected exactly one CI inventory entry for {0}; found {1}.' -f $FileName, $matches.Count)
+    }
+
+    return $matches[0]
+}
+
+function Assert-WorkflowInventoryDisposition {
+    param(
+        [Parameter(Mandatory = $true)]
+        [object[]]$InventoryTests,
+
+        [Parameter(Mandatory = $true)]
+        [string]$FileName,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Engine,
+
+        [Parameter(Mandatory = $true)]
+        [string]$ExpectedStatus
+    )
+
+    $entry = Get-WorkflowInventoryEntry -InventoryTests $InventoryTests -FileName $FileName
+    $engineProperty = $entry.engines.PSObject.Properties[$Engine]
+    Assert-WorkflowCondition -Condition ($null -ne $engineProperty -and [string]$engineProperty.Value.status -ceq $ExpectedStatus) -Message ('{0} has {1} status for {2} in the central runner inventory.' -f $FileName, $ExpectedStatus, $Engine)
+}
+
 if (-not (Test-Path -LiteralPath $workflowPath -PathType Leaf)) {
     throw 'The GitHub Actions build and compatibility workflow is missing.'
 }
+$inventory = Get-Content -LiteralPath $inventoryPath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+$inventoryTests = @($inventory.tests)
 $workflowText = Get-Content -LiteralPath $workflowPath -Raw -ErrorAction Stop
 $releaseWorkflowText = Get-Content -LiteralPath $releaseWorkflowPath -Raw -ErrorAction Stop
 $suiteText = Get-Content -LiteralPath $suitePath -Raw -ErrorAction Stop
 $failurePropagationTestText = Get-Content -LiteralPath $failurePropagationTestPath -Raw -ErrorAction Stop
+$bootstrapTestText = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'test-winget-bootstrap.ps1') -Raw -ErrorAction Stop
 $monthlySchedulingTestText = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'test-monthly-update-scheduling.ps1') -Raw -ErrorAction Stop
 $monthlyResultsTestText = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'test-monthly-update-results.ps1') -Raw -ErrorAction Stop
 $packageManagerTestText = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'test-package-manager-command-security.ps1') -Raw -ErrorAction Stop
+$nativeBoundaryTestText = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'test-native-cli-boundaries.ps1') -Raw -ErrorAction Stop
 $startupTrustTestText = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'test-startup-helper-trust.ps1') -Raw -ErrorAction Stop
 $ooTrustTestText = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'test-ooshutup10-trust.ps1') -Raw -ErrorAction Stop
 $runtimeEngineDiscoveryTestText = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'test-runtime-engine-discovery-offline.ps1') -Raw -ErrorAction Stop
@@ -48,8 +92,15 @@ $releaseAssetTestText = Get-Content -LiteralPath $releaseAssetTestPath -Raw -Err
 $releaseModuleText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'tools\InstallerRelease.psm1') -Raw -ErrorAction Stop
 $releasePublisherText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'tools\Publish-InstallerRelease.ps1') -Raw -ErrorAction Stop
 $releaseAssetPreparationText = Get-Content -LiteralPath $releaseAssetPreparationPath -Raw -ErrorAction Stop
+$clientGuiChecklistText = Get-Content -LiteralPath $clientGuiChecklistPath -Raw -ErrorAction Stop
+$releaseProtectionVerificationText = Get-Content -LiteralPath $releaseProtectionVerificationPath -Raw -ErrorAction Stop
+$clientRuntimeTestText = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'test-compatibility-runtime-current-host.ps1') -Raw -ErrorAction Stop
 $buildConfiguration = Get-Content -LiteralPath $buildConfigurationPath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
 $compatibility = Get-Content -LiteralPath $compatibilityPath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+$coreVersion = [string]$compatibility.engines.powerShellCore.version
+
+Assert-WorkflowCondition -Condition ($workflowText.Contains("- Core-$coreVersion") -and $workflowText.Contains("Confirm pinned PowerShell Core $coreVersion") -and $workflowText.Contains("`$actualVersion -cne '$coreVersion'") -and $workflowText.Contains("[UNAVAILABLE] PowerShell Core $coreVersion is required") -and $workflowText -notmatch '(?i)actions/setup-powershell|Install-CompatiblePowerShell\.ps1') -Message 'The Windows Core job follows the exact contract pin and fails closed without provisioning a different runner runtime.'
+Assert-WorkflowCondition -Condition ($releaseWorkflowText.Contains("`$actualPowerShell -cne '$coreVersion'") -and $releaseWorkflowText.Contains("Core-$coreVersion")) -Message 'Release packaging requires the same exact PowerShell Core version as compatibility.json.'
 
 Assert-WorkflowCondition -Condition ($workflowText -match '(?m)^  push:\r?\n    branches:\r?\n      - main$') -Message 'The workflow must run on pushes to main.'
 Assert-WorkflowCondition -Condition ($workflowText -match '(?m)^  pull_request:\r?\n    branches:\r?\n      - main$') -Message 'The workflow must run on pull requests targeting main.'
@@ -58,33 +109,75 @@ Assert-WorkflowCondition -Condition ($workflowText -match '(?ms)publish_artifact
 Assert-WorkflowCondition -Condition ($workflowText -match '(?m)^permissions:\r?\n  contents: read$') -Message 'The workflow must grant only read access to repository contents.'
 Assert-WorkflowCondition -Condition ($workflowText -match 'github\.event\.repository\.private == false') -Message 'The hosted job must skip private repositories to prevent unverified runner charges.'
 Assert-WorkflowCondition -Condition ($workflowText -match '(?m)^\s+runs-on: windows-2025$') -Message 'The workflow must use the standard Windows Server 2025 hosted runner.'
+Assert-WorkflowCondition -Condition ($workflowText.Contains('ProductType -ne 3') -and $workflowText.Contains('build 26100, product type 3')) -Message 'The Windows build job identifies its host as Server 2025 and cannot classify it as a supported client.'
+Assert-WorkflowCondition -Condition ($workflowText.Contains('SERVER_HOST_OUTCOME: ${{ steps.server_host.outcome }}') -and $workflowText.Contains('OFFLINE_REGRESSION_OUTCOME: ${{ steps.offline_regressions.outcome }}') -and $workflowText.Contains('Supported Windows client GUI capability/startup: `NOT RUN`') -and $workflowText.Contains('Server build success and Server engine results are not client GUI validation')) -Message 'The workflow summary reports Server, engine/offline, and client GUI evidence separately and marks Server client GUI validation NOT RUN.'
+Assert-WorkflowCondition -Condition ($clientRuntimeTestText.Contains('$hostInfo.ProductType -ne ''WinNT''') -and $clientRuntimeTestText.Contains('cannot count as client GUI validation') -and $startupEntrypointTestText.Contains('cannot count as client validation') -and $startupEntrypointTestText.Contains('$hostInfo.ProductType -ne ''WinNT''')) -Message 'Both client-only runtime and GUI startup tests reject Server hosts as client evidence.'
+Assert-WorkflowCondition -Condition ($clientGuiChecklistText.Contains('Windows 11 25H2') -and $clientGuiChecklistText.Contains('Windows 11 26H2') -and $clientGuiChecklistText.Contains('Windows PowerShell 5.1') -and $clientGuiChecklistText.Contains('PowerShell Core 7.6.9') -and $clientGuiChecklistText.Contains('System.Windows.Forms') -and $clientGuiChecklistText.Contains('System.Drawing') -and $clientGuiChecklistText.Contains('System.Web') -and $clientGuiChecklistText.Contains('GUI startup result')) -Message 'The client release checklist captures the supported host, both exact engines, required assemblies, and GUI startup result.'
 Assert-WorkflowCondition -Condition ($workflowText -match '(?m)^\s+cancel-in-progress: true$') -Message 'The workflow must cancel superseded runs.'
-Assert-WorkflowCondition -Condition ($workflowText -match '(?ms)matrix:\s*\r?\n\s+engine:\s*\r?\n\s+- Desktop-5\.1\r?\n\s+- Core-7\.6\.7') -Message 'The workflow must include Windows PowerShell 5.1 and PowerShell Core 7.6.7.'
+Assert-WorkflowCondition -Condition ($workflowText -match '(?ms)matrix:\s*\r?\n\s+engine:\s*\r?\n\s+- Desktop-5\.1\r?\n\s+- Core-7\.6\.9') -Message 'The workflow must include Windows PowerShell 5.1 and PowerShell Core 7.6.9.'
 Assert-WorkflowCondition -Condition ($workflowText -match 'Build-InstallerExe\.ps1\s+-Confirm:\$false') -Message 'The workflow must invoke the repository-local executable build command without an interactive prompt.'
 Assert-WorkflowCondition -Condition ($workflowText -match "(?s)Get-ChildItem.*?-Filter '\*\.exe\.build\.json'") -Message 'The workflow must discover builder manifests, not arbitrary executable files.'
 Assert-WorkflowCondition -Condition ($workflowText -match 'manifest\.artifact\.identity' -and $workflowText -match 'manifest\.artifact\.fileName' -and $workflowText -match 'APP_INSTALLER_ARTIFACT_PATH') -Message 'The workflow must select and validate the executable named by the current builder manifest.'
 Assert-WorkflowCondition -Condition ($workflowText -notmatch "(?i)Filter\s+'AppInstaller-\*-win-x64\.exe'") -Message 'The workflow must not select executables with a broad filename wildcard.'
 Assert-WorkflowCondition -Condition ($suiteText -match 'test-syntax\.ps1') -Message 'The regression suite must include the repository syntax check.'
-Assert-WorkflowCondition -Condition ($suiteText -match 'test-ci-regression-suite-failure\.ps1' -and $failurePropagationTestText -match '-InjectFailureForTest' -and $failurePropagationTestText -match 'probeExitCode -ne 31') -Message 'The normal suite must prove that an injected child failure propagates as nonzero.'
+Assert-WorkflowCondition -Condition ($suiteText.Contains('ci-regression-inventory.json') -and $suiteText.Contains('$entry.engines.PSObject.Properties[$Engine]')) -Message 'The central runner must select tests from the explicit per-engine inventory.'
+Assert-WorkflowCondition -Condition ($failurePropagationTestText -match '-InjectFailureForTest' -and $failurePropagationTestText -match 'probeExitCode -ne 31') -Message 'The included failure-propagation test must verify that an injected child failure exits nonzero.'
+$failureEntry = Get-WorkflowInventoryEntry -InventoryTests $inventoryTests -FileName 'test-ci-regression-suite-failure.ps1'
+foreach ($engine in @('Desktop-5.1', 'Core-7.6.9')) {
+    Assert-WorkflowCondition -Condition ([string]$failureEntry.engines.PSObject.Properties[$engine].Value.status -ceq 'included') -Message ('Failure propagation is included for {0}.' -f $engine)
+}
 $requiredOfflineTests = @(
+    'test-ci-regression-inventory.ps1',
+    'test-compatibility-review-freshness.ps1',
+    'test-belarc-installer-trust.ps1',
+    'test-cli-runtime-handoff.ps1',
+    'test-custom-app-script-results.ps1',
+    'test-executable-install-lifecycle.ps1',
+    'test-gui-queue-state.ps1',
+    'test-gui-startup-capability.ps1',
+    'test-install-bat-elevation.ps1',
+    'test-package-dependency-outcomes.ps1',
+    'test-remote-helper-trust.ps1',
+    'test-update-scan-status.ps1',
+    'test-winget-bootstrap.ps1',
     'test-startup-helper-trust.ps1',
     'test-ooshutup10-trust.ps1',
     'test-package-manager-command-security.ps1',
     'test-monthly-update-scheduling.ps1',
     'test-monthly-update-results.ps1',
     'test-execution-policy-launchers.ps1',
-    'test-startup-entrypoints-offline.ps1'
+    'test-runtime-engine-discovery-offline.ps1'
 )
 foreach ($testName in $requiredOfflineTests) {
-    Assert-WorkflowCondition -Condition ($suiteText.Contains($testName)) -Message ('The CI regression suite must include the offline safety harness: {0}' -f $testName)
+    foreach ($engine in @('Desktop-5.1', 'Core-7.6.9')) {
+        Assert-WorkflowInventoryDisposition -InventoryTests $inventoryTests -FileName $testName -Engine $engine -ExpectedStatus 'included'
+    }
 }
 Assert-WorkflowCondition -Condition ($suiteText -match '\$testExitCode\s*-eq\s*77' -and $suiteText -match '\[SKIP\]' -and $suiteText -match '\$skippedTestCount\+\+') -Message 'A platform skip must be explicit and must not be counted as a passing test.'
 Assert-WorkflowCondition -Condition ($monthlySchedulingTestText -match '\[SKIP\].*Windows CLI behavior' -and $monthlySchedulingTestText -match 'exit 77') -Message 'Monthly scheduling reports unsupported platforms with the suite skip exit code.'
 Assert-WorkflowCondition -Condition ($monthlyResultsTestText -match '\[SKIP\].*Windows command resolution' -and $monthlyResultsTestText -match 'exit 77') -Message 'Monthly update result checks report unsupported platforms with the suite skip exit code.'
 Assert-WorkflowCondition -Condition ($runtimeEngineDiscoveryTestText -match '\[SKIP\].*require Windows registry' -and $runtimeEngineDiscoveryTestText -match 'exit 77') -Message 'Runtime discovery reports unsupported platforms with the suite skip exit code.'
-Assert-WorkflowCondition -Condition ($startupEntrypointTestText -match '\[SKIP\].*requires Windows Forms' -and $startupEntrypointTestText -match 'exit 77') -Message 'Startup entrypoint checks report unsupported platforms with the suite skip exit code.'
+Assert-WorkflowCondition -Condition ($startupEntrypointTestText -match '\[UNAVAILABLE\].*supported Windows client' -and $startupEntrypointTestText -match 'exit 77') -Message 'Startup entrypoint checks report unsupported hosts as unavailable with the suite exit code.'
 Assert-WorkflowCondition -Condition ($cliWhatIfTestText -match '\[SKIP\].*require Windows command resolution' -and $cliWhatIfTestText -match 'exit 77') -Message 'CLI WhatIf checks report unsupported platforms with the suite skip exit code.'
 Assert-WorkflowCondition -Condition ($packageManagerTestText -match 'foreach \(\$name in @\(''winget'', ''brew'', ''sudo''\)\)' -and $packageManagerTestText.Contains('PACKAGE_MANAGER_CAPTURE_PATH') -and $packageManagerTestText.Contains("Manager = 'pacman'")) -Message 'Package command coverage routes each platform adapter through fake executables and captures every provider command.'
+Assert-WorkflowInventoryDisposition -InventoryTests $inventoryTests -FileName 'test-native-cli-boundaries.ps1' -Engine 'Desktop-5.1' -ExpectedStatus 'skipped'
+Assert-WorkflowInventoryDisposition -InventoryTests $inventoryTests -FileName 'test-native-cli-boundaries.ps1' -Engine 'Core-7.6.9' -ExpectedStatus 'skipped'
+Assert-WorkflowCondition -Condition ($nativeBoundaryTestText.Contains("#!/bin/sh") -and $nativeBoundaryTestText.Contains("'apt', 'apt-get', 'brew', 'dnf', 'pacman', 'snap', 'sudo', 'winget', 'pwsh'") -and $nativeBoundaryTestText.Contains('$env:PATH = $fakeManagerRoot') -and $nativeBoundaryTestText.Contains('AppInstallerCorePath') -and $nativeBoundaryTestText.Contains('Invoke-PackageManagerProcess') -and $nativeBoundaryTestText.Contains('Install-Application -App $app -WhatIf') -and $nativeBoundaryTestText.Contains('captured-arguments.json') -and $nativeBoundaryTestText.Contains('fakePwshPath.StartsWith($fakeManagerRoot') -and $nativeBoundaryTestText.Contains('& bash $launcherPath') -and $nativeBoundaryTestText.Contains('install.sh forwards native argv')) -Message 'Native CLI checks capture package-manager and install.sh argv through temporary executable stubs, preserve WhatIf, and avoid provider execution.'
+Assert-WorkflowCondition -Condition ($nativeBoundaryTestText -notmatch '(?im)^\s*(?:&\s*)?(?:apt(?:-get)?|brew|dnf|pacman|snap|sudo)\s+(?:install|upgrade|remove|uninstall)\b') -Message 'The native boundary test contains no direct package-manager install or removal command.'
+$nativeLinuxMatch = [regex]::Match($workflowText, '(?ms)^  native-cli-linux:(?<body>.*?)(?=^  [a-z0-9_-]+:|\z)')
+$nativeMacMatch = [regex]::Match($workflowText, '(?ms)^  native-cli-macos:(?<body>.*?)(?=^  [a-z0-9_-]+:|\z)')
+$requiredCliGateMatch = [regex]::Match($workflowText, '(?ms)^  required-shared-cli-compatibility:(?<body>.*?)(?=^  [a-z0-9_-]+:|\z)')
+Assert-WorkflowCondition -Condition ($nativeLinuxMatch.Success -and $nativeLinuxMatch.Groups['body'].Value -match '(?m)^    runs-on: ubuntu-24\.04$' -and $nativeLinuxMatch.Groups['body'].Value.Contains('-ExpectedPlatform Linux')) -Message 'A native Linux job runs on ubuntu-24.04 and asserts the detected Linux host.'
+Assert-WorkflowCondition -Condition ($nativeMacMatch.Success -and $nativeMacMatch.Groups['body'].Value -match '(?m)^    runs-on: macos-15$' -and $nativeMacMatch.Groups['body'].Value.Contains('-ExpectedPlatform macOS')) -Message 'A native macOS job runs on macos-15 and asserts the detected macOS host.'
+foreach ($nativeJobBody in @($nativeLinuxMatch.Groups['body'].Value, $nativeMacMatch.Groups['body'].Value)) {
+    foreach ($nativeCheck in @('test-syntax.ps1', 'test-compatibility-contract.ps1', 'test-compatibility-review-freshness.ps1', 'test-package-manager-command-security.ps1', 'test-native-cli-boundaries.ps1')) {
+        Assert-WorkflowCondition -Condition ($nativeJobBody.Contains($nativeCheck)) -Message ("Native jobs run the required offline check: {0}" -f $nativeCheck)
+    }
+    Assert-WorkflowCondition -Condition ($nativeJobBody.Contains('supported_version: ${{ steps.runtime.outputs.supported_version }}') -and $nativeJobBody.Contains('pwsh_version: ${{ steps.runtime.outputs.version }}') -and $nativeJobBody.Contains('no alternate engine will be installed')) -Message 'Native jobs expose the preinstalled PowerShell version and report missing runtimes explicitly.'
+    Assert-WorkflowCondition -Condition ($nativeJobBody.Contains('::warning title=PowerShell version mismatch::') -and $nativeJobBody.Contains('compatibility.json')) -Message 'Native jobs report runner-version mismatches against compatibility.json without substituting a runtime.'
+    Assert-WorkflowCondition -Condition ($nativeJobBody -notmatch '(?im)^\s*(?:sudo\s+)?(?:apt(?:-get)?|brew|dnf|pacman|snap)\s+(?:install|upgrade|remove|uninstall)\b') -Message 'Native workflow steps do not call live package-manager commands.'
+}
+Assert-WorkflowCondition -Condition ($requiredCliGateMatch.Success -and $requiredCliGateMatch.Groups['body'].Value -match '(?m)^    name: Required shared CLI compatibility$' -and $requiredCliGateMatch.Groups['body'].Value -match '(?ms)^    needs:\r?\n      - windows-build-compatibility\r?\n      - native-cli-linux\r?\n      - native-cli-macos' -and $requiredCliGateMatch.Groups['body'].Value.Contains('LINUX_RESULT') -and $requiredCliGateMatch.Groups['body'].Value.Contains('MACOS_RESULT') -and $requiredCliGateMatch.Groups['body'].Value.Contains('Native Linux compatibility unavailable') -and $requiredCliGateMatch.Groups['body'].Value.Contains('Native macOS compatibility unavailable')) -Message 'The named required compatibility gate depends on Windows, Linux, and macOS results and rejects unsupported native PowerShell versions.'
 Assert-WorkflowCondition -Condition ($monthlySchedulingTestText.Contains('function global:schtasks.exe') -and $monthlySchedulingTestText.Contains('function global:winget') -and $monthlySchedulingTestText -match '\$environment\[''USERPROFILE''\]\s*=\s*\$Scenario\.UserProfile' -and $monthlySchedulingTestText -notmatch '\bRegister-ScheduledTask\b|\bUnregister-ScheduledTask\b') -Message 'Monthly scheduling uses fake scheduler/package commands and an isolated profile instead of real tasks.'
 Assert-WorkflowCondition -Condition ($monthlySchedulingTestText.Contains('InstallerPayload.psm1') -and $monthlySchedulingTestText.Contains('payload-manifest.json') -and $monthlySchedulingTestText.Contains('Join-Path $checkoutRoot ''.git''')) -Message 'The scheduling fixture validates CLI startup as a source checkout with its payload guard dependencies present.'
 Assert-WorkflowCondition -Condition ($monthlySchedulingTestText -match "New-Scenario -Name 'status' -Action 'Status' -InputText") -Message 'Interactive status coverage receives a quit response so it cannot hang the regression suite.'
@@ -102,7 +195,7 @@ Assert-WorkflowCondition -Condition ($workflowText -notmatch '(?i)\$\{\{\s*secre
 Assert-WorkflowCondition -Condition ($workflowText -notmatch '(?i)pull_request_target|self-hosted|signtool|Set-AuthenticodeSignature|codesign') -Message 'The workflow must not use privileged PR triggers, self-hosted runners, or signing.'
 
 $actionReferences = [regex]::Matches($workflowText, '(?m)^\s*uses:\s*([^\s#]+)')
-Assert-WorkflowCondition -Condition ($actionReferences.Count -eq 2) -Message 'Only checkout and artifact upload actions should be used.'
+Assert-WorkflowCondition -Condition ($actionReferences.Count -eq 4) -Message 'Only pinned checkout and opt-in artifact upload actions should be used across Windows, Linux, and macOS jobs.'
 foreach ($actionReference in $actionReferences) {
     $value = $actionReference.Groups[1].Value
     Assert-WorkflowCondition -Condition ($value -match '^actions/(checkout|upload-artifact)@[0-9a-f]{40}$') -Message ('Every action must use an immutable full SHA from an official actions repository: {0}' -f $value)
@@ -110,24 +203,34 @@ foreach ($actionReference in $actionReferences) {
 Assert-WorkflowCondition -Condition ($workflowText.Contains('actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1')) -Message 'Checkout must use the reviewed immutable release commit.'
 Assert-WorkflowCondition -Condition ($workflowText.Contains('actions/upload-artifact@c2acdedd35a8824a1552c7137f8c18288c3ea469')) -Message 'Artifact upload must use the reviewed immutable release commit.'
 
-Assert-WorkflowCondition -Condition (-not $suiteText.Contains('test-winget-bootstrap.ps1')) -Message 'The CI suite must not run the separate WinGet bootstrap workflow.'
-Assert-WorkflowCondition -Condition ($suiteText.Contains('tests/test-executable-build.ps1') -and $suiteText.Contains('tests/test-executable-payload.ps1')) -Message 'PowerShell Core must run the executable build and payload regression tests.'
-Assert-WorkflowCondition -Condition ($suiteText.Contains('test-compatibility-runtime-current-host.ps1') -and $suiteText.Contains('[UNAVAILABLE]')) -Message 'The suite must identify the Windows-client-only runtime test as unavailable on the Server runner.'
+Assert-WorkflowCondition -Condition ($bootstrapTestText.Contains('-GetReleaseMetadata $releaseProvider') -and $bootstrapTestText.Contains('-DownloadFile $downloadProvider') -and $bootstrapTestText.Contains('-InstallPackage $packageInstaller')) -Message 'The included WinGet bootstrap test must inject fake release, download, and package-install boundaries.'
+foreach ($engine in @('Desktop-5.1', 'Core-7.6.9')) {
+    Assert-WorkflowInventoryDisposition -InventoryTests $inventoryTests -FileName 'test-winget-bootstrap.ps1' -Engine $engine -ExpectedStatus 'included'
+    Assert-WorkflowInventoryDisposition -InventoryTests $inventoryTests -FileName 'test-instruction-html-security.ps1' -Engine $engine -ExpectedStatus 'included'
+    Assert-WorkflowInventoryDisposition -InventoryTests $inventoryTests -FileName 'test-compatibility-runtime-current-host.ps1' -Engine $engine -ExpectedStatus 'unavailable'
+    Assert-WorkflowInventoryDisposition -InventoryTests $inventoryTests -FileName 'test-startup-entrypoints-offline.ps1' -Engine $engine -ExpectedStatus 'unavailable'
+}
+Assert-WorkflowInventoryDisposition -InventoryTests $inventoryTests -FileName 'test-executable-build.ps1' -Engine 'Desktop-5.1' -ExpectedStatus 'skipped'
+Assert-WorkflowInventoryDisposition -InventoryTests $inventoryTests -FileName 'test-executable-payload.ps1' -Engine 'Desktop-5.1' -ExpectedStatus 'skipped'
+Assert-WorkflowInventoryDisposition -InventoryTests $inventoryTests -FileName 'test-installer-release-assets.ps1' -Engine 'Desktop-5.1' -ExpectedStatus 'skipped'
+Assert-WorkflowInventoryDisposition -InventoryTests $inventoryTests -FileName 'test-executable-build.ps1' -Engine 'Core-7.6.9' -ExpectedStatus 'included'
+Assert-WorkflowInventoryDisposition -InventoryTests $inventoryTests -FileName 'test-executable-payload.ps1' -Engine 'Core-7.6.9' -ExpectedStatus 'included'
+Assert-WorkflowInventoryDisposition -InventoryTests $inventoryTests -FileName 'test-installer-release-assets.ps1' -Engine 'Core-7.6.9' -ExpectedStatus 'included'
 
 $regressionStepMatch = [regex]::Match($workflowText, '(?ms)^      - name: Run syntax and offline regression checks(?<body>.*?)(?=^      - name:|\z)')
 $artifactStepIndex = $workflowText.IndexOf('      - name: Publish versioned unsigned artifact and provenance', [System.StringComparison]::Ordinal)
 $regressionStepIndex = $workflowText.IndexOf('      - name: Run syntax and offline regression checks', [System.StringComparison]::Ordinal)
-Assert-WorkflowCondition -Condition ($regressionStepMatch.Success -and $regressionStepMatch.Groups['body'].Value.Contains('Invoke-CIRegressionSuite.ps1') -and $regressionStepMatch.Groups['body'].Value.Contains('exit $LASTEXITCODE')) -Message 'The GitHub Actions step must return the regression suite exit code.'
-Assert-WorkflowCondition -Condition ($regressionStepIndex -ge 0 -and $artifactStepIndex -gt $regressionStepIndex -and $workflowText -notmatch '(?i)continue-on-error:\s*true|if:\s*\$\{\{\s*always\(\)') -Message 'Artifact publication must remain after and gated by the regression step.'
+Assert-WorkflowCondition -Condition ($regressionStepMatch.Success -and $regressionStepMatch.Groups['body'].Value.Contains('APP_INSTALLER_CI_ENGINE: ${{ matrix.engine }}') -and $regressionStepMatch.Groups['body'].Value.Contains('Invoke-CIRegressionSuite.ps1') -and $regressionStepMatch.Groups['body'].Value.Contains('-Engine $env:APP_INSTALLER_CI_ENGINE') -and $regressionStepMatch.Groups['body'].Value.Contains('exit $LASTEXITCODE')) -Message 'The GitHub Actions step must pass the selected matrix engine and return the regression suite exit code.'
+Assert-WorkflowCondition -Condition ($regressionStepIndex -ge 0 -and $artifactStepIndex -gt $regressionStepIndex -and $workflowText -match '(?m)^      - name: Publish versioned unsigned artifact and provenance\r?\n        if: \$\{\{ matrix\.engine == ''Core-7\.6\.9'' && github\.event_name == ''workflow_dispatch'' && inputs\.publish_artifact \}\}') -Message 'Artifact publication must remain after the regression step and gated by its explicit manual opt-in.'
 Assert-WorkflowCondition -Condition (@($buildConfiguration.host.windowsBuilds | ForEach-Object { [int]$_ }) -contains 26100) -Message 'The pinned build-host contract must include Windows Server 2025 build 26100.'
 Assert-WorkflowCondition -Condition (@($buildConfiguration.host.windowsBuilds | ForEach-Object { [int]$_ }) -contains 26300) -Message 'The pinned build-host contract must retain Windows 11 build 26300.'
 $serverContract = @($compatibility.windowsClient.unsupportedFamilies | Where-Object { [string]$_.name -eq 'Windows Server' })
 Assert-WorkflowCondition -Condition ($serverContract.Count -eq 1) -Message 'Allowing Windows Server as a build host must not add it to the App Installer runtime support matrix.'
 
 Assert-WorkflowCondition -Condition ($workflowText -match '(?ms)^  workflow_call:\r?\n    inputs:\r?\n      validate_release_tag:\r?\n        description:.*?\r?\n        required: false\r?\n        default: false\r?\n        type: boolean') -Message 'The compatibility workflow must expose an opt-in release-tag validation input for reuse.'
-Assert-WorkflowCondition -Condition ($workflowText -match 'matrix\.engine == ''Core-7\.6\.7'' && inputs\.validate_release_tag') -Message 'The reusable workflow must validate release tags before its pinned executable build.'
+Assert-WorkflowCondition -Condition ($workflowText -match 'matrix\.engine == ''Core-7\.6\.9'' && inputs\.validate_release_tag') -Message 'The reusable workflow must validate release tags before its pinned executable build.'
 Assert-WorkflowCondition -Condition ($workflowText -match 'tools[\\/]Test-InstallerReleaseTag\.ps1') -Message 'The reusable workflow must use the shared release tag validator.'
-Assert-WorkflowCondition -Condition ($workflowText -match '(?m)^      - name: Publish versioned unsigned artifact and provenance\r?\n        if: \$\{\{ matrix\.engine == ''Core-7\.6\.7'' && github\.event_name == ''workflow_dispatch'' && inputs\.publish_artifact \}\}') -Message 'Release workflow reuse must not enable the manual Actions artifact upload path.'
+Assert-WorkflowCondition -Condition ($workflowText -match '(?m)^      - name: Publish versioned unsigned artifact and provenance\r?\n        if: \$\{\{ matrix\.engine == ''Core-7\.6\.9'' && github\.event_name == ''workflow_dispatch'' && inputs\.publish_artifact \}\}') -Message 'Release workflow reuse must not enable the manual Actions artifact upload path.'
 
 Assert-WorkflowCondition -Condition ($releaseWorkflowText -match '(?ms)^on:\r?\n  push:\r?\n    tags:\r?\n      - ''v\*''') -Message 'The release workflow must trigger only from version-style tag pushes.'
 Assert-WorkflowCondition -Condition ($releaseWorkflowText -match 'github\.ref_protected') -Message 'The release workflow must reject unprotected tags.'
@@ -139,6 +242,30 @@ Assert-WorkflowCondition -Condition ($releaseWorkflowText -match "needs\.validat
 Assert-WorkflowCondition -Condition ($releaseWorkflowText -match '(?m)^permissions:\r?\n  contents: read$') -Message 'Release validation must default to read-only repository contents access.'
 $publishJobMatch = [regex]::Match($releaseWorkflowText, '(?ms)^  publish_release:(?<body>.*?)(?=^  [a-z0-9_-]+:|\z)')
 Assert-WorkflowCondition -Condition ($publishJobMatch.Success -and $publishJobMatch.Groups['body'].Value -match '(?m)^    permissions:\r?\n      contents: write$') -Message 'Only the final release publishing job may write repository contents.'
+$releaseJobsSectionMatch = [regex]::Match($releaseWorkflowText, '(?ms)^jobs:\r?\n(?<body>.*)\z')
+$releaseJobMatches = [regex]::Matches([string]$releaseJobsSectionMatch.Groups['body'].Value, '(?ms)^  (?<name>[a-z][a-z0-9_-]*):\r?\n(?<body>.*?)(?=^  [a-z][a-z0-9_-]*:\r?\n|\z)')
+$releaseJobBodies = @{}
+foreach ($releaseJob in $releaseJobMatches) {
+    $releaseJobBodies[$releaseJob.Groups['name'].Value] = $releaseJob.Groups['body'].Value
+}
+Assert-WorkflowCondition -Condition ($releaseJobsSectionMatch.Success -and $releaseJobMatches.Count -eq 3 -and $releaseJobBodies.ContainsKey('validate_release_tag') -and $releaseJobBodies.ContainsKey('compatibility') -and $releaseJobBodies.ContainsKey('publish_release')) -Message 'The release dependency contract covers exactly the three declared release jobs.'
+$tagValidationJobBody = [string]$releaseJobBodies['validate_release_tag']
+$compatibilityJobBody = [string]$releaseJobBodies['compatibility']
+$releasePublisherJobBody = [string]$releaseJobBodies['publish_release']
+$validationNeedsCount = [regex]::Matches($tagValidationJobBody, '(?m)^    needs:').Count
+$compatibilityNeedsCount = [regex]::Matches($compatibilityJobBody, '(?m)^    needs:').Count
+$publisherNeedsCount = [regex]::Matches($releasePublisherJobBody, '(?m)^    needs:').Count
+Assert-WorkflowCondition -Condition ($validationNeedsCount -eq 0 -and $compatibilityNeedsCount -eq 1 -and $compatibilityJobBody -match '(?m)^    needs: validate_release_tag$' -and $publisherNeedsCount -eq 1 -and $releasePublisherJobBody -match '(?ms)^    needs:\r?\n      - validate_release_tag\r?\n      - compatibility$') -Message 'Every release job has exactly its reviewed dependency set: validation is the root, compatibility needs validation, and publication needs both.'
+$protectedTagStepMatch = [regex]::Match($tagValidationJobBody, '(?ms)^      - name: Require a protected semantic-version tag\r?\n(?<body>.*?)(?=^      - name:|\z)')
+$protectedTagStepBody = [string]$protectedTagStepMatch.Groups['body'].Value
+Assert-WorkflowCondition -Condition ($protectedTagStepMatch.Success -and $protectedTagStepBody.Contains('RELEASE_REF_PROTECTED: ${{ github.ref_protected }}') -and $protectedTagStepBody.Contains("if (`$env:RELEASE_REF_PROTECTED -cne 'true') {") -and $protectedTagStepBody.Contains("throw 'The release tag must be protected by a GitHub ruleset or tag protection rule.'")) -Message 'Tag validation maps github.ref_protected and fails closed unless its value is exactly true.'
+Assert-WorkflowCondition -Condition ($tagValidationJobBody -match '(?ms)tools[\\/]Test-CompatibilityReview\.ps1\s+-RequireFresh') -Message 'Release tag validation requires a fresh manual compatibility source review before matrix release work.'
+Assert-WorkflowCondition -Condition ($releasePublisherJobBody.Contains('RELEASE_REF_PROTECTED: ${{ github.ref_protected }}')) -Message 'The publishing job independently passes github.ref_protected to the release publisher.'
+Assert-WorkflowCondition -Condition ($releaseProtectionVerificationText.Contains('**Remote settings status:** NOT VERIFIED') -and $releaseProtectionVerificationText.Contains('**Local access check timestamp:**') -and $releaseProtectionVerificationText.Contains('**Remote observation timestamp:** NOT VERIFIED')) -Message 'The release readiness record keeps remote status and observation time separate from the local access check.'
+Assert-WorkflowCondition -Condition ($releaseProtectionVerificationText.Contains('| Ruleset name/ID, source, and enforcement status | NOT VERIFIED |') -and $releaseProtectionVerificationText.Contains('| Target tag pattern and exclusions | NOT VERIFIED |') -and $releaseProtectionVerificationText.Contains('| Tag creation, update, and deletion restrictions | NOT VERIFIED |') -and $releaseProtectionVerificationText.Contains('| Required reviewers or approval control | NOT VERIFIED |') -and $releaseProtectionVerificationText.Contains('| Bypass actors and modes | NOT VERIFIED |') -and $releaseProtectionVerificationText.Contains('| Effective repository/organization workflow permission scope | NOT VERIFIED |')) -Message 'Each unobserved remote release control is explicitly recorded as NOT VERIFIED.'
+foreach ($verificationField in @('Ruleset identity and enforcement', 'Tag pattern', 'Required reviewers and approval control', 'Bypass actors', 'Workflow permission scope')) {
+    Assert-WorkflowCondition -Condition ($releaseProtectionVerificationText.Contains($verificationField)) -Message ('The release readiness checklist records the remote setting to verify: {0}.' -f $verificationField)
+}
 Assert-WorkflowCondition -Condition ($releaseWorkflowText -notmatch '(?i)actions/(upload-artifact|download-artifact)|workflow_run') -Message 'The release path must not use artifact storage or rely on a separate workflow run.'
 Assert-WorkflowCondition -Condition ($releaseWorkflowText -notmatch '(?i)\$\{\{\s*secrets\.') -Message 'The release workflow must not require a repository-defined secret.'
 Assert-WorkflowCondition -Condition ($releaseWorkflowText.Contains('${{ github.token }}')) -Message 'Release publication must use the automatically provided workflow token.'

@@ -38,7 +38,7 @@ try {
     Write-Host "  Installing via winget..." -ForegroundColor Yellow
 
     . "$PSScriptRoot/../platform-detect.ps1"
-    $result = Invoke-WingetPackageCommand -Operation install -PackageId 'Macrium.ReflectFree' -AdditionalArguments @('--silent', '--accept-source-agreements', '--accept-package-agreements')
+    $result = Invoke-WingetPackageCommand -Operation install -PackageId 'Macrium.ReflectFree' -AdditionalArguments @('--silent')
 
     if ($LASTEXITCODE -eq 0) {
         Write-Host "  [OK] Macrium Reflect Free installed successfully!" -ForegroundColor Green

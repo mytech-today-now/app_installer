@@ -1,4 +1,4 @@
-#Requires -Version 7.6.7
+#Requires -Version 7.6.9
 #Requires -PSEdition Core
 
 $ErrorActionPreference = 'Stop'
@@ -90,7 +90,7 @@ function Invoke-CleanCopyBuild {
 
     $pwsh = Get-Command pwsh.exe -ErrorAction SilentlyContinue
     if ($null -eq $pwsh) { $pwsh = Get-Command pwsh -ErrorAction SilentlyContinue }
-    if ($null -eq $pwsh) { throw 'PowerShell Core 7.6.7 is required for the executable build test.' }
+    if ($null -eq $pwsh) { throw 'PowerShell Core 7.6.9 is required for the executable build test.' }
     $outputDirectory = Join-Path $FixtureRoot 'builds\generated'
     New-Item -ItemType Directory -Path $outputDirectory -Force -ErrorAction Stop | Out-Null
     $artifactPath = Join-Path $outputDirectory $OutputName
@@ -303,7 +303,7 @@ try {
     $corruptArtifactPath = Join-Path $corruptOutputDirectory 'AppInstaller-corrupt-seed.exe'
     $pwsh = Get-Command pwsh.exe -ErrorAction SilentlyContinue
     if ($null -eq $pwsh) { $pwsh = Get-Command pwsh -ErrorAction SilentlyContinue }
-    if ($null -eq $pwsh) { throw 'PowerShell Core 7.6.7 is required for the corrupted-input build test.' }
+    if ($null -eq $pwsh) { throw 'PowerShell Core 7.6.9 is required for the corrupted-input build test.' }
     $corruptBuilderPath = Join-Path $corruptSeedCopy 'tools\Build-InstallerExe.ps1'
     $corruptBuildOutput = @(& $pwsh.Source -NoProfile -File $corruptBuilderPath -OutputPath $corruptArtifactPath -Confirm:$false 2>&1)
     $corruptBuildExitCode = $LASTEXITCODE

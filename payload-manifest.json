@@ -67,6 +67,7 @@
       "apps-manifest.json",
       "compatibility.json",
       "modules/AppInstallerCore.psm1",
+      "modules/PackageCommand.psm1",
       "modules/InstallerCompatibility.psm1",
       "modules/InstallerPayload.psm1",
       "modules/InstallerPrerequisitePlan.psm1",
@@ -79,9 +80,11 @@
     "gui": [
       "app-installer.ps1",
       "app-installer-cli.ps1",
+      "instructions.html",
       "apps-manifest.json",
       "compatibility.json",
       "modules/AppInstallerCore.psm1",
+      "modules/PackageCommand.psm1",
       "modules/InstallerCompatibility.psm1",
       "modules/InstallerPayload.psm1",
       "modules/InstallerPrerequisitePlan.psm1",
@@ -89,6 +92,7 @@
       "modules/OOShutUp10Trust.psm1",
       "modules/BelarcInstallerTrust.psm1",
       "modules/StartupHelperTrust.psm1",
+      "modules/InstructionHtmlTrust.psm1",
       "modules/WingetBootstrap.psm1",
       "platform-detect.ps1"
     ]

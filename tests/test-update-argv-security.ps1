@@ -11,6 +11,7 @@ $script:assertionCount = 0
 $script:processCalls = @()
 $script:processResponses = @()
 $script:shellStartCount = 0
+$script:visibleReviewMessages = @()
 
 function Assert-Condition {
     param(
@@ -49,10 +50,17 @@ function Write-Host {
         [switch]$NoNewline,
         [object]$ForegroundColor
     )
+    $script:visibleReviewMessages += (($Object | ForEach-Object { [string]$_ }) -join ' ')
 }
 
 function Write-Output {
     param([AllowNull()][object]$Message, [object]$Color)
+}
+
+function Get-GuiWingetAgreementReviewDecision {
+    param([Parameter(Mandatory = $true)][string]$Message)
+    $script:agreementReviewPromptMessages += $Message
+    return 7 # System.Windows.Forms.DialogResult.No
 }
 
 function Start-Sleep {
@@ -122,6 +130,8 @@ function Reset-TestState {
     $script:processCalls = @()
     $script:processResponses = @($Responses)
     $script:shellStartCount = 0
+    $script:agreementReviewPromptMessages = @()
+    $script:visibleReviewMessages = @()
 }
 
 function New-FakeResponse {
@@ -211,6 +221,15 @@ function Assert-NoShellCommandInUpdatePath {
                 }, $true))
         Assert-Condition -Condition ($shellCalls.Count -eq 0) -Message "$functionName contains no cmd.exe command"
     }
+
+    $directWingetCalls = @($scriptAst.FindAll({
+                param($node)
+                $node -is [System.Management.Automation.Language.CommandAst] -and
+                [string]$node.GetCommandName() -ieq 'winget'
+            }, $true))
+    Assert-Condition -Condition ($directWingetCalls.Count -eq 0) -Message "$(Split-Path -Leaf $Path) invokes no direct WinGet command"
+    $source = [System.IO.File]::ReadAllText($Path)
+    Assert-Condition -Condition ($source.Contains('New-WingetPackageCommand') -and -not $source.Contains('New-WingetArgumentList')) -Message "$(Split-Path -Leaf $Path) uses the shared package command contract"
 }
 
 $processHelperSource = [System.IO.File]::ReadAllText((Join-Path $repositoryRoot 'platform-detect.ps1'))
@@ -227,7 +246,14 @@ $invalidIds = @('Bad Package', 'Bad"Quote', "Bad'Quote", 'Bad&echo', 'Bad%PATH%'
 $invalidSources = @('bad source', 'bad"source', "bad'source", 'winget&source', '%PATH%', 'μsource', '')
 
 foreach ($entrypoint in $entrypoints) {
-    Import-InstallerFunctions -Path $entrypoint.Path -Names $functionNames
+    $entrypointFunctionNames = @($functionNames)
+    if ($entrypoint.Name -eq 'GUI') {
+        $entrypointFunctionNames += 'Invoke-GuiWingetAgreementReviewRetry'
+    }
+    else {
+        $entrypointFunctionNames += 'Write-CliWingetAgreementReviewCommand'
+    }
+    Import-InstallerFunctions -Path $entrypoint.Path -Names $entrypointFunctionNames
     Assert-NoShellCommandInUpdatePath -Path $entrypoint.Path
 
     foreach ($invalidId in $invalidIds) {
@@ -289,7 +315,7 @@ foreach ($entrypoint in $entrypoints) {
     $scan = Get-AvailableUpdates
     Assert-Condition -Condition ($scan.Status -ceq 'CompletedWithUpdates' -and $scan.Updates.Count -eq 1 -and $scan.Updates[0].Source -ceq 'msstore') -Message "$($entrypoint.Name) resolves an omitted source from the catalog"
     Assert-Condition -Condition ($script:processCalls.Count -eq 1 -and $script:processCalls[0].Executable -ceq 'winget') -Message "$($entrypoint.Name) captures the discovery executable separately"
-    Assert-ArgumentList -Actual $script:processCalls[0].Arguments -Expected @('upgrade') -Context "$($entrypoint.Name) discovery argv"
+    Assert-ArgumentList -Actual $script:processCalls[0].Arguments -Expected @('upgrade', '--disable-interactivity') -Context "$($entrypoint.Name) discovery argv"
     Assert-Condition -Condition ($script:shellStartCount -eq 0) -Message "$($entrypoint.Name) discovery starts no shell"
 
     Reset-TestState
@@ -301,7 +327,7 @@ foreach ($entrypoint in $entrypoints) {
             Source = 'winget'
         })
     Assert-Condition -Condition ($script:processCalls.Count -eq 1 -and $script:processCalls[0].Executable -ceq 'winget') -Message "$($entrypoint.Name) captures the update executable separately"
-    Assert-ArgumentList -Actual $script:processCalls[0].Arguments -Expected @('upgrade', '--id', 'Google.Chrome', '--exact', '--source', 'winget', '--silent', '--accept-source-agreements', '--accept-package-agreements') -Context "$($entrypoint.Name) community update argv"
+    Assert-ArgumentList -Actual $script:processCalls[0].Arguments -Expected @('upgrade', '--id', 'Google.Chrome', '--exact', '--source', 'winget', '--silent') -Context "$($entrypoint.Name) community update argv"
     Assert-Condition -Condition ($script:shellStartCount -eq 0) -Message "$($entrypoint.Name) community update starts no shell"
 
     Reset-TestState
@@ -313,7 +339,7 @@ foreach ($entrypoint in $entrypoints) {
             Source = 'msstore'
         })
     Assert-Condition -Condition ($script:processCalls.Count -eq 1) -Message "$($entrypoint.Name) launches one Store update"
-    Assert-ArgumentList -Actual $script:processCalls[0].Arguments -Expected @('upgrade', '--id', 'XPFD23M0L795KD', '--source', 'msstore', '--silent', '--accept-source-agreements', '--accept-package-agreements') -Context "$($entrypoint.Name) Store update argv"
+    Assert-ArgumentList -Actual $script:processCalls[0].Arguments -Expected @('upgrade', '--id', 'XPFD23M0L795KD', '--source', 'msstore', '--silent') -Context "$($entrypoint.Name) Store update argv"
 
     Reset-TestState -Responses @(
         (New-FakeResponse -ExitCode -1978335212),
@@ -327,8 +353,8 @@ foreach ($entrypoint in $entrypoints) {
             Source = 'winget'
         })
     Assert-Condition -Condition ($script:processCalls.Count -eq 2) -Message "$($entrypoint.Name) architecture retry makes two captured attempts"
-    Assert-ArgumentList -Actual $script:processCalls[0].Arguments -Expected @('upgrade', '--id', 'Google.Chrome', '--exact', '--source', 'winget', '--silent', '--accept-source-agreements', '--accept-package-agreements') -Context "$($entrypoint.Name) first retry argv"
-    Assert-ArgumentList -Actual $script:processCalls[1].Arguments -Expected @('upgrade', '--id', 'Google.Chrome', '--exact', '--source', 'winget', '--silent', '--accept-source-agreements', '--accept-package-agreements', '--force') -Context "$($entrypoint.Name) force retry argv"
+    Assert-ArgumentList -Actual $script:processCalls[0].Arguments -Expected @('upgrade', '--id', 'Google.Chrome', '--exact', '--source', 'winget', '--silent') -Context "$($entrypoint.Name) first retry argv"
+    Assert-ArgumentList -Actual $script:processCalls[1].Arguments -Expected @('upgrade', '--id', 'Google.Chrome', '--exact', '--source', 'winget', '--silent', '--force') -Context "$($entrypoint.Name) force retry argv"
 
     Reset-TestState -Responses @(
         (New-FakeResponse -ExitCode -1978335226),
@@ -342,8 +368,44 @@ foreach ($entrypoint in $entrypoints) {
             Source = 'winget'
         })
     Assert-Condition -Condition ($script:processCalls.Count -eq 2) -Message "$($entrypoint.Name) source retry makes two captured attempts"
-    Assert-ArgumentList -Actual $script:processCalls[1].Arguments -Expected @('upgrade', '--id', 'Google.Chrome', '--exact', '--source', 'winget', '--silent', '--accept-source-agreements', '--accept-package-agreements') -Context "$($entrypoint.Name) catalog-source retry argv"
+    Assert-ArgumentList -Actual $script:processCalls[1].Arguments -Expected @('upgrade', '--id', 'Google.Chrome', '--exact', '--source', 'winget', '--silent') -Context "$($entrypoint.Name) catalog-source retry argv"
     Assert-Condition -Condition ($script:shellStartCount -eq 0) -Message "$($entrypoint.Name) retry paths start no shell"
+
+    $agreementCases = @(
+        [pscustomobject]@{ Name = 'new package agreement'; ExitCode = -1978335206; Output = 'FAKE_PACKAGE_TERMS_DO_NOT_LOG' },
+        [pscustomobject]@{ Name = 'new source agreement'; ExitCode = -1978335207; Output = 'FAKE_SOURCE_TERMS_DO_NOT_LOG' },
+        [pscustomobject]@{ Name = 'declined package agreement'; ExitCode = -1978335206; Output = 'FAKE_USER_DECLINED_TERMS_DO_NOT_LOG' }
+    )
+    foreach ($agreementCase in $agreementCases) {
+        Reset-TestState -Responses @(
+            (New-FakeResponse -ExitCode $agreementCase.ExitCode -Output @($agreementCase.Output)),
+            (New-FakeResponse -ExitCode 0)
+        )
+        $agreementResult = Update-Applications -Updates @([pscustomobject]@{
+                Name = 'Google Chrome'
+                Id = 'Google.Chrome'
+                CurrentVersion = '1.0'
+                AvailableVersion = '2.0'
+                Source = 'winget'
+            })
+        Assert-Condition -Condition ($script:processCalls.Count -eq 1) -Message "$($entrypoint.Name) $($agreementCase.Name) is not retried automatically"
+        Assert-Condition -Condition ($agreementResult.FailCount -eq 1 -and $agreementResult.Results.Count -eq 1 -and -not $agreementResult.Results[0].Success) -Message "$($entrypoint.Name) $($agreementCase.Name) remains a failed update outcome"
+        Assert-Condition -Condition ($agreementResult.Results[0].Message -notmatch 'FAKE_.*TERMS') -Message "$($entrypoint.Name) $($agreementCase.Name) does not copy agreement text into the result message"
+        Assert-Condition -Condition ($script:processCalls[0].Arguments -notcontains '--accept-source-agreements' -and $script:processCalls[0].Arguments -notcontains '--accept-package-agreements') -Message "$($entrypoint.Name) $($agreementCase.Name) passes no agreement acceptance switch"
+        Assert-Condition -Condition ($script:shellStartCount -eq 0) -Message "$($entrypoint.Name) $($agreementCase.Name) starts no shell"
+        if ($entrypoint.Name -eq 'GUI') {
+            Assert-Condition -Condition ($script:agreementReviewPromptMessages.Count -eq 1 -and $script:agreementReviewPromptMessages[0] -match 'Selecting the app is not consent') -Message "GUI $($agreementCase.Name) asks for explicit review without treating selection as consent"
+        }
+    }
+
+    if ($entrypoint.Name -eq 'CLI') {
+        Reset-TestState -Responses @((New-FakeResponse -ExitCode -1978335206 -Output @('FAKE_INSTALL_TERMS_SENTINEL')))
+        $installCommand = New-WingetPackageCommand -Operation install -PackageId '7zip.7zip' -Source 'winget' -ApprovedOptions @('--silent')
+        $installResult = Invoke-WingetDependencyCommand -Command $installCommand
+        Assert-Condition -Condition ($script:processCalls.Count -eq 1 -and $installResult.ExitCode -eq -1978335206 -and $installResult.Status -eq 'Failed') -Message 'CLI package-agreement install failure returns without a retry'
+        Assert-Condition -Condition (@($script:visibleReviewMessages | Where-Object { $_ -match 'Use a visible terminal: winget install --id 7zip\.7zip --exact --source winget' }).Count -eq 1) -Message 'CLI package-agreement install failure prints a visible review and retry command'
+        Assert-Condition -Condition ($script:processCalls[0].Arguments -notcontains '--accept-source-agreements' -and $script:processCalls[0].Arguments -notcontains '--accept-package-agreements') -Message 'CLI install review path passes no agreement acceptance switch'
+    }
 }
 
 [Console]::WriteLine("[OK] Update argv security checks passed ($script:assertionCount assertions).")

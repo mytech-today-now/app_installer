@@ -25,7 +25,11 @@
       "addedCommit": "81952a64201bbadf4418922953890497157db669",
       "lastChangedCommit": "96b07b97894988a00660d967c53d4623a3e83115",
       "currentRole": "Pinned launcher seed used to produce current versioned builds. The original seed creation recipe and any historical distribution path are unknown.",
-      "runtimeRequirement": "Repository documentation describes the package as requiring compatible installed PowerShell. The original seed payload was not revalidated during this review."
+      "runtimeRequirement": "Repository documentation describes the package as requiring compatible installed PowerShell. The original seed payload was not revalidated during this review.",
+      "embeddedSupportMetadata": {
+        "status": "historical",
+        "powerShellCoreVersion": "7.6.7"
+      }
     },
     {
       "path": "builds/new/install-gui.exe",
@@ -54,13 +58,13 @@
     "architecture": "X64",
     "powerShell": {
       "edition": "Core",
-      "version": "7.6.7",
-      "fileVersion": "7.6.7.500",
-      "sha256": "FA2C8BB1E35CDD62AD15CD06A1D8F2C5961E9725A9BFA1E7CFD2C322F49E9619",
+      "version": "7.6.9",
+      "fileVersion": "7.6.9.500",
+      "sha256": "2A6769A3330DC1084D0154BFDE7D164AB750CA7F700F313F9D417C1BE78B2233",
       "signatureStatus": "Valid",
       "signerSubject": "CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
-      "distributionUrl": "https://github.com/PowerShell/PowerShell/releases/download/v7.6.7/PowerShell-7.6.7-win-x64.zip",
-      "distributionSha256": "D2F952EBDBF24386CB8923553AA58E41A846DB35A6155EA04C58142A4B16DBB7"
+      "distributionUrl": "https://github.com/PowerShell/PowerShell/releases/download/v7.6.9/PowerShell-7.6.9-win-x64.zip",
+      "distributionSha256": "CE7484804C0F0AD4DDA10C958E71ACDAF7EEBFB22505C1B480F89E0E9F1DA94D"
     },
     "dotnetRuntime": {
       "version": "10.0.13",

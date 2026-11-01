@@ -40,7 +40,7 @@ jobs:
       matrix:
         engine:
           - Desktop-5.1
-          - Core-7.6.7
+          - Core-7.6.9
     steps:
       - name: Checkout a clean source tree
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -50,6 +50,7 @@ jobs:
           persist-credentials: false
 
       - name: Confirm the standard Windows Server 2025 build host
+        id: server_host
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -60,6 +61,7 @@ jobs:
           Write-Host '[OK] Build host is Windows Server 2025 x64 build 26100.'
 
       - name: Confirm Windows PowerShell Desktop 5.1
+        id: desktop_engine
         if: ${{ matrix.engine == 'Desktop-5.1' }}
         shell: powershell
         run: |
@@ -68,24 +70,25 @@ jobs:
           }
           Write-Host ('[OK] Windows PowerShell {0} {1}.' -f $PSVersionTable.PSEdition, $PSVersionTable.PSVersion)
 
-      - name: Confirm pinned PowerShell Core 7.6.7
-        if: ${{ matrix.engine == 'Core-7.6.7' }}
+      - name: Confirm pinned PowerShell Core 7.6.9
+        id: core_engine
+        if: ${{ matrix.engine == 'Core-7.6.9' }}
         shell: powershell
         run: |
           $pwsh = Get-Command pwsh.exe -ErrorAction SilentlyContinue
           if ($null -eq $pwsh) {
-              throw '[UNAVAILABLE] PowerShell Core 7.6.7 is required but pwsh.exe is not present on the standard runner.'
+              throw '[UNAVAILABLE] PowerShell Core 7.6.9 is required but pwsh.exe is not present on the standard runner.'
           }
           $version = @(& $pwsh.Source -NoProfile -Command '$PSVersionTable.PSVersion.ToString()')
           $versionExitCode = $LASTEXITCODE
           $actualVersion = [string]::Join('', $version).Trim()
-          if ($versionExitCode -ne 0 -or $actualVersion -cne '7.6.7') {
-              throw ('[UNAVAILABLE] PowerShell Core 7.6.7 is required; found {0}.' -f $actualVersion)
+          if ($versionExitCode -ne 0 -or $actualVersion -cne '7.6.9') {
+              throw ('[UNAVAILABLE] PowerShell Core 7.6.9 is required; found {0}.' -f $actualVersion)
           }
           Write-Host ('[OK] PowerShell Core {0} at {1}.' -f $actualVersion, $pwsh.Source)
 
       - name: Validate the semantic release tag
-        if: ${{ matrix.engine == 'Core-7.6.7' && inputs.validate_release_tag }}
+        if: ${{ matrix.engine == 'Core-7.6.9' && inputs.validate_release_tag }}
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -96,7 +99,7 @@ jobs:
           }
 
       - name: Build the unsigned versioned executable and provenance
-        if: ${{ matrix.engine == 'Core-7.6.7' }}
+        if: ${{ matrix.engine == 'Core-7.6.9' }}
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -160,6 +163,7 @@ jobs:
           Write-Host ('[OK] Built manifest-listed {0}; SHA-256 {1}.' -f [System.IO.Path]::GetFileName($executablePath), $manifest.artifact.sha256)
 
       - name: Run syntax and offline regression checks
+        id: offline_regressions
         shell: powershell
         env:
           APP_INSTALLER_CI_ENGINE: ${{ matrix.engine }}
@@ -171,7 +175,7 @@ jobs:
           }
 
       - name: Publish versioned unsigned artifact and provenance
-        if: ${{ matrix.engine == 'Core-7.6.7' && github.event_name == 'workflow_dispatch' && inputs.publish_artifact }}
+        if: ${{ matrix.engine == 'Core-7.6.9' && github.event_name == 'workflow_dispatch' && inputs.publish_artifact }}
         uses: actions/upload-artifact@c2acdedd35a8824a1552c7137f8c18288c3ea469
         with:
           name: app-installer-unsigned-${{ github.run_id }}
@@ -181,3 +185,177 @@ jobs:
           if-no-files-found: error
           compression-level: 0
           retention-days: 3
+
+      - name: Record Server build, engine, and client GUI evidence separately
+        if: always()
+        shell: powershell
+        env:
+          APP_INSTALLER_CI_ENGINE: ${{ matrix.engine }}
+          SERVER_HOST_OUTCOME: ${{ steps.server_host.outcome }}
+          DESKTOP_ENGINE_OUTCOME: ${{ steps.desktop_engine.outcome }}
+          CORE_ENGINE_OUTCOME: ${{ steps.core_engine.outcome }}
+          OFFLINE_REGRESSION_OUTCOME: ${{ steps.offline_regressions.outcome }}
+        run: |
+          $engineCheckOutcome = if ($env:APP_INSTALLER_CI_ENGINE -eq 'Desktop-5.1') { $env:DESKTOP_ENGINE_OUTCOME } else { $env:CORE_ENGINE_OUTCOME }
+          $summaryLines = @(
+              '## Windows build and compatibility evidence'
+              ('- Server build: Windows Server 2025 x64 build 26100, ProductType 3; host check outcome: `{0}`.' -f $env:SERVER_HOST_OUTCOME)
+              ('- Engine evidence: `{0}`; pinned engine check outcome: `{1}`; offline syntax/regression suite outcome: `{2}`.' -f $env:APP_INSTALLER_CI_ENGINE, $engineCheckOutcome, $env:OFFLINE_REGRESSION_OUTCOME)
+              '- Supported Windows client GUI capability/startup: `NOT RUN` on this Windows Server runner.'
+              '- Server build success and Server engine results are not client GUI validation. Use `WINDOWS_CLIENT_GUI_RELEASE_CHECKLIST.md` to record supported-client results.'
+          )
+          Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Value ($summaryLines -join [Environment]::NewLine)
+
+  native-cli-linux:
+    name: Native Linux CLI boundaries
+    if: ${{ github.event.repository.private == false }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    outputs:
+      pwsh_version: ${{ steps.runtime.outputs.version }}
+      supported_version: ${{ steps.runtime.outputs.supported_version }}
+    steps:
+      - name: Check out the source tree
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          clean: true
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Identify the native runner and preinstalled PowerShell
+        id: runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$(uname -s)" != "Linux" ]; then
+            echo "::error title=Unsupported runner::Expected Linux on ubuntu-24.04."
+            exit 1
+          fi
+          if ! command -v pwsh >/dev/null 2>&1; then
+            echo "::error title=PowerShell unavailable::The runner does not provide pwsh; no alternate engine will be installed."
+            exit 1
+          fi
+          edition="$(pwsh -NoLogo -NoProfile -Command '$PSVersionTable.PSEdition')"
+          version="$(pwsh -NoLogo -NoProfile -Command '$PSVersionTable.PSVersion.ToString()')"
+          expected="$(pwsh -NoLogo -NoProfile -Command '$contract = Get-Content -LiteralPath ./compatibility.json -Raw | ConvertFrom-Json; [string]$contract.engines.powerShellCore.version')"
+          if [ "$edition" != "Core" ] || [ -z "$version" ] || [ -z "$expected" ]; then
+            echo "::error title=Unsupported PowerShell runtime::Expected PowerShell Core and a readable compatibility.json version."
+            exit 1
+          fi
+          printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
+          printf 'supported_version=%s\n' "$expected" >> "$GITHUB_OUTPUT"
+          echo "[HOST] Linux runner; PowerShell $edition $version; support contract requires $expected."
+          if [ "$version" != "$expected" ]; then
+            echo "::warning title=PowerShell version mismatch::Native Linux tests will run under preinstalled PowerShell $version. The required compatibility gate will fail until this runner provides $expected."
+          fi
+
+      - name: Run Linux syntax, contract, fake-provider, and WhatIf checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          pwsh -NoLogo -NoProfile -File ./other_files/test-syntax.ps1
+          pwsh -NoLogo -NoProfile -File ./tests/test-compatibility-contract.ps1
+          pwsh -NoLogo -NoProfile -File ./tests/test-compatibility-review-freshness.ps1
+          pwsh -NoLogo -NoProfile -File ./tests/test-package-manager-command-security.ps1
+          pwsh -NoLogo -NoProfile -File ./tests/test-native-cli-boundaries.ps1 -ExpectedPlatform Linux
+
+  native-cli-macos:
+    name: Native macOS CLI boundaries
+    if: ${{ github.event.repository.private == false }}
+    runs-on: macos-15
+    timeout-minutes: 20
+    outputs:
+      pwsh_version: ${{ steps.runtime.outputs.version }}
+      supported_version: ${{ steps.runtime.outputs.supported_version }}
+    steps:
+      - name: Check out the source tree
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          clean: true
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Identify the native runner and preinstalled PowerShell
+        id: runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$(uname -s)" != "Darwin" ]; then
+            echo "::error title=Unsupported runner::Expected macOS on macos-15."
+            exit 1
+          fi
+          if ! command -v pwsh >/dev/null 2>&1; then
+            echo "::error title=PowerShell unavailable::The runner does not provide pwsh; no alternate engine will be installed."
+            exit 1
+          fi
+          edition="$(pwsh -NoLogo -NoProfile -Command '$PSVersionTable.PSEdition')"
+          version="$(pwsh -NoLogo -NoProfile -Command '$PSVersionTable.PSVersion.ToString()')"
+          expected="$(pwsh -NoLogo -NoProfile -Command '$contract = Get-Content -LiteralPath ./compatibility.json -Raw | ConvertFrom-Json; [string]$contract.engines.powerShellCore.version')"
+          if [ "$edition" != "Core" ] || [ -z "$version" ] || [ -z "$expected" ]; then
+            echo "::error title=Unsupported PowerShell runtime::Expected PowerShell Core and a readable compatibility.json version."
+            exit 1
+          fi
+          printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
+          printf 'supported_version=%s\n' "$expected" >> "$GITHUB_OUTPUT"
+          echo "[HOST] macOS runner; PowerShell $edition $version; support contract requires $expected."
+          if [ "$version" != "$expected" ]; then
+            echo "::warning title=PowerShell version mismatch::Native macOS tests will run under preinstalled PowerShell $version. The required compatibility gate will fail until this runner provides $expected."
+          fi
+
+      - name: Run macOS syntax, contract, fake-provider, and WhatIf checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          pwsh -NoLogo -NoProfile -File ./other_files/test-syntax.ps1
+          pwsh -NoLogo -NoProfile -File ./tests/test-compatibility-contract.ps1
+          pwsh -NoLogo -NoProfile -File ./tests/test-compatibility-review-freshness.ps1
+          pwsh -NoLogo -NoProfile -File ./tests/test-package-manager-command-security.ps1
+          pwsh -NoLogo -NoProfile -File ./tests/test-native-cli-boundaries.ps1 -ExpectedPlatform macOS
+
+  required-shared-cli-compatibility:
+    name: Required shared CLI compatibility
+    if: ${{ always() && github.event.repository.private == false }}
+    needs:
+      - windows-build-compatibility
+      - native-cli-linux
+      - native-cli-macos
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      WINDOWS_RESULT: ${{ needs.windows-build-compatibility.result }}
+      LINUX_RESULT: ${{ needs.native-cli-linux.result }}
+      LINUX_PWSH_VERSION: ${{ needs.native-cli-linux.outputs.pwsh_version }}
+      LINUX_SUPPORTED_PWSH_VERSION: ${{ needs.native-cli-linux.outputs.supported_version }}
+      MACOS_RESULT: ${{ needs.native-cli-macos.result }}
+      MACOS_PWSH_VERSION: ${{ needs.native-cli-macos.outputs.pwsh_version }}
+      MACOS_SUPPORTED_PWSH_VERSION: ${{ needs.native-cli-macos.outputs.supported_version }}
+    steps:
+      - name: Require the Windows, Linux, and macOS compatibility results
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$WINDOWS_RESULT" != "success" ]; then
+            echo "::error title=Windows compatibility failed::windows-build-compatibility result was $WINDOWS_RESULT."
+            exit 1
+          fi
+          if [ "$LINUX_RESULT" != "success" ]; then
+            echo "::error title=Native Linux checks failed::native-cli-linux result was $LINUX_RESULT."
+            exit 1
+          fi
+          if [ "$MACOS_RESULT" != "success" ]; then
+            echo "::error title=Native macOS checks failed::native-cli-macos result was $MACOS_RESULT."
+            exit 1
+          fi
+          if [ -z "$LINUX_SUPPORTED_PWSH_VERSION" ] || [ "$LINUX_SUPPORTED_PWSH_VERSION" != "$MACOS_SUPPORTED_PWSH_VERSION" ]; then
+            echo "::error title=Compatibility contract mismatch::Linux and macOS jobs did not report the same supported PowerShell version."
+            exit 1
+          fi
+          if [ "$LINUX_PWSH_VERSION" != "$LINUX_SUPPORTED_PWSH_VERSION" ]; then
+            echo "::error title=Native Linux compatibility unavailable::runner PowerShell $LINUX_PWSH_VERSION does not match supported PowerShell $LINUX_SUPPORTED_PWSH_VERSION."
+            exit 1
+          fi
+          if [ "$MACOS_PWSH_VERSION" != "$MACOS_SUPPORTED_PWSH_VERSION" ]; then
+            echo "::error title=Native macOS compatibility unavailable::runner PowerShell $MACOS_PWSH_VERSION does not match supported PowerShell $MACOS_SUPPORTED_PWSH_VERSION."
+            exit 1
+          fi
+          echo "[OK] Required Windows, Linux, and macOS checks passed under supported PowerShell $LINUX_SUPPORTED_PWSH_VERSION."

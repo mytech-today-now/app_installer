@@ -25,6 +25,16 @@ desktop.ini
 *.temp
 *.cache
 
+# Local environment files and certificate material
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.*.example
+**/*.pem
+**/*.key
+**/*.pfx
+**/*.p12
+
 # Test and coverage outputs (if generated locally)
 TestResults/
 coverage/

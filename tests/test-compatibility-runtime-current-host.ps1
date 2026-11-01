@@ -1,4 +1,4 @@
-# Verifies the current Windows runner's actual host and runtime against the manifest.
+# Verifies a supported Windows client's actual host and GUI runtime against the manifest.
 # This test reads local metadata and loads assemblies only. It performs no setup or package operation.
 #Requires -Version 5.1
 
@@ -9,18 +9,30 @@ $manifest = Get-InstallerCompatibilityManifest
 $hostInfo = Get-InstallerHostInfo
 
 if ($hostInfo.Platform -ne 'Windows') {
-    Write-Host '[SKIP] Current-host Windows runtime checks require Windows.' -ForegroundColor Yellow
-    exit 0
+    Write-Host '[UNAVAILABLE] Client GUI runtime evidence requires a supported Windows client host.' -ForegroundColor Yellow
+    exit 77
+}
+
+if ($hostInfo.ProductType -ne 'WinNT' -or $hostInfo.InstallationType -ne 'Client') {
+    Write-Host ('[UNAVAILABLE] Host product type {0} and installation type {1} are not a Windows client; a Server result cannot count as client GUI validation.' -f $hostInfo.ProductType, $hostInfo.InstallationType) -ForegroundColor Yellow
+    exit 77
 }
 
 $hostDecision = Test-InstallerCompatibility -Component WindowsHost -HostInfo $hostInfo
 if (-not $hostDecision.IsSupported) {
-    throw "The current Windows runner is outside compatibility.json: $($hostDecision.Reason)"
+    Write-Host "[UNAVAILABLE] The current Windows client is outside compatibility.json: $($hostDecision.Reason)" -ForegroundColor Yellow
+    exit 77
 }
 
 $cliDecision = Test-InstallerCompatibility -Component WindowsCli -HostInfo $hostInfo
 if (-not $cliDecision.IsSupported) {
-    throw "The current PowerShell engine is outside compatibility.json: $($cliDecision.Reason)"
+    Write-Host "[UNAVAILABLE] The current PowerShell engine is outside compatibility.json: $($cliDecision.Reason)" -ForegroundColor Yellow
+    exit 77
+}
+
+if ([Threading.Thread]::CurrentThread.GetApartmentState() -ne 'STA') {
+    Write-Host '[UNAVAILABLE] Run this client GUI capability check with PowerShell -STA.' -ForegroundColor Yellow
+    exit 77
 }
 
 $guiDecision = Test-InstallerCompatibility -Component WindowsGui -HostInfo $hostInfo
@@ -28,18 +40,18 @@ if (-not $guiDecision.IsSupported) {
     throw "The current GUI runtime is outside compatibility.json: $($guiDecision.Reason)"
 }
 
-if ([string]$PSVersionTable.PSEdition -eq [string]$manifest.engines.windowsPowerShell.edition) {
-    Add-Type -AssemblyName System.Windows.Forms -ErrorAction Stop
-    Add-Type -AssemblyName System.Drawing -ErrorAction Stop
-    Write-Host "[OK] Windows PowerShell $($PSVersionTable.PSVersion) loaded Windows Forms and System.Drawing with .NET release $($hostInfo.DotNetFrameworkRelease)." -ForegroundColor Green
-}
-else {
-    Write-Host "[OK] PowerShell Core $($PSVersionTable.PSVersion) loaded the Windows Desktop runtime assemblies required by the GUI." -ForegroundColor Green
-}
+$formsAssembly = [System.Windows.Forms.Form].Assembly.GetName().FullName
+$drawingAssembly = [System.Drawing.Bitmap].Assembly.GetName().FullName
+$webAssembly = [System.Web.HttpUtility].Assembly.GetName().FullName
+$runtimeDescription = [System.Runtime.InteropServices.RuntimeInformation]::FrameworkDescription
 
 $editionName = switch ([string]$hostInfo.EditionId) {
     'Core' { 'Home' }
     'Professional' { 'Pro' }
     default { [string]$hostInfo.EditionId }
 }
-Write-Host "[OK] Current-host compatibility matches Windows 11 $($hostDecision.Release.displayVersion) build $($hostDecision.Release.build), $editionName, $($hostInfo.Architecture)." -ForegroundColor Green
+Write-Host ("[HOST] Windows 11 {0}, build {1}, {2}, {3}; product type {4}; installation type {5}." -f $hostDecision.Release.displayVersion, $hostDecision.Release.build, $editionName, $hostInfo.Architecture, $hostInfo.ProductType, $hostInfo.InstallationType) -ForegroundColor Cyan
+Write-Host ("[ENGINE] {0} {1}; process architecture {2}; apartment {3}." -f $PSVersionTable.PSEdition, $PSVersionTable.PSVersion, (Get-InstallerProcessArchitecture), [Threading.Thread]::CurrentThread.GetApartmentState()) -ForegroundColor Cyan
+Write-Host ("[RUNTIME] {0}; .NET Framework release {1}." -f $runtimeDescription, $hostInfo.DotNetFrameworkRelease) -ForegroundColor Cyan
+Write-Host ("[ASSEMBLIES] System.Windows.Forms={0}; System.Drawing={1}; System.Web={2}." -f $formsAssembly, $drawingAssembly, $webAssembly) -ForegroundColor Cyan
+Write-Host '[OK] Supported Windows client GUI capability and required assemblies passed.' -ForegroundColor Green

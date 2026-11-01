@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-10-30
+goal: Prevent app selection or scheduled updates from silently accepting
+  third-party agreement terms.

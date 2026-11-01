@@ -2,15 +2,62 @@
 
 $ErrorActionPreference = 'Stop'
 if (-not ($env:OS -match 'Windows')) {
-    Write-Host '[SKIP] GUI entrypoint integration requires Windows Forms.' -ForegroundColor Yellow
+    Write-Host '[UNAVAILABLE] GUI entrypoint integration requires a supported Windows client.' -ForegroundColor Yellow
     exit 77
 }
 
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
+Import-Module -Name (Join-Path $repositoryRoot 'modules\InstallerCompatibility.psm1') -Force -DisableNameChecking -ErrorAction Stop
+$manifest = Get-InstallerCompatibilityManifest
+$hostInfo = Get-InstallerHostInfo
+if ($hostInfo.ProductType -ne 'WinNT' -or $hostInfo.InstallationType -ne 'Client') {
+    Write-Host ('[UNAVAILABLE] Host product type {0} and installation type {1} are not a Windows client; a Server GUI startup cannot count as client validation.' -f $hostInfo.ProductType, $hostInfo.InstallationType) -ForegroundColor Yellow
+    exit 77
+}
+
+$hostDecision = Test-InstallerCompatibility -Component WindowsHost -HostInfo $hostInfo
+if (-not $hostDecision.IsSupported) {
+    Write-Host "[UNAVAILABLE] The current Windows client is outside compatibility.json: $($hostDecision.Reason)" -ForegroundColor Yellow
+    exit 77
+}
+
+$engineDecision = Test-InstallerCompatibility -Component WindowsCli -HostInfo $hostInfo
+if (-not $engineDecision.IsSupported) {
+    Write-Host "[UNAVAILABLE] The current PowerShell engine is outside compatibility.json: $($engineDecision.Reason)" -ForegroundColor Yellow
+    exit 77
+}
+
+if ([Threading.Thread]::CurrentThread.GetApartmentState() -ne 'STA') {
+    Write-Host '[UNAVAILABLE] Start this GUI entrypoint test with PowerShell -STA.' -ForegroundColor Yellow
+    exit 77
+}
+
+$guiDecision = Test-InstallerCompatibility -Component WindowsGui -HostInfo $hostInfo
+if (-not $guiDecision.IsSupported) {
+    throw "The supported client GUI capability check failed: $($guiDecision.Reason)"
+}
+
+if ([string]$PSVersionTable.PSEdition -eq [string]$manifest.engines.windowsPowerShell.edition) {
+    $enginePath = Join-Path $PSHOME 'powershell.exe'
+}
+else {
+    $enginePath = Join-Path $PSHOME 'pwsh.exe'
+}
+if (-not (Test-Path -LiteralPath $enginePath -PathType Leaf)) {
+    throw "The supported current PowerShell executable was not found at $enginePath."
+}
+
+$editionName = switch ([string]$hostInfo.EditionId) {
+    'Core' { 'Home' }
+    'Professional' { 'Pro' }
+    default { [string]$hostInfo.EditionId }
+}
+Write-Host ("[HOST] Windows 11 {0}, build {1}, {2}, {3}." -f $hostDecision.Release.displayVersion, $hostDecision.Release.build, $editionName, $hostInfo.Architecture) -ForegroundColor Cyan
+Write-Host ("[ENGINE] {0} {1} at {2}; GUI capability passed before startup." -f $PSVersionTable.PSEdition, $PSVersionTable.PSVersion, $enginePath) -ForegroundColor Cyan
+
 Import-Module -Name (Join-Path $repositoryRoot 'modules\InstallerPayload.psm1') -Force -DisableNameChecking -ErrorAction Stop | Out-Null
 $tempBase = [System.IO.Path]::GetFullPath([System.IO.Path]::GetTempPath())
 $tempRoot = [System.IO.Path]::GetFullPath((Join-Path $tempBase ('app-installer-offline-' + [guid]::NewGuid().ToString('N'))))
-$pwshPath = (Get-Command pwsh -ErrorAction Stop).Source
 $fakeBinPath = Join-Path $tempRoot 'fake-bin'
 $wingetLogPath = Join-Path $tempRoot 'fake-winget.log'
 $networkLogPath = Join-Path $tempRoot 'blocked-network.log'
@@ -48,7 +95,7 @@ function Copy-IsolatedInstallerTree {
     )
 
     New-Item -ItemType Directory -Path $Destination -Force | Out-Null
-    foreach ($fileName in @('app-installer.ps1', 'app-installer-cli.ps1', 'apps-manifest.json', 'compatibility.json', 'install.bat', 'install.sh', 'invoke-elevated-install.ps1', 'payload-manifest.json', 'platform-detect.ps1', 'README.md', 'VERSION')) {
+    foreach ($fileName in @('app-installer.ps1', 'app-installer-cli.ps1', 'apps-manifest.json', 'compatibility.json', 'instructions.html', 'install.bat', 'install.sh', 'invoke-elevated-install.ps1', 'payload-manifest.json', 'platform-detect.ps1', 'README.md', 'VERSION')) {
         $source = Join-Path $repositoryRoot $fileName
         if (Test-Path -LiteralPath $source -PathType Leaf) {
             Copy-Item -LiteralPath $source -Destination $Destination -Force
@@ -218,10 +265,10 @@ else {
     [System.IO.File]::WriteAllText($driverPath, $driverText, [System.Text.Encoding]::UTF8)
 
     $processInfo = New-Object System.Diagnostics.ProcessStartInfo
-    $processInfo.FileName = $pwshPath
-    $processInfo.Arguments = '-NoLogo -NoProfile -File "' + $driverPath + '"'
+    $processInfo.FileName = $enginePath
+    $processInfo.Arguments = '-NoLogo -NoProfile -STA -File "' + $driverPath + '"'
     if ($Mode -eq 'gui-forced-cli') {
-        $processInfo.Arguments = '-NoLogo -NoProfile -File "' + $scriptPath + '" -ForceCLI -Action __invalid__'
+        $processInfo.Arguments = '-NoLogo -NoProfile -STA -File "' + $scriptPath + '" -ForceCLI -Action __invalid__'
     }
     $processInfo.WorkingDirectory = $TreeRoot
     $processInfo.UseShellExecute = $false
@@ -284,8 +331,8 @@ function Invoke-SharedLauncherScenario {
 
     $starterPath = Join-Path $TreeRoot 'tools\Start-Installer.ps1'
     $processInfo = New-Object System.Diagnostics.ProcessStartInfo
-    $processInfo.FileName = $pwshPath
-    $processInfo.Arguments = '-NoProfile -File "' + $starterPath + '" ' + $ArgumentTail
+    $processInfo.FileName = $enginePath
+    $processInfo.Arguments = '-NoProfile -STA -File "' + $starterPath + '" ' + $ArgumentTail
     $processInfo.WorkingDirectory = $TreeRoot
     $processInfo.UseShellExecute = $false
     $processInfo.CreateNoWindow = $true

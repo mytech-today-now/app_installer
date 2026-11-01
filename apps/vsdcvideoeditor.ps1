@@ -20,7 +20,7 @@ Write-Host "Installing $AppName..." -ForegroundColor Cyan
 try {
     # Try winget installation first
     Write-Host "  Attempting installation via winget..." -ForegroundColor Gray
-    $result = Invoke-WingetPackageCommand -Operation install -PackageId 'Multilab.VSDCFreeVideoEditor' -AdditionalArguments @('--silent', '--accept-package-agreements', '--accept-source-agreements')
+    $result = Invoke-WingetPackageCommand -Operation install -PackageId 'Multilab.VSDCFreeVideoEditor' -AdditionalArguments @('--silent')
     
     if ($LASTEXITCODE -eq 0) {
         Write-Host "  [OK] $AppName installed successfully via winget" -ForegroundColor Green

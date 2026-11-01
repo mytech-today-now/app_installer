@@ -190,7 +190,14 @@ $scanFunctionNames = @('New-UpdateScanResult', 'ConvertFrom-WingetUpgradeTable',
 $consumerFunctionNames = @('Check-ForUpdates')
 
 foreach ($entrypoint in $entrypoints) {
-    Import-InstallerFunctions -Path $entrypoint.Path -Names ($scanFunctionNames + $consumerFunctionNames)
+    $entrypointScanFunctionNames = @($scanFunctionNames)
+    if ($entrypoint.Name -eq 'GUI') {
+        $entrypointScanFunctionNames += 'Invoke-GuiWingetAgreementReviewRetry'
+    }
+    else {
+        $entrypointScanFunctionNames += 'Write-CliWingetAgreementReviewCommand'
+    }
+    Import-InstallerFunctions -Path $entrypoint.Path -Names ($entrypointScanFunctionNames + $consumerFunctionNames)
 
     foreach ($case in $scanCases) {
         Reset-TestState
@@ -200,7 +207,7 @@ foreach ($entrypoint in $entrypoints) {
         Assert-Condition -Condition ((($result.Status -ceq 'CompletedNoUpdates') -eq ($case.ExpectedStatus -ceq 'CompletedNoUpdates')) -and ($result.Status -ne 'CompletedNoUpdates' -or $result.Updates.Count -eq 0)) -Message "$($entrypoint.Name): $($case.Name) reports empty success only for recognized no-update output"
         Assert-Condition -Condition ($result.ExitCode -ceq $case.ExpectedExitCode) -Message "$($entrypoint.Name): $($case.Name) preserves the exit code"
         Assert-Condition -Condition ($result.Reason -ceq $case.ExpectedReason) -Message "$($entrypoint.Name): $($case.Name) records reason $($case.ExpectedReason)"
-        Assert-Condition -Condition ($script:commandArguments.Count -eq 1 -and $script:commandArguments[0] -ceq 'upgrade') -Message "$($entrypoint.Name): $($case.Name) uses the read-only upgrade query"
+        Assert-Condition -Condition ($script:commandArguments.Count -eq 2 -and $script:commandArguments[0] -ceq 'upgrade' -and $script:commandArguments[1] -ceq '--disable-interactivity') -Message "$($entrypoint.Name): $($case.Name) uses a noninteractive read-only upgrade query"
         Assert-Condition -Condition ($script:packageMutationCount -eq 0) -Message "$($entrypoint.Name): $($case.Name) performs no package mutation"
         if ($case.Name -eq 'valid populated table') {
             Assert-Condition -Condition ($result.Updates.Count -eq 1 -and $result.Updates[0].Id -ceq 'Google.Chrome' -and $result.Updates[0].Source -ceq 'winget') -Message "$($entrypoint.Name): validated table returns the catalog-backed update and source"

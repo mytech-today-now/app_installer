@@ -169,9 +169,9 @@ exec "$PACKAGE_MANAGER_TEST_PWSH" -NoLogo -NoProfile -File "$PACKAGE_MANAGER_TES
     Assert-Condition -Condition ($catalogWingetMappings.Count -eq $manifestWingetMappingCount -and $unsupportedSourceCount -eq 0) -Message 'Catalog schema requires a supported source for every WinGet package ID'
     Assert-Condition -Condition (@($catalogWingetMappings | Where-Object { $_.WingetSource -ceq 'msstore' -and $_.WingetId -ceq 'XPFD23M0L795KD' }).Count -eq 1 -and @($catalogWingetMappings | Where-Object { $_.WingetSource -ceq 'msstore' }).Count -eq 1) -Message 'The Microsoft Store catalog mapping is explicitly classified as msstore'
     $appRows = @(
-        [pscustomobject]@{ Platform = 'Windows'; Manager = 'winget'; AppName = '7zip'; Field = 'WingetId'; ManifestField = 'winget'; Expected = @('install', '--id', '7zip.7zip', '--exact', '--source', 'winget', '--silent', '--accept-source-agreements', '--accept-package-agreements') },
-        [pscustomobject]@{ Platform = 'Windows'; Manager = 'winget'; AppName = 'chrome'; Field = 'WingetId'; ManifestField = 'winget'; Expected = @('install', '--id', 'Google.Chrome', '--exact', '--source', 'winget', '--silent', '--accept-source-agreements', '--accept-package-agreements') },
-        [pscustomobject]@{ Platform = 'Windows'; Manager = 'winget'; AppName = 'avira'; Field = 'WingetId'; ManifestField = 'winget'; Expected = @('install', '--id', 'XPFD23M0L795KD', '--source', 'msstore', '--silent', '--accept-source-agreements', '--accept-package-agreements') },
+        [pscustomobject]@{ Platform = 'Windows'; Manager = 'winget'; AppName = '7zip'; Field = 'WingetId'; ManifestField = 'winget'; Expected = @('install', '--id', '7zip.7zip', '--exact', '--source', 'winget', '--silent') },
+        [pscustomobject]@{ Platform = 'Windows'; Manager = 'winget'; AppName = 'chrome'; Field = 'WingetId'; ManifestField = 'winget'; Expected = @('install', '--id', 'Google.Chrome', '--exact', '--source', 'winget', '--silent') },
+        [pscustomobject]@{ Platform = 'Windows'; Manager = 'winget'; AppName = 'avira'; Field = 'WingetId'; ManifestField = 'winget'; Expected = @('install', '--id', 'XPFD23M0L795KD', '--source', 'msstore', '--silent') },
         [pscustomobject]@{ Platform = 'macOS'; Manager = 'brew'; AppName = '7zip'; Field = 'BrewCask'; ManifestField = 'brewCask'; Expected = @('install', '--cask', 'the-unarchiver') },
         [pscustomobject]@{ Platform = 'macOS'; Manager = 'brew'; AppName = 'php'; Field = 'BrewFormula'; ManifestField = 'brewFormula'; Expected = @('install', 'php') },
         [pscustomobject]@{ Platform = 'Linux'; Manager = 'apt'; AppName = '7zip'; Field = 'AptPackage'; ManifestField = 'apt'; Expected = @('apt', 'install', '-y', 'p7zip-full') },
@@ -230,7 +230,7 @@ exec "$PACKAGE_MANAGER_TEST_PWSH" -NoLogo -NoProfile -File "$PACKAGE_MANAGER_TES
     $script:PackageManager = 'winget'
     $catalogDerivedCommand = Get-PackageManagerCommand -WingetId '7zip.7zip'
     Assert-Condition -Condition ($catalogDerivedCommand.IsValid -and $catalogDerivedCommand.Executable -eq 'winget') -Message 'Cross-platform adapter resolves omitted source metadata from the catalog'
-    Assert-ArgumentList -Actual $catalogDerivedCommand.Arguments -Expected @('install', '--id', '7zip.7zip', '--exact', '--source', 'winget', '--silent', '--accept-source-agreements', '--accept-package-agreements') -Context 'Catalog-derived adapter source'
+    Assert-ArgumentList -Actual $catalogDerivedCommand.Arguments -Expected @('install', '--id', '7zip.7zip', '--exact', '--source', 'winget', '--silent') -Context 'Catalog-derived adapter source'
     Remove-Item -LiteralPath $capturePath -Force -ErrorAction SilentlyContinue
     $env:PACKAGE_MANAGER_CAPTURE_PATH = $capturePath
     $catalogDerivedProcess = Invoke-PackageManagerProcess -Executable $catalogDerivedCommand.Executable -Arguments $catalogDerivedCommand.Arguments
@@ -241,32 +241,83 @@ exec "$PACKAGE_MANAGER_TEST_PWSH" -NoLogo -NoProfile -File "$PACKAGE_MANAGER_TES
     }
     Assert-ArgumentList -Actual $catalogDerivedCapture -Expected $catalogDerivedCommand.Arguments -Context 'Catalog-derived fake process argv'
 
-    $communityExactArguments = New-WingetArgumentList -Operation install -PackageId 'Example.Product' -Source 'winget'
-    Assert-ArgumentList -Actual $communityExactArguments -Expected @('install', '--id', 'Example.Product', '--exact', '--source', 'winget') -Context 'Similar package IDs use exact community matching'
-    $storeArguments = New-WingetArgumentList -Operation install -PackageId 'XPFD23M0L795KD' -Source 'msstore'
-    Assert-ArgumentList -Actual $storeArguments -Expected @('install', '--id', 'XPFD23M0L795KD', '--source', 'msstore') -Context 'Store IDs preserve Store source arguments without exact matching'
-    foreach ($operation in @('upgrade', 'uninstall')) {
-        $communityOperationArguments = New-WingetArgumentList -Operation $operation -PackageId 'Example.Product' -Source 'winget'
-        Assert-ArgumentList -Actual $communityOperationArguments -Expected @($operation, '--id', 'Example.Product', '--exact', '--source', 'winget') -Context "$operation community argv ordering"
-        $storeOperationArguments = New-WingetArgumentList -Operation $operation -PackageId 'XPFD23M0L795KD' -Source 'msstore'
-        Assert-ArgumentList -Actual $storeOperationArguments -Expected @($operation, '--id', 'XPFD23M0L795KD', '--source', 'msstore') -Context "$operation Store argv ordering"
+    $communityExactCommand = New-WingetPackageCommand -Operation install -PackageId 'Example.Product' -Source 'winget'
+    Assert-Condition -Condition ($communityExactCommand.Executable -ceq 'winget') -Message 'Shared command contract returns the WinGet executable separately'
+    Assert-ArgumentList -Actual $communityExactCommand.Arguments -Expected @('install', '--id', 'Example.Product', '--exact', '--source', 'winget') -Context 'Similar package IDs use exact community matching'
+    $storeCommand = New-WingetPackageCommand -Operation install -PackageId 'XPFD23M0L795KD' -Source 'msstore'
+    Assert-ArgumentList -Actual $storeCommand.Arguments -Expected @('install', '--id', 'XPFD23M0L795KD', '--source', 'msstore') -Context 'Store IDs preserve Store source arguments without exact matching'
+    foreach ($operation in @('upgrade', 'uninstall', 'show', 'list')) {
+        $communityCommand = New-WingetPackageCommand -Operation $operation -PackageId 'Example.Product' -Source 'winget' -ApprovedOptions $(if ($operation -in @('upgrade', 'uninstall')) { @('--silent') } else { @('--disable-interactivity') })
+        $expectedCommunityOptions = if ($operation -in @('upgrade', 'uninstall')) { @('--silent') } else { @('--disable-interactivity') }
+        Assert-ArgumentList -Actual $communityCommand.Arguments -Expected (@($operation, '--id', 'Example.Product', '--exact', '--source', 'winget') + $expectedCommunityOptions) -Context "$operation community argv ordering"
+        $storeOperationCommand = New-WingetPackageCommand -Operation $operation -PackageId 'XPFD23M0L795KD' -Source 'msstore' -ApprovedOptions $(if ($operation -in @('upgrade', 'uninstall')) { @('--silent') } else { @('--disable-interactivity') })
+        $expectedStoreOptions = if ($operation -in @('upgrade', 'uninstall')) { @('--silent') } else { @('--disable-interactivity') }
+        Assert-ArgumentList -Actual $storeOperationCommand.Arguments -Expected (@($operation, '--id', 'XPFD23M0L795KD', '--source', 'msstore') + $expectedStoreOptions) -Context "$operation Store argv ordering"
+    }
+
+    $scanCommand = New-WingetPackageCommand -Operation upgrade -ApprovedOptions @('--disable-interactivity')
+    Assert-ArgumentList -Actual $scanCommand.Arguments -Expected @('upgrade', '--disable-interactivity') -Context 'Unscoped update discovery argv'
+    $listScanCommand = New-WingetPackageCommand -Operation list -ApprovedOptions @('--disable-interactivity')
+    Assert-ArgumentList -Actual $listScanCommand.Arguments -Expected @('list', '--disable-interactivity') -Context 'Unscoped installed package scan argv'
+
+    $contractCases = @(
+        [pscustomobject]@{ Name = 'install'; Command = (New-WingetPackageCommand -Operation install -PackageId 'Example.Product' -Source 'winget' -ApprovedOptions @('--silent')); Expected = @('install', '--id', 'Example.Product', '--exact', '--source', 'winget', '--silent') },
+        [pscustomobject]@{ Name = 'upgrade'; Command = (New-WingetPackageCommand -Operation upgrade -PackageId 'Example.Product' -Source 'winget' -ApprovedOptions @('--silent', '--force')); Expected = @('upgrade', '--id', 'Example.Product', '--exact', '--source', 'winget', '--silent', '--force') },
+        [pscustomobject]@{ Name = 'uninstall'; Command = (New-WingetPackageCommand -Operation uninstall -PackageId 'XPFD23M0L795KD' -Source 'msstore' -ApprovedOptions @('--silent')); Expected = @('uninstall', '--id', 'XPFD23M0L795KD', '--source', 'msstore', '--silent') },
+        [pscustomobject]@{ Name = 'show'; Command = (New-WingetPackageCommand -Operation show -PackageId 'Example.Product' -Source 'winget' -ApprovedOptions @('--disable-interactivity')); Expected = @('show', '--id', 'Example.Product', '--exact', '--source', 'winget', '--disable-interactivity') },
+        [pscustomobject]@{ Name = 'list'; Command = (New-WingetPackageCommand -Operation list -PackageId 'Example.Product' -Source 'winget' -ApprovedOptions @('--disable-interactivity')); Expected = @('list', '--id', 'Example.Product', '--exact', '--source', 'winget', '--disable-interactivity') }
+    )
+    foreach ($case in $contractCases) {
+        Remove-Item -LiteralPath $capturePath -Force -ErrorAction SilentlyContinue
+        $env:PACKAGE_MANAGER_CAPTURE_PATH = $capturePath
+        $capturedResult = Invoke-PackageManagerProcess -Executable $case.Command.Executable -Arguments $case.Command.Arguments
+        Assert-Condition -Condition ($capturedResult.ExitCode -eq 23 -and (Test-Path -LiteralPath $capturePath)) -Message "Shared $($case.Name) contract reaches only the fake process boundary"
+        $capturedArguments = @(Get-Content -LiteralPath $capturePath -Raw | ConvertFrom-Json)
+        if ($capturedArguments.Count -eq 1 -and $capturedArguments[0] -is [System.Array]) {
+            $capturedArguments = @($capturedArguments[0])
+        }
+        Assert-ArgumentList -Actual $capturedArguments -Expected $case.Expected -Context "Shared $($case.Name) fake-process argv"
     }
 
     # The process helper exposes a structured status, exit code, and native output.
     $script:Platform = 'Windows'
     $script:PackageManager = 'winget'
     $env:PACKAGE_MANAGER_CAPTURE_PATH = $capturePath
-    $processArguments = New-WingetArgumentList -Operation install -PackageId '7zip.7zip' -Source 'winget'
-    $processResult = Invoke-PackageManagerProcess -Executable 'winget' -Arguments $processArguments
+    $processCommand = New-WingetPackageCommand -Operation install -PackageId '7zip.7zip' -Source 'winget'
+    $processResult = Invoke-PackageManagerProcess -Executable $processCommand.Executable -Arguments $processCommand.Arguments
     Assert-Condition -Condition ($processResult.Status -eq 'Failed') -Message 'Nonzero fake process status is structured as failed'
     Assert-Condition -Condition ($processResult.ExitCode -eq 23) -Message 'Structured process result preserves the nonzero exit code'
     Assert-Condition -Condition (@($processResult.Output | Where-Object { [string]$_ -match 'fake manager output' }).Count -gt 0) -Message 'Structured process result retains native output'
+
+    $originalAgreementProcessHelper = (Get-Item -LiteralPath Function:\Invoke-PackageManagerProcess).ScriptBlock
+    $script:AgreementProcessCallCount = 0
+    $agreementReviewDisplay = @(& {
+            Set-Item -LiteralPath Function:\Invoke-PackageManagerProcess -Value {
+                param([string]$Executable, [string[]]$Arguments)
+                $script:AgreementProcessCallCount++
+                $script:AgreementCapturedArguments = [string[]]$Arguments
+                return [pscustomobject]@{
+                    Status = 'Failed'
+                    ExitCode = -1978335206
+                    Output = [object[]]@('FAKE_PACKAGE_TERMS_SENTINEL')
+                }
+            }
+            try {
+                $null = Invoke-WingetPackageCommand -Operation install -PackageId '7zip.7zip' -Source 'winget' -AdditionalArguments @('--silent')
+            }
+            finally {
+                Set-Item -LiteralPath Function:\Invoke-PackageManagerProcess -Value $originalAgreementProcessHelper
+            }
+        } 6>&1) -join [Environment]::NewLine
+    Assert-Condition -Condition ($script:AgreementProcessCallCount -eq 1 -and $global:LASTEXITCODE -eq -1978335206) -Message 'App-script agreement failure is returned without an automatic retry'
+    Assert-Condition -Condition ($agreementReviewDisplay -match 'Selecting an app is not consent' -and $agreementReviewDisplay -match 'visible terminal: winget install --id 7zip\.7zip --exact --source winget --silent') -Message 'App-script agreement failure provides a visible review and retry command'
+    Assert-Condition -Condition ($script:AgreementCapturedArguments -notcontains '--accept-source-agreements' -and $script:AgreementCapturedArguments -notcontains '--accept-package-agreements') -Message 'App-script review command accepts no source or package agreement switch'
     $nativePreference = Get-Variable -Name PSNativeCommandUseErrorActionPreference -Scope Global -ErrorAction SilentlyContinue
     if ($nativePreference) {
         $oldNativePreference = $nativePreference.Value
         $global:PSNativeCommandUseErrorActionPreference = $true
         try {
-            $processResult = Invoke-PackageManagerProcess -Executable 'winget' -Arguments $processArguments
+            $processResult = Invoke-PackageManagerProcess -Executable $processCommand.Executable -Arguments $processCommand.Arguments
         }
         finally {
             $global:PSNativeCommandUseErrorActionPreference = $oldNativePreference
@@ -419,6 +470,49 @@ exec "$PACKAGE_MANAGER_TEST_PWSH" -NoLogo -NoProfile -File "$PACKAGE_MANAGER_TES
     $source = Get-Content -LiteralPath $platformDetectPath -Raw
     Assert-Condition -Condition (-not $source.Contains('Invoke-Expression')) -Message 'Platform helper contains no Invoke-Expression execution path'
     Assert-Condition -Condition ($source -notmatch '(?im)\bbash\s+-c\b') -Message 'Platform helper contains no bash -c execution path'
+
+    $rejectedAgreementFlags = 0
+    foreach ($agreementFlag in @('--accept-source-agreements', '--accept-package-agreements')) {
+        try {
+            $null = New-WingetPackageCommand -Operation install -PackageId 'Example.Product' -Source 'winget' -ApprovedOptions @($agreementFlag)
+        }
+        catch {
+            $rejectedAgreementFlags++
+        }
+    }
+    Assert-Condition -Condition ($rejectedAgreementFlags -eq 2) -Message 'The shared argument builder rejects both agreement acceptance switches'
+
+    $productionPaths = @(
+        (Join-Path $repoRoot 'app-installer.ps1'),
+        (Join-Path $repoRoot 'app-installer-cli.ps1'),
+        $platformDetectPath,
+        (Join-Path $repoRoot 'modules\AppInstallerCore.psm1'),
+        (Join-Path $repoRoot 'modules\PackageCommand.psm1')
+    ) + @((Get-ChildItem -LiteralPath (Join-Path $repoRoot 'apps') -Filter '*.ps1' -File | ForEach-Object { $_.FullName }))
+    $acceptanceFlagUses = @($productionPaths | Where-Object {
+            [regex]::IsMatch([System.IO.File]::ReadAllText($_), '(?i)--accept-(?:source|package)-agreements')
+        })
+    Assert-Condition -Condition ($acceptanceFlagUses.Count -eq 0) -Message 'No production WinGet entry point or app script silently accepts agreements'
+
+    $commandConstructionPaths = @(
+        (Join-Path $repoRoot 'app-installer.ps1'),
+        (Join-Path $repoRoot 'app-installer-cli.ps1'),
+        $platformDetectPath,
+        (Join-Path $repoRoot 'apps\winget-update.ps1')
+    )
+    foreach ($commandConstructionPath in $commandConstructionPaths) {
+        $tokens = $null
+        $parseErrors = $null
+        $commandAst = [System.Management.Automation.Language.Parser]::ParseFile($commandConstructionPath, [ref]$tokens, [ref]$parseErrors)
+        Assert-Condition -Condition ($parseErrors.Count -eq 0) -Message "$(Split-Path -Leaf $commandConstructionPath) parses for command inventory"
+        $directWingetCalls = @($commandAst.FindAll({
+                    param($node)
+                    $node -is [System.Management.Automation.Language.CommandAst] -and
+                    [string]$node.GetCommandName() -ieq 'winget'
+                }, $true))
+        Assert-Condition -Condition ($directWingetCalls.Count -eq 0) -Message "$(Split-Path -Leaf $commandConstructionPath) has no direct WinGet command invocation"
+        Assert-Condition -Condition (-not [System.IO.File]::ReadAllText($commandConstructionPath).Contains('New-WingetArgumentList')) -Message "$(Split-Path -Leaf $commandConstructionPath) does not use the legacy argv builder"
+    }
 
     Write-Host "`nPackage command security checks passed: $assertionCount assertions" -ForegroundColor Green
 }

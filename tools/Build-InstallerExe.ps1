@@ -1,4 +1,4 @@
-#Requires -Version 7.6.7
+#Requires -Version 7.6.9
 #Requires -PSEdition Core
 
 [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'High')]

@@ -7,8 +7,8 @@
     multiple applications across Windows, macOS, and Linux. Features include:
 
     CROSS-PLATFORM FEATURES:
-    - Works on supported Windows clients with Windows PowerShell 5.1 or PowerShell Core 7.6.7
-    - Works on supported macOS and Linux platforms with PowerShell Core 7.6.7
+    - Works on supported Windows clients with Windows PowerShell 5.1 or PowerShell Core 7.6.9
+    - Works on supported macOS and Linux platforms with PowerShell Core 7.6.9
     - Automatic package manager detection (winget, brew, apt, dnf, pacman, snap)
     - Platform-aware application filtering
     - Cross-platform path handling
@@ -88,8 +88,8 @@
     File Name      : install.ps1
     Author         : myTech.Today
     Prerequisite   : See compatibility.json for the authoritative support contract
-                     Windows: Windows 11 25H2 or 26H2, Home or Pro, x64; Windows PowerShell 5.1 or PowerShell Core 7.6.7
-                     macOS/Linux: PowerShell Core 7.6.7 on a supported platform
+                     Windows: Windows 11 25H2 or 26H2, Home or Pro, x64; Windows PowerShell 5.1 or PowerShell Core 7.6.9
+                     macOS/Linux: PowerShell Core 7.6.9 on a supported platform
     Copyright      : (c) 2025 myTech.Today. All rights reserved.
     Version        : 2.0.2
 
@@ -741,7 +741,9 @@ function Get-InstalledApplications {
     try {
         # Try using winget list first (faster and more accurate)
         if (-not $WhatIfPreference -and (Test-WingetAvailable)) {
-            $wingetList = winget list --accept-source-agreements 2>$null | Out-String
+            $listCommand = New-WingetPackageCommand -Operation list -ApprovedOptions @('--disable-interactivity')
+            $listResult = Invoke-WingetDependencyCommand -Command $listCommand
+            $wingetList = (@($listResult.Output) | ForEach-Object { [string]$_ }) -join [Environment]::NewLine
 
             foreach ($app in $script:Applications) {
                 if ($app.WingetId) {
@@ -1389,8 +1391,8 @@ function Get-WingetErrorMessage {
         -1978335203 { return "System not supported" }
         -1978335204 { return "Download size exceeded" }
         -1978335205 { return "Invalid license" }
-        -1978335206 { return "Package agreement required" }
-        -1978335207 { return "Source agreement required" }
+        -1978335206 { return "WinGet requires explicit review of the package agreement. Selecting an app is not consent; review the terms in WinGet and retry only if you agree." }
+        -1978335207 { return "WinGet requires explicit review of the source agreement. Selecting an app is not consent; review the terms in WinGet and retry only if you agree." }
         -1978335208 { return "Blocked by policy" }
         -1978335209 { return "Installer failed" }
         -1978335210 { return "Installer timeout" }
@@ -1478,6 +1480,25 @@ function Get-WingetErrorMessage {
         -1978335293 { return "Configuration set invalid state" }
         default { return "Unknown error (Exit code: $ExitCode)" }
     }
+}
+
+function Write-CliWingetAgreementReviewCommand {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]$Result,
+        [Parameter(Mandatory = $true)][string[]]$Arguments
+    )
+
+    if ($Result.ExitCode -notin @(-1978335206, -1978335207) -or
+        $Arguments.Count -eq 0 -or
+        $Arguments[0] -ne 'install' -or
+        $Arguments -notcontains '--id' -or
+        $Arguments -contains '--disable-interactivity') {
+        return
+    }
+
+    $reviewArguments = @($Arguments | Where-Object { $_ -notin @('--silent', '--disable-interactivity') })
+    Write-Host ("[REVIEW] After reviewing the terms, retry only if you agree. Use a visible terminal: winget {0}" -f ($reviewArguments -join ' ')) -ForegroundColor Cyan
 }
 
 function New-UpdateScanResult {
@@ -1616,7 +1637,8 @@ function Get-AvailableUpdates {
     $result = $null
 
     try {
-        $commandResult = Invoke-WingetDependencyCommand -Arguments @('upgrade')
+        $scanCommand = New-WingetPackageCommand -Operation upgrade -ApprovedOptions @('--disable-interactivity')
+        $commandResult = Invoke-WingetDependencyCommand -Command $scanCommand
         if ($null -eq $commandResult -or -not $commandResult.PSObject.Properties['Status']) {
             $result = New-UpdateScanResult -Status Unknown -Reason 'command-result-missing'
         }
@@ -1665,15 +1687,23 @@ function Invoke-WingetDependencyCommand {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]
-        [string[]]$Arguments
+        [ValidateNotNull()]
+        [pscustomobject]$Command
     )
 
+    if ($Command.Executable -cne 'winget' -or $Command.Arguments -isnot [string[]]) {
+        throw 'The shared package command specification is invalid.'
+    }
+    $executable = [string]$Command.Executable
+    $arguments = [string[]]$Command.Arguments
     $processHelper = Get-Command -Name 'Invoke-PackageManagerProcess' -CommandType Function -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($processHelper) {
-        return Invoke-PackageManagerProcess -Executable 'winget' -Arguments $Arguments
+        $processResult = Invoke-PackageManagerProcess -Executable $executable -Arguments $arguments
+        Write-CliWingetAgreementReviewCommand -Result $processResult -Arguments $arguments
+        return $processResult
     }
 
-    $application = Get-Command -Name 'winget' -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+    $application = Get-Command -Name $executable -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
     if (-not $application) {
         return [PSCustomObject]@{
             Status = 'Unavailable'
@@ -1689,7 +1719,17 @@ function Invoke-WingetDependencyCommand {
             $PSNativeCommandUseErrorActionPreference = $false
         }
 
-        $processOutput = @(& $executablePath @Arguments 2>&1)
+        $streamReviewOutput = $arguments.Count -gt 0 -and
+            $arguments[0] -in @('install', 'upgrade') -and
+            $arguments -contains '--id' -and
+            $arguments -notcontains '--disable-interactivity'
+        $processOutput = @(& $executablePath @arguments 2>&1 | ForEach-Object {
+                $outputItem = $_
+                if ($streamReviewOutput) {
+                    Write-Host ([string]$outputItem) -ForegroundColor Gray
+                }
+                $outputItem
+            })
         $processExitCode = $LASTEXITCODE
         if ($null -eq $processExitCode) {
             return [PSCustomObject]@{
@@ -1700,12 +1740,14 @@ function Invoke-WingetDependencyCommand {
             }
         }
 
-        return [PSCustomObject]@{
+        $processResult = [PSCustomObject]@{
             Status = if ($processExitCode -eq 0) { 'Succeeded' } else { 'Failed' }
             ExitCode = [int]$processExitCode
             Output = [object[]]$processOutput
             Diagnostic = if ($processExitCode -eq 0) { $null } else { 'WinGet returned a nonzero process exit code.' }
         }
+        Write-CliWingetAgreementReviewCommand -Result $processResult -Arguments $arguments
+        return $processResult
     }
     catch [System.Management.Automation.PipelineStoppedException] {
         throw
@@ -1776,8 +1818,8 @@ function Get-PackageDependencies {
     try {
         Write-Log "Checking dependencies for package: $PackageId" -Level INFO
         $resolvedSource = Resolve-WingetPackageSource -PackageId $PackageId -DeclaredSource $Source
-        $showArguments = New-WingetArgumentList -Operation show -PackageId $PackageId -Source $resolvedSource
-        $showResult = Invoke-WingetDependencyCommand -Arguments $showArguments
+        $showCommand = New-WingetPackageCommand -Operation show -PackageId $PackageId -Source $resolvedSource -ApprovedOptions @('--disable-interactivity')
+        $showResult = Invoke-WingetDependencyCommand -Command $showCommand
         if ($null -eq $showResult -or $showResult.Status -ne 'Succeeded' -or $null -eq $showResult.ExitCode -or $showResult.ExitCode -ne 0) {
             $exitCode = if ($showResult -and $showResult.PSObject.Properties['ExitCode']) { $showResult.ExitCode } else { $null }
             Write-Log "Dependency discovery is unknown for $PackageId (exit code: $exitCode)" -Level WARNING
@@ -1872,8 +1914,8 @@ function Install-PackageDependencies {
         try {
             Write-Log "Checking dependency: $dependencyId" -Level INFO
             $dependencySource = Resolve-WingetPackageSource -PackageId $dependencyId
-            $checkArguments = New-WingetArgumentList -Operation list -PackageId $dependencyId -Source $dependencySource
-            $checkResult = Invoke-WingetDependencyCommand -Arguments $checkArguments
+            $checkCommand = New-WingetPackageCommand -Operation list -PackageId $dependencyId -Source $dependencySource -ApprovedOptions @('--disable-interactivity')
+            $checkResult = Invoke-WingetDependencyCommand -Command $checkCommand
             if ($checkResult -and $checkResult.PSObject.Properties['ExitCode']) {
                 $checkExitCode = $checkResult.ExitCode
             }
@@ -1890,12 +1932,12 @@ function Install-PackageDependencies {
                 }
                 else {
                     Write-Log "Installing dependency: $dependencyId" -Level INFO
-                    $installArguments = New-WingetArgumentList `
+                    $installCommand = New-WingetPackageCommand `
                         -Operation install `
                         -PackageId $dependencyId `
                         -Source $dependencySource `
-                        -AdditionalArguments @('--silent', '--accept-source-agreements', '--accept-package-agreements')
-                    $installResult = Invoke-WingetDependencyCommand -Arguments $installArguments
+                        -ApprovedOptions @('--silent')
+                    $installResult = Invoke-WingetDependencyCommand -Command $installCommand
                     if ($installResult -and $installResult.PSObject.Properties['ExitCode']) {
                         $installExitCode = $installResult.ExitCode
                     }
@@ -1906,7 +1948,7 @@ function Install-PackageDependencies {
                     }
                     elseif ($null -ne $installExitCode) {
                         $status = 'failed'
-                        $message = "WinGet returned exit code $installExitCode."
+                        $message = Get-WingetErrorMessage -ExitCode ([int]$installExitCode)
                     }
                     else {
                         $status = 'unknown'
@@ -1991,13 +2033,13 @@ function Write-PackageDependencyFallbackNotice {
     $firstDependencyId = [string]$unresolved[0].PackageId
     try {
         $dependencySource = Resolve-WingetPackageSource -PackageId $firstDependencyId
-        $recoveryArguments = New-WingetArgumentList -Operation install -PackageId $firstDependencyId -Source $dependencySource
-        $recoveryCommand = 'winget ' + ($recoveryArguments -join ' ')
+        $recoveryCommand = New-WingetPackageCommand -Operation install -PackageId $firstDependencyId -Source $dependencySource
+        $recoveryCommandText = '{0} {1}' -f $recoveryCommand.Executable, ($recoveryCommand.Arguments -join ' ')
     }
     catch {
-        $recoveryCommand = "No manual WinGet command is available because '$firstDependencyId' has no unambiguous catalog source."
+        $recoveryCommandText = "No manual WinGet command is available because '$firstDependencyId' has no unambiguous catalog source."
     }
-    $message = "Dependency preflight for $PackageName was incomplete: $dependencySummary. Continuing to WinGet, which processes manifest dependencies by default. If it fails, run: $recoveryCommand, then retry."
+    $message = "Dependency preflight for $PackageName was incomplete: $dependencySummary. Continuing to WinGet, which processes manifest dependencies by default. If it fails, run: $recoveryCommandText, then retry."
     Write-Log $message -Level WARNING
     Write-PackageDependencyMessage -Message "  [WARN] $message" -Status warning
 }
@@ -2072,11 +2114,6 @@ function Update-Applications {
             }
 
             $updateSource = Resolve-WingetPackageSource -PackageId ([string]$update.Id) -DeclaredSource ([string]$update.Source)
-            $baseUpgradeArguments = New-WingetArgumentList `
-                -Operation upgrade `
-                -PackageId ([string]$update.Id) `
-                -Source $updateSource `
-                -AdditionalArguments @('--silent', '--accept-source-agreements', '--accept-package-agreements')
             $dependencyDiscovery = Get-PackageDependencies -PackageId $update.Id -Source $updateSource
             $dependencyResult = $null
             if ($dependencyDiscovery.Status -eq 'succeeded') {
@@ -2098,11 +2135,11 @@ function Update-Applications {
                     Start-Sleep -Seconds 2
                 }
 
-                $upgradeArguments = [string[]]@($baseUpgradeArguments)
+                $upgradeOptions = @('--silent')
 
                 # For architecture-specific errors, try with --force flag
                 if ($retryCount -gt 0 -and $lastExitCode -eq -1978335212) {
-                    $upgradeArguments += '--force'
+                    $upgradeOptions += '--force'
                     Write-Log "Adding --force flag due to installer type mismatch" -Level INFO
                 }
 
@@ -2111,36 +2148,41 @@ function Update-Applications {
                     Write-Log "Retrying with the catalog-selected WinGet source" -Level INFO
                 }
 
-                Write-Log ("Executing: winget {0}" -f ($upgradeArguments -join ' ')) -Level INFO
+                $upgradeCommand = New-WingetPackageCommand -Operation upgrade -PackageId ([string]$update.Id) -Source $updateSource -ApprovedOptions $upgradeOptions
+                Write-Log ("Executing: {0} {1}" -f $upgradeCommand.Executable, ($upgradeCommand.Arguments -join ' ')) -Level INFO
 
-                $upgradeResult = Invoke-WingetDependencyCommand -Arguments $upgradeArguments
+                $upgradeResult = Invoke-WingetDependencyCommand -Command $upgradeCommand
                 $output = @($upgradeResult.Output)
                 $exitCode = $upgradeResult.ExitCode
                 $lastExitCode = $exitCode
-
-                # Log the output for debugging
-                if ($output) {
-                    $outputStr = $output | Out-String
-                    Write-Log "Winget output: $outputStr" -Level INFO
-                }
 
                 # Check for success
                 if ($exitCode -eq 0) {
                     $updateSucceeded = $true
                 }
                 else {
-                    # Check if the output indicates success despite non-zero exit code
-                    $outputStr = $output | Out-String
-                    if ($outputStr -match "Successfully installed" -or
+                    # Agreement-required results are terminal for this attempt.
+                    # Never retry them automatically after a user declined or
+                    # WinGet could not present its native prompt.
+                    if ($exitCode -in @(-1978335206, -1978335207)) {
+                        $lastError = Get-WingetErrorMessage -ExitCode $exitCode
+                        $retryCount = 1
+                        break
+                    }
+                    else {
+                        # Check if the output indicates success despite non-zero exit code
+                        $outputStr = $output | Out-String
+                        if ($outputStr -match "Successfully installed" -or
                         $outputStr -match "successfully upgraded" -or
                         $outputStr -match "No applicable update found" -or
                         $outputStr -match "No newer package versions are available") {
-                        $updateSucceeded = $true
-                        Write-Log "Update appears successful or already current despite exit code $exitCode" -Level INFO
-                    }
-                    else {
-                        $lastError = Get-WingetErrorMessage -ExitCode $exitCode
-                        $retryCount++
+                            $updateSucceeded = $true
+                            Write-Log "Update appears successful or already current despite exit code $exitCode" -Level INFO
+                        }
+                        else {
+                            $lastError = Get-WingetErrorMessage -ExitCode $exitCode
+                            $retryCount++
+                        }
                     }
                 }
             }
@@ -2164,15 +2206,19 @@ function Update-Applications {
 
                 # Provide helpful suggestions based on error type
                 if ($lastExitCode -eq -1978335212) {
-                    $interactiveUpgradeArguments = New-WingetArgumentList -Operation upgrade -PackageId ([string]$update.Id) -Source $updateSource -AdditionalArguments @('--interactive')
-                    Write-Host ("  [HINT] Try updating manually with: winget {0}" -f ($interactiveUpgradeArguments -join ' ')) -ForegroundColor Cyan
+                    $interactiveUpgradeCommand = New-WingetPackageCommand -Operation upgrade -PackageId ([string]$update.Id) -Source $updateSource -ApprovedOptions @('--interactive')
+                    Write-Host ("  [HINT] Try updating manually with: {0} {1}" -f $interactiveUpgradeCommand.Executable, ($interactiveUpgradeCommand.Arguments -join ' ')) -ForegroundColor Cyan
                 }
                 elseif ($lastExitCode -eq -1978335226) {
                     Write-Host "  [HINT] Package may need to be updated from a different source" -ForegroundColor Cyan
                 }
+                elseif ($lastExitCode -in @(-1978335206, -1978335207)) {
+                    $reviewUpgradeCommand = New-WingetPackageCommand -Operation upgrade -PackageId ([string]$update.Id) -Source $updateSource
+                    Write-Host ("  [REVIEW] Retry in a visible terminal to review WinGet terms: {0} {1}" -f $reviewUpgradeCommand.Executable, ($reviewUpgradeCommand.Arguments -join ' ')) -ForegroundColor Cyan
+                }
                 elseif ($lastExitCode -eq -1978334975) {
-                    $interactiveUpgradeArguments = New-WingetArgumentList -Operation upgrade -PackageId ([string]$update.Id) -Source $updateSource -AdditionalArguments @('--interactive')
-                    Write-Host ("  [HINT] Try running: winget {0}" -f ($interactiveUpgradeArguments -join ' ')) -ForegroundColor Cyan
+                    $interactiveUpgradeCommand = New-WingetPackageCommand -Operation upgrade -PackageId ([string]$update.Id) -Source $updateSource -ApprovedOptions @('--interactive')
+                    Write-Host ("  [HINT] Try running: {0} {1}" -f $interactiveUpgradeCommand.Executable, ($interactiveUpgradeCommand.Arguments -join ' ')) -ForegroundColor Cyan
                 }
 
                 $failCount++
@@ -2824,20 +2870,16 @@ function Install-Application {
                         -Id 2
                 }
                 Write-Host "  [2/3] [INSTALL] Downloading and installing package..." -ForegroundColor Yellow
-                $installArguments = New-WingetArgumentList `
+                $installCommand = New-WingetPackageCommand `
                     -Operation install `
                     -PackageId ([string]$App.WingetId) `
                     -Source $wingetSource `
-                    -AdditionalArguments @('--silent', '--accept-source-agreements', '--accept-package-agreements')
-                Write-Verbose ("Executing: winget {0}" -f ($installArguments -join ' '))
-                $installResult = Invoke-WingetDependencyCommand -Arguments $installArguments
+                    -ApprovedOptions @('--silent')
+                Write-Verbose ("Executing: {0} {1}" -f $installCommand.Executable, ($installCommand.Arguments -join ' '))
+                $installResult = Invoke-WingetDependencyCommand -Command $installCommand
                 $result = @($installResult.Output)
                 $global:LASTEXITCODE = if ($null -eq $installResult.ExitCode) { 1 } else { [int]$installResult.ExitCode }
                 Write-Verbose "winget exit code: $LASTEXITCODE"
-                if ($result) {
-                    Write-Verbose "winget output: $result"
-                }
-
                 if ($LASTEXITCODE -eq 0) {
                     # Phase 3: Complete
                     if ($TotalCount -gt 0) {
@@ -3020,13 +3062,13 @@ function Uninstall-Application {
         Write-Host "  [UNINSTALL] Removing $($App.Name)..." -ForegroundColor Yellow
 
         $wingetSource = Resolve-WingetPackageSource -PackageId ([string]$App.WingetId) -DeclaredSource ([string]$App.WingetSource)
-        $uninstallArguments = New-WingetArgumentList `
+        $uninstallCommand = New-WingetPackageCommand `
             -Operation uninstall `
             -PackageId ([string]$App.WingetId) `
             -Source $wingetSource `
-            -AdditionalArguments @('--silent')
-        Write-Log ("Executing: winget {0}" -f ($uninstallArguments -join ' ')) -Level INFO
-        $uninstallResult = Invoke-WingetDependencyCommand -Arguments $uninstallArguments
+            -ApprovedOptions @('--silent')
+        Write-Log ("Executing: {0} {1}" -f $uninstallCommand.Executable, ($uninstallCommand.Arguments -join ' ')) -Level INFO
+        $uninstallResult = Invoke-WingetDependencyCommand -Command $uninstallCommand
         $result = @($uninstallResult.Output)
         $global:LASTEXITCODE = if ($null -eq $uninstallResult.ExitCode) { 1 } else { [int]$uninstallResult.ExitCode }
 
@@ -4492,14 +4534,14 @@ exit 0
        - Verify paths: %USERPROFILE%\myTech.Today\AppInstaller
        - Test GUI fallback: .\install-gui.ps1
 
-    2. PowerShell Core 7.6.7:
+    2. PowerShell Core 7.6.9:
        - Run as Administrator
        - Test all features
        - Verify cross-platform variables work
 
     macOS TESTING:
     --------------
-    1. Install PowerShell 7.6.7:
+    1. Install PowerShell 7.6.9:
        brew install --cask powershell
 
     2. Run the installer:
@@ -4517,7 +4559,7 @@ exit 0
 
     LINUX TESTING:
     --------------
-    1. Install PowerShell 7.6.7:
+    1. Install PowerShell 7.6.9:
        - Follow Microsoft's PowerShell 7.6 installation instructions for your distribution
        - Arch: yay -S powershell-bin
 

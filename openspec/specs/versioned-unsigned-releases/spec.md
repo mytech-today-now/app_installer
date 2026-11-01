@@ -20,7 +20,7 @@ The release workflow MUST accept only stable `vMAJOR.MINOR.PATCH` tags whose ver
 The release workflow MUST publish only from a protected version tag that points to a commit on the default branch, and only after both supported PowerShell test jobs and the pinned executable build checks pass.
 
 #### Scenario: Protected tag with passing matrix
-- **WHEN** the protected tag points to the default branch and all Desktop 5.1 and Core 7.6.7 gates pass
+- **WHEN** the protected tag points to the default branch and all Desktop 5.1 and Core 7.6.9 gates pass
 - **THEN** the release job may prepare and publish assets
 
 #### Scenario: Unprotected tag or failed gate

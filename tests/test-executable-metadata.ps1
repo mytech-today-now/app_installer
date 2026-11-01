@@ -73,6 +73,7 @@ $expectedVersion = [string]$versionContract.GuiVersion + '.0'
 $fileVersion = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($exePath)
 $signature = Get-AuthenticodeSignature -FilePath $exePath
 $contract = Get-Content -LiteralPath (Join-Path $repositoryRoot 'compatibility.json') -Raw | ConvertFrom-Json
+$legacySeed = @($buildConfiguration.legacyArtifacts | Where-Object { [string]$_.path -ceq 'builds/install-GUI.exe' -or [string]$_.path -ceq 'builds\install-GUI.exe' }) | Select-Object -First 1
 $releaseNames = @($contract.windowsClient.releases | ForEach-Object { 'Windows 11 {0} build {1}' -f $_.displayVersion, $_.build })
 
 if ($fileVersion.FileVersion -ne $expectedVersion -or $fileVersion.ProductVersion -ne $expectedVersion) {
@@ -81,8 +82,11 @@ if ($fileVersion.FileVersion -ne $expectedVersion -or $fileVersion.ProductVersio
 if ($fileVersion.ProductName -ne 'myTech.Today App Installer') {
     throw "Unexpected executable ProductName '$($fileVersion.ProductName)'."
 }
-if ($fileVersion.Comments -notmatch 'compatibility\.json' -or $fileVersion.Comments -notmatch ([regex]::Escape('PowerShell Core ' + $contract.engines.powerShellCore.version))) {
-    throw 'Executable comments do not identify the compatibility contract and supported PowerShell version.'
+if ($null -eq $legacySeed -or [string]$legacySeed.embeddedSupportMetadata.status -cne 'historical' -or [string]::IsNullOrWhiteSpace([string]$legacySeed.embeddedSupportMetadata.powerShellCoreVersion)) {
+    throw 'The legacy seed must declare its embedded PowerShell comment as historical metadata.'
+}
+if ($fileVersion.Comments -notmatch 'compatibility\.json' -or $fileVersion.Comments -notmatch ([regex]::Escape('PowerShell Core ' + [string]$legacySeed.embeddedSupportMetadata.powerShellCoreVersion))) {
+    throw 'Executable comments do not match the declared historical metadata for the pinned legacy seed.'
 }
 $requiredComments = @(
     'Home or Pro',
@@ -143,4 +147,4 @@ finally {
     }
 }
 
-Write-Host "[OK] Pinned legacy seed metadata $expectedVersion and embedded support contract match compatibility.json; metadata writes reject both legacy paths." -ForegroundColor Green
+Write-Host "[OK] Pinned legacy seed metadata $expectedVersion matches its declared historical support comment; metadata writes reject both legacy paths." -ForegroundColor Green

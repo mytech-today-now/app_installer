@@ -46,7 +46,7 @@ try {
     }
 
     Write-Host "  Installing via winget..." -ForegroundColor Yellow
-    $result = Invoke-WingetPackageCommand -Operation install -PackageId 'Twitch.TwitchStudio' -AdditionalArguments @('--silent', '--accept-source-agreements', '--accept-package-agreements')
+    $result = Invoke-WingetPackageCommand -Operation install -PackageId 'Twitch.TwitchStudio' -AdditionalArguments @('--silent')
 
     if ($LASTEXITCODE -eq 0) {
         Write-Host "  [OK] $AppName installed successfully!" -ForegroundColor Green

@@ -134,7 +134,7 @@ try {
     [void][System.IO.Directory]::CreateDirectory($tempRoot)
 
     $core = New-TestCandidate -Name 'compatible-core' -Engine Core
-    $coreProbe = New-TestProbe -Version '7.6.7' -Edition Core
+    $coreProbe = New-TestProbe -Version '7.6.9' -Edition Core
     $script:eventLog.Clear()
     $script:downloadCount = 0
     $script:installCount = 0
@@ -164,7 +164,7 @@ try {
     $guiWhatIf = Invoke-InstallerRuntimePrerequisiteFlow -Component WindowsGui -ApplicationPath $applicationPath -CandidateRecords @($core) -AllowTestCandidates -HostInfo $hostInfo -Manifest $manifest -WhatIf -AlwaysLaunchApplication -ProbeInvoker {
         param($candidate, $component, $target, $timeout)
         $script:guiWhatIfProbeCount++
-        New-ProbeResult -Probe (New-TestProbe -Version '7.6.7' -Edition Core -GuiSupported $true)
+        New-ProbeResult -Probe (New-TestProbe -Version '7.6.9' -Edition Core -GuiSupported $true)
     } -LaunchInvoker {
         param($candidate, $target, $arguments, $component)
         $script:guiWhatIfLaunchCount++
@@ -175,7 +175,7 @@ try {
     $guiOnlyGap = Get-InstallerPrerequisitePlan -Component WindowsGui -ApplicationPath $applicationPath -CandidateRecords @($core) -AllowTestCandidates -HostInfo $hostInfo -Manifest $manifest -ProbeInvoker {
         param($candidate, $component, $target, $timeout)
         $guiSupported = $component -eq 'WindowsCli'
-        New-ProbeResult -Probe (New-TestProbe -Version '7.6.7' -Edition Core -GuiSupported $guiSupported)
+        New-ProbeResult -Probe (New-TestProbe -Version '7.6.9' -Edition Core -GuiSupported $guiSupported)
     }
     Assert-Condition -Condition ($guiOnlyGap.Action -eq 'UseCliFallback' -and $guiOnlyGap.Component -eq 'WindowsCli' -and $null -eq $guiOnlyGap.Provisioning) -Message 'A missing GUI capability selects the already compatible CLI and does not provision another runtime.'
 
@@ -464,7 +464,7 @@ try {
     } -ProbeInvoker {
         param($candidate, $component, $target, $timeout)
         $script:eventLog.Add(('validate:' + $component))
-        New-ProbeResult -Probe (New-TestProbe -Version '7.6.7' -Edition Core)
+        New-ProbeResult -Probe (New-TestProbe -Version '7.6.9' -Edition Core)
     } -ElevationInvoker {
         param($plan)
         $script:eventLog.Add('elevation')
@@ -478,7 +478,7 @@ try {
     $validationIndex = $script:eventLog.IndexOf('validate:WindowsCli')
     $launchIndex = $script:eventLog.IndexOf('launch:WindowsCli')
     Assert-Condition -Condition ($success.Status -eq 'Started' -and $success.Candidate.Path -eq $provisioned.Path -and $rediscoverIndex -ge 0 -and $validationIndex -gt $rediscoverIndex -and $launchIndex -gt $validationIndex -and $script:eventLog -notcontains 'elevation') -Message 'Successful provisioning is rediscovered and revalidated from the exact path before CLI launch without elevation.'
-    Assert-Condition -Condition ($script:eventLog[0] -eq 'consent:yes' -and $script:eventLog[1] -like 'download:https://github.com/PowerShell/PowerShell/releases/download/v7.6.7/*' -and $script:eventLog[2] -eq 'install') -Message 'Consent precedes the injected exact-source download and installer operation.'
+    Assert-Condition -Condition ($script:eventLog[0] -eq 'consent:yes' -and $script:eventLog[1] -like 'download:https://github.com/PowerShell/PowerShell/releases/download/v7.6.9/*' -and $script:eventLog[2] -eq 'install') -Message 'Consent precedes the injected exact-source download and installer operation.'
     Assert-Condition -Condition ($success.Plan.Provisioning.InstallScope -eq 'current-user' -and $success.Plan.Provisioning.InstallLocation -match '%LOCALAPPDATA%' -and -not $success.Plan.Provisioning.RequiresAdministrator -and -not $success.Plan.Provisioning.ModifiesPath -and -not $success.Plan.Provisioning.ModifiesDefaultEngine -and $script:eventLog -notcontains 'elevation') -Message 'Accepted provisioning uses the exact per-user target without elevation, PATH updates, or default-engine changes.'
 
     Write-Host "[OK] Runtime prerequisite planning tests passed ($assertionCount assertions)." -ForegroundColor Green

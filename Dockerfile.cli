@@ -14,11 +14,11 @@ RUN apt-get update \
 
 RUN set -eu; \
     case "$TARGETARCH" in \
-        amd64) asset='powershell-7.6.7-linux-x64.tar.gz'; sha256='6896F9E3A6B0A354BF470835A96DA76D2F801CD50DCF047AD7C4563BF93BF431' ;; \
-        arm64) asset='powershell-7.6.7-linux-arm64.tar.gz'; sha256='BA465EFDFB0984C1C5DC5ED9EB0B79A7E91A1B52C45F99377058C0659B84D3F1' ;; \
+        amd64) asset='powershell-7.6.9-linux-x64.tar.gz'; sha256='1DA6D6D6035D651F20E70DDEE7C4C15AC6AB8B9FB40EE92240D91263F28A884B' ;; \
+        arm64) asset='powershell-7.6.9-linux-arm64.tar.gz'; sha256='02EB9991AF447C7E7FE881ACDE195961AFD397C40B8EB1C2B3856B84EC2D85F2' ;; \
         *) echo "Unsupported container architecture: $TARGETARCH" >&2; exit 1 ;; \
     esac; \
-    curl --fail --show-error --location "https://github.com/PowerShell/PowerShell/releases/download/v7.6.7/$asset" --output /tmp/powershell.tar.gz; \
+    curl --fail --show-error --location "https://github.com/PowerShell/PowerShell/releases/download/v7.6.9/$asset" --output /tmp/powershell.tar.gz; \
     printf '%s  %s\n' "$sha256" /tmp/powershell.tar.gz | sha256sum --check; \
     mkdir -p /opt/microsoft/powershell/7; \
     tar -xzf /tmp/powershell.tar.gz -C /opt/microsoft/powershell/7; \

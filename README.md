@@ -11,8 +11,8 @@ The **App Installer** is a comprehensive **cross-platform** PowerShell applicati
 ### Platform Support
 
 - **Windows:** GUI and CLI on the supported Windows 11 client releases in the compatibility contract.
-- **macOS:** CLI support on platforms supported by PowerShell 7.6.7, with Homebrew integration.
-- **Linux:** CLI support on platforms supported by PowerShell 7.6.7, with apt/dnf/pacman/snap integration.
+- **macOS:** CLI support on platforms supported by PowerShell 7.6.9, with Homebrew integration.
+- **Linux:** CLI support on platforms supported by PowerShell 7.6.9, with apt/dnf/pacman/snap integration.
 
 ### What's New in 2.0.0
 
@@ -89,6 +89,12 @@ pwsh -NoProfile -File .\app-installer-cli.ps1 -Action EnableMonthlyUpdates
 ```
 
 The CLI asks for confirmation before creating or replacing its task. The task runs with the current user's highest available privileges and updates only the selected package IDs. Manual all-application updates remain separate. Use `-Action DisableMonthlyUpdates` to remove the application-owned task after confirmation.
+
+#### WinGet agreement handling
+
+Choosing an application requests its installation or update; it does not accept package terms or a source's terms. Interactive install and upgrade commands do not pass `--accept-source-agreements` or `--accept-package-agreements`. WinGet displays the agreement and asks for a decision. If WinGet cannot show its prompt, the command fails with a review message; use the visible WinGet review flow and retry only if you agree. Agreement content is not written to installer log files.
+
+Installed-app and update-discovery queries use `--disable-interactivity` and do not accept source terms while the app is loading or scanning. The monthly task also uses `--disable-interactivity` and never accepts package or source agreements. If a scheduled package update requires agreement review, that package is reported as failed and the run remains incomplete. WinGet may reuse source terms that the user previously accepted through WinGet; the App Installer does not create a separate standing consent for package terms.
 
 ## Supported Applications (271+)
 
@@ -184,30 +190,34 @@ The single compatibility source is [`compatibility.json`](compatibility.json). I
 ### Windows
 - **Operating system:** Windows 11 25H2 build 26200 or Windows 11 26H2 build 26300, Home or Pro, x64. The release must still be within its end-of-servicing date in `compatibility.json`.
 - **Windows PowerShell:** Desktop edition 5.1. It supports the GUI and CLI. The GUI requires .NET Framework 4.7.2 or later, registry release value 461808 or later.
-- **PowerShell Core:** Version 7.6.7. It supports the CLI. The GUI also requires Windows Desktop runtime 10 and successful loads of `System.Windows.Forms`, `System.Drawing`, and `System.Web`.
+- **PowerShell Core:** Version 7.6.9. It supports the CLI. The GUI also requires Windows Desktop runtime 10 and successful loads of `System.Windows.Forms`, `System.Drawing`, and `System.Web`.
 - **Host preflight:** One shared result records the Windows product family, release, build, edition, host architecture, GUI runtime requirements, WinGet availability, and selected PowerShell artifact architecture. It rejects unavailable OS metadata and any host or artifact architecture mismatch before runtime provisioning or package setup.
 - **WinGet:** Optional for host support. If WinGet is missing, the host and CLI preflight remain valid and the CLI reports the missing package manager before package actions. Microsoft documents WinGet on Windows 11 and Windows Server 2025 with Desktop Experience, but this App Installer release has no verified Server package workflow, so every Server SKU remains outside the support matrix. Windows Server 2022 and earlier do not have WinGet support.
 - **Legacy WinGet bootstrap:** The old bootstrap path is scoped to Windows 10 x64 client builds 17763 through 21999. Windows 10 is outside the current App Installer matrix, so this path is not eligible during supported startup. It does not make WinGet availability equivalent to OS or runtime support.
-- **Runtime artifact architecture:** The only provisioned runtime artifact is PowerShell Core 7.6.7 for Windows x64. The preflight selects it only for a supported x64 host and blocks an unknown host architecture or artifact mismatch. It never chooses an x64 archive for x86 or ARM64.
+- **Runtime artifact architecture:** The only provisioned runtime artifact is PowerShell Core 7.6.9 for Windows x64. The preflight selects it only for a supported x64 host and blocks an unknown host architecture or artifact mismatch. It never chooses an x64 archive for x86 or ARM64.
 - **GUI startup gate:** Before loading GUI-only helpers or constructing a form, the installer validates the Windows release, PowerShell edition and version, x64 process architecture, STA apartment, runtime prerequisite, and required assemblies. If GUI capability is unavailable and the supported CLI can run, it starts the CLI once with the original CLI arguments and returns the CLI process exit code. The capability check reports status; provisioning is a separate consent-gated step. In GUI mode, `-WhatIf` reports the preflight result and exits without opening the GUI. CLI mode retains the CLI's dry-run preview.
-- **Launcher behavior:** `install.bat` is the source-script setup entry point. It starts the shared runtime resolver, which checks fixed PowerShell installation locations, registered PowerShell Core installations, and the current-user Microsoft.PowerShell package registration. For GUI mode it prefers PowerShell Core 7.6.7 when its GUI requirements pass, then Windows PowerShell 5.1. Use `-ForceCLI` to select `app-installer-cli.ps1` directly; CLI mode accepts Windows PowerShell 5.1 or PowerShell Core 7.6.7. A safe preflight failure can move to the next compatible engine. Once the installer starts, it never retries application work in another engine. The resolver does not search PATH.
+- **Launcher behavior:** `install.bat` is the source-script setup entry point. It starts the shared runtime resolver, which checks fixed PowerShell installation locations, registered PowerShell Core installations, and the current-user Microsoft.PowerShell package registration. For GUI mode it prefers PowerShell Core 7.6.9 when its GUI requirements pass, then Windows PowerShell 5.1. Use `-ForceCLI` to select `app-installer-cli.ps1` directly; CLI mode accepts Windows PowerShell 5.1 or PowerShell Core 7.6.9. A safe preflight failure can move to the next compatible engine. Once the installer starts, it never retries application work in another engine. The resolver does not search PATH.
 - **Executable distribution:** When a release has been published, use only its versioned `AppInstaller-<GUI-version>-win-x64.exe` asset together with the matching checksum and release manifest. The current package is an unsigned IExpress launcher and does not bundle PowerShell. The tracked legacy executables described below are not current release downloads.
 - **Unsupported:** Windows 10, Windows Server, Enterprise and Education editions, x86, ARM64, Windows releases absent from the matrix, and PowerShell versions outside the listed engine contract. The launcher exits before package-manager calls or persistent changes and prints the minimum requirement and recovery steps.
-- **Optional runtime installation:** Startup checks every discovered PowerShell candidate and its required CLI or GUI capabilities before offering provisioning. If no installed candidate can run the CLI, the installer presents the exact plan and asks for explicit consent before offering a current-user PowerShell Core 7.6.7 ZIP install from the GitHub release URL and SHA-256 pin in `compatibility.json`. The ZIP is verified before extraction, and the extracted executable is signature-checked and revalidated from its exact path before launch. The install does not require administrator privileges and does not change PATH, the default engine, or another PowerShell installation. GUI-only capability gaps use an already compatible CLI when available. If no PowerShell engine can start the preflight launcher, install.bat prints the pinned source and recovery steps without downloading or installing anything. Preview the provisioning decision with `powershell.exe -NoProfile -File .\tools\Install-CompatiblePowerShell.ps1 -WhatIf`; rerun without `-WhatIf` to review the plan and decide whether to proceed.
+- **Optional runtime installation:** Startup checks every discovered PowerShell candidate and its required CLI or GUI capabilities before offering provisioning. If no installed candidate can run the CLI, the installer presents the exact plan and asks for explicit consent before offering a current-user PowerShell Core 7.6.9 ZIP install from the GitHub release URL and SHA-256 pin in `compatibility.json`. The ZIP is verified before extraction, and the extracted executable is signature-checked and revalidated from its exact path before launch. The install does not require administrator privileges and does not change PATH, the default engine, or another PowerShell installation. GUI-only capability gaps use an already compatible CLI when available. If no PowerShell engine can start the preflight launcher, install.bat prints the pinned source and recovery steps without downloading or installing anything. Preview the provisioning decision with `powershell.exe -NoProfile -File .\tools\Install-CompatiblePowerShell.ps1 -WhatIf`; rerun without `-WhatIf` to review the plan and decide whether to proceed.
 - **Verification:** `tests/test-compatibility-contract.ps1` covers OS, edition, architecture, engine, runtime, and end-of-servicing boundaries with mocked metadata. `tests/test-executable-metadata.ps1` inspects the pinned legacy IExpress seed and confirms metadata writes reject both tracked legacy paths. `tests/test-executable-build.ps1` validates the generated versioned executable and its provenance; `tests/test-executable-resource-update.ps1` tests cabinet replacement on a temporary seed copy.
 
-Microsoft sources: [supported Windows client versions](https://learn.microsoft.com/en-us/windows/release-health/supported-versions-windows-client), [.NET Framework system requirements](https://learn.microsoft.com/en-us/dotnet/framework/get-started/system-requirements), [Windows PowerShell](https://learn.microsoft.com/en-us/powershell/scripting/install/installing-windows-powershell?view=powershell-7.6), [PowerShell 7 support lifecycle](https://learn.microsoft.com/en-us/powershell/scripting/install/powershell-support-lifecycle?view=powershell-7.6), [PowerShell 7.6.7 release assets](https://github.com/PowerShell/PowerShell/releases/tag/v7.6.7), and [WinGet availability and system requirements](https://learn.microsoft.com/en-us/windows/package-manager/winget/).
+Microsoft sources: [supported Windows client versions](https://learn.microsoft.com/en-us/windows/release-health/supported-versions-windows-client), [.NET Framework system requirements](https://learn.microsoft.com/en-us/dotnet/framework/get-started/system-requirements), [Windows PowerShell](https://learn.microsoft.com/en-us/powershell/scripting/install/installing-windows-powershell?view=powershell-7.6), [PowerShell 7 support lifecycle](https://learn.microsoft.com/en-us/powershell/scripting/install/powershell-support-lifecycle?view=powershell-7.6), [PowerShell 7.6.9 release assets](https://github.com/PowerShell/PowerShell/releases/tag/v7.6.9), and [WinGet availability and system requirements](https://learn.microsoft.com/en-us/windows/package-manager/winget/).
+
+### Compatibility source review
+
+Manually compare the Windows client lifecycle, PowerShell support lifecycle, and pinned PowerShell release sources at least every 180 days and before a versioned release. The current recorded review date is `2026-11-01` in `compatibility.json`. Run `pwsh -NoProfile -File .\tools\Test-CompatibilityReview.ps1` for an offline age check; stale dates produce a warning in local output and CI. The versioned release workflow runs the same check with `-RequireFresh` and stops when the review is overdue. Update `lastReviewed` manually only after checking the official [Windows client lifecycle](https://learn.microsoft.com/en-us/windows/release-health/supported-versions-windows-client), [PowerShell support lifecycle](https://learn.microsoft.com/en-us/powershell/scripting/install/powershell-support-lifecycle?view=powershell-7.6), and [pinned PowerShell release](https://github.com/PowerShell/PowerShell/releases/tag/v7.6.9). The checker makes no network requests and never writes to the contract; source changes remain a human review.
 
 ### macOS
-- **Operating system and PowerShell:** Use a macOS version listed for PowerShell 7.6.7 in Microsoft's support lifecycle.
-- **PowerShell:** Version 7.6.7 (install via: `brew install --cask powershell`)
+- **Operating system and PowerShell:** Use a macOS version listed for PowerShell 7.6.9 in Microsoft's support lifecycle.
+- **PowerShell:** Version 7.6.9 (install via: `brew install --cask powershell`)
 - **Package Manager:** Homebrew (install from https://brew.sh)
 - **Privileges:** sudo access recommended for system-wide installations
 - **Note:** GUI mode not available - use CLI mode (`app-installer-cli.ps1`)
 
 ### Linux
-- **Operating system and PowerShell:** Use a Linux distribution and architecture listed for PowerShell 7.6.7 in Microsoft's support lifecycle.
-- **PowerShell:** Version 7.6.7 (see Microsoft's [PowerShell installation guidance](https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell-on-linux?view=powershell-7.6))
+- **Operating system and PowerShell:** Use a Linux distribution and architecture listed for PowerShell 7.6.9 in Microsoft's support lifecycle.
+- **PowerShell:** Version 7.6.9 (see Microsoft's [PowerShell installation guidance](https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell-on-linux?view=powershell-7.6))
 - **Package Manager:** apt, dnf, pacman, or snap (automatically detected)
 - **Privileges:** sudo/root access recommended for system-wide installations
 - **Note:** GUI mode not available - use CLI mode (`app-installer-cli.ps1`)
@@ -216,7 +226,7 @@ The CLI preserves the existing OS and package-manager filters in `platform-detec
 
 ### CLI container image
 
-The CLI-only image in `Dockerfile.cli` uses Microsoft's .NET 10 Ubuntu runtime and installs PowerShell Core 7.6.7 for `amd64` or `arm64`. It checks the official release archive's SHA-256 before extraction. Build the image from the repository root:
+The CLI-only image in `Dockerfile.cli` uses Microsoft's .NET 10 Ubuntu runtime and installs PowerShell Core 7.6.9 for `amd64` or `arm64`. It checks the official release archive's SHA-256 before extraction. Build the image from the repository root:
 
 ```bash
 docker build -f Dockerfile.cli -t app-installer-cli .
@@ -224,7 +234,7 @@ docker build -f Dockerfile.cli -t app-installer-cli .
 
 ### Building the Windows executable
 
-The reproducible build follows the unsigned x64 IExpress contract in `compatibility.json`. It uses the checked-in `builds/install-GUI.exe` as a pinned launcher seed and writes a separate versioned output under `builds/generated/`. It never replaces either checked-in executable. Run it from a clean or reviewed source checkout on Windows 11 build 26300 x64 or Windows Server 2025 build 26100 x64 with PowerShell Core 7.6.7, the pinned .NET runtime 10.0.13, and the exact MakeCab and Expand versions recorded in `tools/installer-exe-build.json`:
+The reproducible build follows the unsigned x64 IExpress contract in `compatibility.json`. It uses the checked-in `builds/install-GUI.exe` as a pinned launcher seed and writes a separate versioned output under `builds/generated/`. It never replaces either checked-in executable. Run it from a clean or reviewed source checkout on Windows 11 build 26300 x64 or Windows Server 2025 build 26100 x64 with PowerShell Core 7.6.9, the pinned .NET runtime 10.0.13, and the exact MakeCab and Expand versions recorded in `tools/installer-exe-build.json`:
 
 ```powershell
 pwsh -NoProfile -File .\tools\Build-InstallerExe.ps1
@@ -247,19 +257,42 @@ Both tracked executable files remain unchanged. Their file hashes and roles are 
 
 No removal is planned. Keep `builds/install-GUI.exe` as the pinned seed until a reviewed replacement has established provenance and passes clean-build reproducibility checks. Before removing either file, confirm remote release history and external consumer references; local Git history alone does not establish that either artifact was never distributed. The second file remains preserved and release-ineligible while its origin and runtime requirements are unknown.
 
-The supported release package is the versioned artifact generated by `tools/Build-InstallerExe.ps1` and selected with its adjacent `.build.json` provenance. Its release assets include the `.sha256` sidecar and `.release.json` manifest. It is an unsigned IExpress launcher, not a standalone PowerShell runtime. It requires a supported Windows 11 Home or Pro x64 release and a compatible PowerShell engine. The GUI requires Windows PowerShell 5.1 with .NET Framework 4.7.2 or PowerShell Core 7.6.7 with Windows Desktop runtime 10. A local generated file is build output, not evidence that a GitHub release was published.
+The supported release package is the versioned artifact generated by `tools/Build-InstallerExe.ps1` and selected with its adjacent `.build.json` provenance. Its release assets include the `.sha256` sidecar and `.release.json` manifest. It is an unsigned IExpress launcher, not a standalone PowerShell runtime. It requires a supported Windows 11 Home or Pro x64 release and a compatible PowerShell engine. The GUI requires Windows PowerShell 5.1 with .NET Framework 4.7.2 or PowerShell Core 7.6.9 with Windows Desktop runtime 10. A local generated file is build output, not evidence that a GitHub release was published.
 
 ### GitHub Actions build and compatibility checks
 
-The workflow at .github/workflows/windows-build-compatibility.yml runs on pull requests targeting main and pushes to main using the standard x64 windows-2025 runner. Its two-engine matrix checks Windows PowerShell Desktop 5.1 and PowerShell Core 7.6.7, builds the unsigned versioned EXE from a clean checkout, and runs selected offline regression checks. A missing or unexpected PowerShell version fails its matrix leg. The current-host runtime test is reported as not run because the GitHub runner is Windows Server, outside the Windows client runtime matrix.
+The workflow at .github/workflows/windows-build-compatibility.yml runs on pull requests targeting main and pushes to main using the standard x64 windows-2025 runner. Its two-engine matrix checks Windows PowerShell Desktop 5.1 and PowerShell Core 7.6.9, builds the unsigned versioned EXE from a clean checkout, and runs every test with an `included` disposition in [`tests/ci-regression-inventory.json`](tests/ci-regression-inventory.json). A missing or unexpected PowerShell version fails its matrix leg. The inventory documents platform/runtime prerequisites, fake or read-only boundaries, and an explicit per-engine `included`, `skipped`, or `unavailable` status for every standalone script.
 
-Run the same offline regression suite locally on Windows with PowerShell Core 7.6.7:
+Run the same offline regression suite locally on Windows with PowerShell Core 7.6.9:
 
 ```powershell
-pwsh -NoProfile -File .\tests\Invoke-CIRegressionSuite.ps1 -Engine Core-7.6.7
+pwsh -NoProfile -File .\tests\Invoke-CIRegressionSuite.ps1 -Engine Core-7.6.9
 ```
 
-The suite runs the syntax, trust, package-command, update-scheduling, update-result, launcher, compatibility, and release-fixture checks. A script-level platform skip exits with code 77 and is reported separately from passed tests. The Windows-client runtime check is reported as unavailable on the Windows Server runner. The safety harnesses use fake package-manager and scheduler commands and temporary file and profile roots; they do not invoke live package providers, network downloads, elevation, or real scheduled tasks. Passing source checks do not verify live provider or Task Scheduler behavior, code signing, hosted workflow execution, or remote branch and tag protection settings.
+The inventory currently contains 36 standalone `test-*.ps1` scripts. Its matrix counts are Desktop-5.1: 30 included, 4 skipped, 2 unavailable; Core-7.6.9: 33 included, 1 skipped, 2 unavailable. The separate syntax check also runs in each leg. `test-compatibility-runtime-current-host.ps1` and `test-startup-entrypoints-offline.ps1` are explicitly unavailable on the Windows Server 2025 runner, with reasons in the inventory. Each Windows job writes a summary that separates the Server build result, its pinned engine and offline regression evidence, and supported Windows client GUI capability/startup as `NOT RUN`. The Core leg passes its validated, locally built executable to the release-asset simulation; CI fails if that expected artifact is missing. Without a built artifact, a local run reports that simulation as unavailable.
+
+As of November 1, 2026, GitHub's published hosted-image list has Windows Server x64 images and Windows 11 Arm64 images, but no Windows 11 x64 client image matching this support matrix. Recheck the [GitHub-hosted runner image list](https://github.com/actions/runner-images#available-images) before relying on hosted labels. Until a supported x64 client runner is available, use the [Windows client GUI release checklist](WINDOWS_CLIENT_GUI_RELEASE_CHECKLIST.md) on an already-provisioned Windows 11 25H2 or 26H2 Home/Pro x64 host. It exercises the current engine's capability and isolated GUI startup path without installing apps or runtimes. A Windows Server or wrong-engine result stays `NOT RUN` for client validation.
+
+The workflow also runs `native-cli-linux` on `ubuntu-24.04` and `native-cli-macos` on `macos-15`. They check native syntax and the compatibility contract, run platform-selection and argument-capture tests through temporary fake package-manager commands, exercise the CLI `-WhatIf` boundary, and run `install.sh` from a temporary path with spaces through a fake `pwsh` command. No PowerShell setup action or package-manager installation command is used. The jobs record the runner's preinstalled PowerShell version and still run the isolated checks when that version differs from the contract. As of November 1, 2026, the published [Windows Server 2025](https://github.com/actions/runner-images/blob/main/images/windows/Windows2025-Readme.md) image lists PowerShell 7.6.7 and [macOS 15](https://github.com/actions/runner-images/blob/main/images/macos/macos-15-Readme.md) lists 7.6.4, while `compatibility.json` pins 7.6.9. The Windows Core matrix and release packaging require exact 7.6.9 and reject a mismatch without provisioning another runtime, so those hosted legs remain unavailable until their image provides the pinned engine. The published [Ubuntu 24.04](https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2404-Readme.md) image lists PowerShell 7.6.9. The `Required shared CLI compatibility` job requires both native jobs, the Windows matrix, and exact 7.6.9 on both native runners; a version mismatch is reported as unavailable and fails that required status. It also gates the reusable workflow used by release validation. Configure this job as a required branch-protection check for shared CLI changes; remote branch-protection settings were not inspected or changed here.
+
+The previous runner omitted the following 12 existing scripts. The table records their prerequisites, boundaries, and matrix dispositions; the JSON inventory remains the source of truth for all 36 scripts, including tests already present in the runner and the new inventory-contract and compatibility-review tests.
+
+| Previously omitted test | Platform prerequisites | Boundary | Desktop 5.1 | Core 7.6.9 |
+| --- | --- | --- | --- | --- |
+| `test-belarc-installer-trust.ps1` | Windows, PowerShell 5.1+, writable temp directory | Synthetic payload bytes; fake download, signature, and process callbacks; ACL write stubbed | Included | Included |
+| `test-cli-runtime-handoff.ps1` | Windows process/path behavior, PowerShell 5.1+ | Fake WinGet, temporary profiles, and WhatIf | Included | Included |
+| `test-compatibility-runtime-current-host.ps1` | Supported Windows 11 client build, edition, x64, and GUI runtime | Read-only host/runtime inspection | Unavailable: CI host is Windows Server 2025 | Unavailable: CI host is Windows Server 2025 |
+| `test-custom-app-script-results.ps1` | Windows, PowerShell 5.1+, writable temp directory | Fake native commands and Start-Process; no package manager or browser launch | Included | Included |
+| `test-executable-install-lifecycle.ps1` | Windows, PowerShell 5.1+, writable temp directory | Generated temporary payloads; reads ACLs but does not alter OS install state | Included | Included |
+| `test-gui-queue-state.ps1` | Windows, PowerShell 5.1+, writable temp directory | Isolated queue files and stubbed UI/process behavior | Included | Included |
+| `test-gui-startup-capability.ps1` | PowerShell 5.1+ | Synthetic host/engine data and injected Forms loader/CLI runner | Included | Included |
+| `test-install-bat-elevation.ps1` | Windows, cmd.exe, pwsh.exe, .NET Framework C# compiler | Fake launchers and Start-Process with temporary batch fixtures; no elevation or WinGet | Included | Included |
+| `test-installer-release-assets.ps1` | Windows, Core 7.6.9, executable and adjacent manifest from CI build | Temporary asset staging and fake source/API; no network, upload, signing, or publication | Skipped: Core build input required | Included after validated build |
+| `test-package-dependency-outcomes.ps1` | Windows, System.Drawing, PowerShell 5.1+, writable temp files | Injected fake package commands; no live WinGet | Included | Included |
+| `test-remote-helper-trust.ps1` | Windows, PowerShell 5.1+, writable temp directory | Fake transport, signature, and process callbacks; no helper download or launch | Included | Included |
+| `test-winget-bootstrap.ps1` | Windows, PowerShell 5.1+, writable temp directory and local package fixtures | Synthetic packages and fake download/install callbacks; no release request, package download, or Add-AppxPackage call | Included | Included |
+
+`test-update-scan-status.ps1` was already in the previous runner and remains included on both engines. Its package-command boundary is stubbed. The added inventory-contract test verifies that every standalone script has exactly one inventory entry, that counts match, and that the separate injected-failure test propagates a nonzero child exit code. A script-level platform skip exits with code 77 and is reported separately from passed tests. The safety harnesses use fake package-manager and scheduler commands and temporary file and profile roots; they do not invoke live package providers, network downloads, elevation, or real scheduled tasks. Passing source checks do not verify live provider or Task Scheduler behavior, code signing, hosted workflow execution, or remote branch and tag protection settings.
 
 The repository is public, so standard GitHub-hosted runners are free. The job also skips if the repository is private. Artifact upload is available only from a manual run and defaults off. It includes the versioned unsigned EXE and adjacent .build.json provenance file for three days. GitHub Free includes 500 MB of artifact and package storage combined; current storage use is not available to this workflow, so upload only when the owner has sufficient included storage.
 
@@ -271,11 +304,11 @@ VERSION is the canonical current version source. Its GUI entry defines the execu
 
 `.github/workflows/versioned-unsigned-release.yml` runs only for pushed tags beginning with `v`. The validator accepts only exact stable `vMAJOR.MINOR.PATCH` tags and requires the version to equal the GUI version in `VERSION`; the GUI and CLI script versions must both match their entries in that file. The release is one unsigned x64 GUI package named `AppInstaller-<GUI-version>-win-x64.exe`. The pipeline publishes its `.exe.sha256` sidecar, adjacent `.exe.build.json` builder provenance, and `AppInstaller-<GUI-version>-win-x64.release.json` release manifest. The release notes are published in the GitHub release body.
 
-The tag must be protected by a GitHub ruleset or tag protection rule, point to a commit on the repository default branch, and still resolve to the commit that triggered the workflow. The workflow requires the tagged commit's workflow files to match the current default branch because `GITHUB_TOKEN` cannot be granted workflow-write permission. Configure and review tag protection before the first release. The release caller reuses the two-engine compatibility workflow, then rebuilds with the same pinned builder after both jobs pass. It does not store an intermediate Actions artifact.
+The tag must be protected by a GitHub ruleset or tag protection rule, point to a commit on the repository default branch, and still resolve to the commit that triggered the workflow. The workflow requires the tagged commit's workflow files to match the current default branch because `GITHUB_TOKEN` cannot be granted workflow-write permission. Configure and review tag protection before the first release. Track that external review in the [release protection verification record](RELEASE_PROTECTION_VERIFICATION.md); the local workflow check cannot prove the remote ruleset, and its current status is **NOT VERIFIED**. The release caller reuses the two-engine compatibility workflow, then rebuilds with the same pinned builder after both jobs pass. It does not store an intermediate Actions artifact.
 
 The validation and test jobs have `contents: read`; only the final publishing job has `contents: write`. It uses the automatically provided `github.token`, creates a draft, uploads the exact asset allowlist, and publishes the draft only after every upload succeeds. It never creates or pushes tags, signs the EXE, or overwrites an existing release. A failed upload can leave an unpublished draft that must be removed or repaired before retrying the same tag.
 
-The release manifest records the GUI and CLI versions, source tag and commit, build toolchain, compatibility contract and digest, full payload inventory, x64 target, and successful Windows PowerShell 5.1 and PowerShell Core 7.6.7 jobs. Release notes list the supported Windows and PowerShell matrix, prerequisites, GUI and CLI commands, known limits, and recovery steps. The EXE does not bundle PowerShell.
+The release manifest records the GUI and CLI versions, source tag and commit, build toolchain, compatibility contract and digest, full payload inventory, x64 target, and successful Windows PowerShell 5.1 and PowerShell Core 7.6.9 jobs. Release notes list the supported Windows and PowerShell matrix, prerequisites, GUI and CLI commands, known limits, and recovery steps. The EXE does not bundle PowerShell.
 
 The repository is public and the workflow uses the standard x64 `windows-2025` runner, so GitHub documents standard hosted runner minutes as free for public repositories. This release workflow does not store Actions artifacts; public GitHub release assets have no total size or bandwidth quota, subject to GitHub's per-file asset limit. The separate manual CI artifact upload remains subject to the account's Actions storage quota. See [GitHub Actions billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions), [GitHub-hosted runners](https://docs.github.com/en/actions/reference/runners/github-hosted-runners), and [GitHub release asset quotas](https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases#storage-and-bandwidth-quotas).
 
@@ -331,7 +364,7 @@ The current versioned package is unsigned; version-resource metadata is not a co
 
 ## Windows launch and PowerShell execution policy
 
-`install.bat` starts the GUI by default. Add `-ForceCLI` to select the CLI entry script directly. The shared resolver chooses a compatible installed engine before the app starts. It prefers PowerShell Core 7.6.7 for CLI and for GUI when the required Desktop runtime and assemblies load; Windows PowerShell 5.1 supports both entry points. A missing `pwsh.exe` does not by itself trigger runtime installation when Windows PowerShell 5.1 can run the selected entry point. If no installed candidate can run the CLI, a pinned PowerShell Core install is offered only through the existing consent flow.
+`install.bat` starts the GUI by default. Add `-ForceCLI` to select the CLI entry script directly. The shared resolver chooses a compatible installed engine before the app starts. It prefers PowerShell Core 7.6.9 for CLI and for GUI when the required Desktop runtime and assemblies load; Windows PowerShell 5.1 supports both entry points. A missing `pwsh.exe` does not by itself trigger runtime installation when Windows PowerShell 5.1 can run the selected entry point. If no installed candidate can run the CLI, a pinned PowerShell Core install is offered only through the existing consent flow.
 
 Launch the source scripts with a supported host and its normal execution policy:
 
@@ -402,7 +435,7 @@ See the [PowerShell signing guidance](https://learn.microsoft.com/en-us/powershe
 2. **Start the validated launcher:**
    - The launcher checks the Windows release before package-manager calls.
    - It probes all discovered PowerShell candidates using the rules in `compatibility.json` before considering runtime provisioning.
-   - If no installed engine can run the CLI, it presents a pinned, current-user PowerShell Core 7.6.7 plan and asks for explicit consent. If no PowerShell engine can start the preflight, install.bat prints the manual recovery source and pin without downloading or installing anything.
+   - If no installed engine can run the CLI, it presents a pinned, current-user PowerShell Core 7.6.9 plan and asks for explicit consent. If no PowerShell engine can start the preflight, install.bat prints the manual recovery source and pin without downloading or installing anything.
 
 3. **Run as Administrator**:
 
@@ -418,7 +451,7 @@ See the [PowerShell signing guidance](https://learn.microsoft.com/en-us/powershe
 
 ### macOS Installation
 
-1. **Install PowerShell 7.6.7**:
+1. **Install PowerShell 7.6.9**:
    ```bash
    brew install --cask powershell
    ```
@@ -441,7 +474,7 @@ See the [PowerShell signing guidance](https://learn.microsoft.com/en-us/powershe
 
 ### Linux Installation
 
-1. **Install PowerShell 7.6.7**:
+1. **Install PowerShell 7.6.9**:
    - **Ubuntu/Debian:**
      ```bash
      wget https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/packages-microsoft-prod.deb
@@ -751,7 +784,8 @@ Custom app scripts run in an isolated PowerShell process. If the installer canno
    ```powershell
    # Custom installation logic
    Write-Host "Installing MyApp..." -ForegroundColor Cyan
-   winget install --id Publisher.MyApp --silent --accept-package-agreements --accept-source-agreements
+   # Let WinGet show any required terms and collect an explicit decision.
+   winget install --id Publisher.MyApp
    ```
 
 3. **Test Installation**:
@@ -882,7 +916,7 @@ Edit the `Category` property in the application registry to organize apps differ
 Contributions are welcome! Please:
 1. Fork the repository
 2. Create a feature branch
-3. Test on Windows 11 25H2 and 26H2 x64, with Windows PowerShell 5.1 and PowerShell Core 7.6.7
+3. Test on Windows 11 25H2 and 26H2 x64, with Windows PowerShell 5.1 and PowerShell Core 7.6.9
 4. Update documentation if adding new features
 5. Submit a pull request with detailed description
 

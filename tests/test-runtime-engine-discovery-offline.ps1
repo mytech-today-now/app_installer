@@ -111,7 +111,7 @@ try {
     $desktopPath = Join-Path $tempRoot 'Desktop Space Ω\powershell.exe'
     $core = New-EngineCandidate -Path $corePath -Engine Core
     $desktop = New-EngineCandidate -Path $desktopPath -Engine Desktop
-    $coreProbe = New-EngineProbe -Version '7.6.7' -Edition 'Core'
+    $coreProbe = New-EngineProbe -Version '7.6.9' -Edition 'Core'
     $desktopProbe = New-EngineProbe -Version '5.1.0' -Edition 'Desktop' -FormsMajor 4 -DrawingMajor 4
     $hostInfo = Get-InstallerHostInfo
 
@@ -157,13 +157,13 @@ try {
     }
     Assert-Condition -Condition (-not $oldEngine.IsSupported -and $oldEngine.Attempts[0].Reason -match 'outside the supported engine matrix') -Message 'A too-old PowerShell Core version is rejected.'
 
-    $newerUnsupportedCore = New-EngineProbe -Version '7.6.8' -Edition 'Core'
+    $newerUnsupportedCore = New-EngineProbe -Version '7.6.10' -Edition 'Core'
     $unsupportedCoreFallback = Resolve-InstallerRuntime -Component WindowsCli -ApplicationPath $applicationPath -CandidateRecords @($core, $desktop) -AllowTestCandidates -ProbeInvoker {
         param($candidate, $component, $target, $timeout)
         if ($candidate.Engine -eq 'Core') { New-SuccessfulProbeResult -Probe $newerUnsupportedCore }
         else { New-SuccessfulProbeResult -Probe $desktopProbe }
     }
-    Assert-Condition -Condition ($unsupportedCoreFallback.IsSupported -and $unsupportedCoreFallback.Selected.Engine -eq 'Desktop' -and $unsupportedCoreFallback.Attempts.Count -eq 2 -and -not $unsupportedCoreFallback.Attempts[0].IsCompatible -and $unsupportedCoreFallback.Attempts[0].Probe.Version -eq '7.6.8' -and $unsupportedCoreFallback.Attempts[0].Reason -match 'outside the supported engine matrix') -Message 'Core 7.6.8 is rejected before compatible Desktop 5.1 is selected under the exact pinned engine matrix.'
+    Assert-Condition -Condition ($unsupportedCoreFallback.IsSupported -and $unsupportedCoreFallback.Selected.Engine -eq 'Desktop' -and $unsupportedCoreFallback.Attempts.Count -eq 2 -and -not $unsupportedCoreFallback.Attempts[0].IsCompatible -and $unsupportedCoreFallback.Attempts[0].Probe.Version -eq '7.6.10' -and $unsupportedCoreFallback.Attempts[0].Reason -match 'outside the supported engine matrix') -Message 'Core 7.6.10 is rejected before compatible Desktop 5.1 is selected under the exact pinned engine matrix.'
 
     $wrongEdition = New-EngineProbe -Version '5.1.0' -Edition 'Desktop'
     $wrongEditionResult = Resolve-InstallerRuntime -Component WindowsCli -ApplicationPath $applicationPath -CandidateRecords @($core) -AllowTestCandidates -ProbeInvoker {
@@ -179,14 +179,14 @@ try {
     }
     Assert-Condition -Condition (-not $malformedResult.IsSupported -and $malformedResult.Attempts[0].Reason -match 'malformed PowerShell version') -Message 'Malformed version data is rejected with a useful reason.'
 
-    $wrongArchitecture = New-EngineProbe -Version '7.6.7' -Edition 'Core' -Architecture 'X86'
+    $wrongArchitecture = New-EngineProbe -Version '7.6.9' -Edition 'Core' -Architecture 'X86'
     $architectureResult = Resolve-InstallerRuntime -Component WindowsCli -ApplicationPath $applicationPath -CandidateRecords @($core) -AllowTestCandidates -ProbeInvoker {
         param($candidate, $component, $target, $timeout)
         New-SuccessfulProbeResult -Probe $wrongArchitecture
     }
     Assert-Condition -Condition (-not $architectureResult.IsSupported -and $architectureResult.Attempts[0].Reason -match 'x64 is required') -Message 'A 32-bit PowerShell process is rejected on the x64 support matrix.'
 
-    $coreGuiWithoutForms = New-EngineProbe -Version '7.6.7' -Edition 'Core' -FormsAvailable $false -FormsMajor 0 -DrawingMajor 0
+    $coreGuiWithoutForms = New-EngineProbe -Version '7.6.9' -Edition 'Core' -FormsAvailable $false -FormsMajor 0 -DrawingMajor 0
     $desktopGuiWithoutForms = New-EngineProbe -Version '5.1.0' -Edition 'Desktop' -FormsAvailable $false -FormsMajor 4 -DrawingMajor 4
     $guiFallbackArguments = @('-Action', 'InstallProfile', '-Profile', 'C:\Profiles\My Profile.json')
     $script:launchCallLog.Clear()
@@ -329,7 +329,7 @@ try {
 
     $manifest = Get-InstallerCompatibilityManifest
     $assertedOrder = @($manifest.windowsExecutable.engineSelectionOrder)
-    Assert-Condition -Condition ($assertedOrder[0] -eq 'PowerShell Core 7.6.7' -and $assertedOrder[1] -eq 'Windows PowerShell Desktop 5.1' -and $manifest.windowsExecutable.runtimeDiscovery.automaticProvisioning -eq $false -and $manifest.windowsExecutable.runtimeDiscovery.consentRequiredProvisioning -eq $true) -Message 'The manifest publishes Core-first selection and consent-gated runtime provisioning.'
+    Assert-Condition -Condition ($assertedOrder[0] -eq 'PowerShell Core 7.6.9' -and $assertedOrder[1] -eq 'Windows PowerShell Desktop 5.1' -and $manifest.windowsExecutable.runtimeDiscovery.automaticProvisioning -eq $false -and $manifest.windowsExecutable.runtimeDiscovery.consentRequiredProvisioning -eq $true) -Message 'The manifest publishes Core-first selection and consent-gated runtime provisioning.'
 
     Write-Host "[OK] Runtime discovery tests passed ($assertionCount assertions)." -ForegroundColor Green
 }

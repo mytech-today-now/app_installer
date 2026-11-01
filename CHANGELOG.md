@@ -23,10 +23,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), wit
 - Added shared Windows PowerShell engine discovery with timed child-process probes, fixed candidate rules, GUI capability checks, and offline fallback coverage.
 - Added an opt-in PowerShell Core provisioning helper for supported Windows hosts, using the contract-pinned WinGet version and `ShouldProcess` confirmation.
 - Added validated GUI install-queue persistence and recovery for review before an explicit resume.
-- Updated the CLI container to use PowerShell 7.6.7 release assets with architecture-specific SHA-256 verification.
+- Updated the CLI container and Windows compatibility, build, and release checks to use PowerShell Core 7.6.9; the container retains architecture-specific SHA-256 verification.
+- Added a read-only compatibility-source review cadence check to the versioned release gate, with deterministic offline tests and a documented Windows client GUI evidence checklist.
+- Added a per-engine CI regression inventory with explicit included, skipped, and unavailable outcomes for standalone checks.
+- Added local release-protection and Windows client GUI evidence records; remote tag-policy status remains unverified and client GUI results remain not run.
 
 ### Changed
 
+- WinGet installs and upgrades no longer accept source or package agreements automatically; interactive commands use WinGet's review prompt, while discovery and scheduled updates disable interactivity and fail closed on required terms.
+- The GUI now verifies and sanitizes its bundled instructions before display, and opens only HTTPS or mailto links outside the embedded browser.
 - McAfee removal now fails closed before download or product removal until an independently reviewed MCPR digest or signer pin is configured. When configured, MCPR runs only from a private staged path after verification, and its child exit code is reported.
 - Defined the GUI version in VERSION as the executable, file-resource, artifact-name, and tag version while preserving the CLI's separate version.
 - Self-install now preserves unowned files, user profiles, and inherited ACLs, detects changed owned files, and reports preserved code or retained rollback paths.

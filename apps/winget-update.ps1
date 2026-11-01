@@ -133,6 +133,19 @@ function New-WingetUpdateResult {
         [string]$ExpectedPackageId = ''
     )
 
+    if ($ExitCode -in @(-1978335206, -1978335207)) {
+        $agreementType = if ($ExitCode -eq -1978335206) { 'package' } else { 'source' }
+        $packageId = if (-not [string]::IsNullOrWhiteSpace($ExpectedPackageId)) { $ExpectedPackageId } else { 'winget command' }
+        $packageState = [PSCustomObject]@{ PackageId = $packageId; Status = 'Failed' }
+        return New-UpdateResult `
+            -Status Failed `
+            -Attempted 1 `
+            -Failed 1 `
+            -CommandExitCode ([int]$ExitCode) `
+            -Reason ("WinGet requires explicit {0} agreement review; the unattended update did not accept terms." -f $agreementType) `
+            -Packages @($packageState)
+    }
+
     $packageStates = [ordered]@{}
     $currentPackageId = $null
     $successWithoutPackageId = 0
@@ -447,15 +460,15 @@ function Invoke-ScopedWingetUpdates {
     try {
         foreach ($packageId in $packageIdList) {
             $packageSource = Get-WingetPackageSource -PackageId $packageId
-            $upgradeArguments = New-WingetArgumentList `
+            $upgradeCommand = New-WingetPackageCommand `
                 -Operation upgrade `
                 -PackageId $packageId `
                 -Source $packageSource `
-                -AdditionalArguments @('--accept-source-agreements', '--accept-package-agreements')
+                -ApprovedOptions @('--disable-interactivity')
             $packageDefinitions += [PSCustomObject]@{
                 PackageId = $packageId
                 Source = $packageSource
-                Arguments = [string[]]$upgradeArguments
+                Command = $upgradeCommand
             }
         }
     }
@@ -463,7 +476,7 @@ function Invoke-ScopedWingetUpdates {
         return New-FailedUpdateResult -Reason 'The saved monthly package scope has missing, invalid, or conflicting catalog source metadata. No updates were started.' -ExitCode 2
     }
 
-    if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
+    if (-not (Get-Command ([string]$packageDefinitions[0].Command.Executable) -ErrorAction SilentlyContinue)) {
         return New-FailedUpdateResult -Reason 'winget is unavailable for the selected monthly package scope. No updates were started.'
     }
 
@@ -476,10 +489,11 @@ function Invoke-ScopedWingetUpdates {
         Write-Host "Updating selected package: $packageId" -ForegroundColor Cyan
         Write-Log "Running scoped update for package ID: $packageId" -Level INFO
         try {
-            $upgradeArguments = [string[]]$packageDefinition.Arguments
-            Write-Log ("Executing: winget {0}" -f ($upgradeArguments -join ' ')) -Level INFO
+            $packageCommand = $packageDefinition.Command
+            $upgradeArguments = [string[]]$packageCommand.Arguments
+            Write-Log ("Executing: {0} {1}" -f $packageCommand.Executable, ($upgradeArguments -join ' ')) -Level INFO
             $script:UpdateCommandStarted = $true
-            $packageOutput = @(& winget @upgradeArguments 2>&1)
+            $packageOutput = @(& $packageCommand.Executable @upgradeArguments 2>&1)
             $script:WingetExitCode = $LASTEXITCODE
             $packageResult = New-WingetUpdateResult -CommandOutput $packageOutput -ExitCode $script:WingetExitCode -ExpectedPackageId $packageId
         }

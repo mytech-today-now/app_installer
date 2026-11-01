@@ -246,12 +246,13 @@ function Get-PackageManagerCommand {
                     $WingetSource = Resolve-WingetPackageSource `
                         -PackageId $WingetId `
                         -DeclaredSource $WingetSource
-                    $executable = 'winget'
-                    $arguments = New-WingetArgumentList `
+                    $wingetCommand = New-WingetPackageCommand `
                         -Operation install `
                         -PackageId $WingetId `
                         -Source $WingetSource `
-                        -AdditionalArguments @('--silent', '--accept-source-agreements', '--accept-package-agreements')
+                        -ApprovedOptions @('--silent')
+                    $executable = $wingetCommand.Executable
+                    $arguments = [string[]]$wingetCommand.Arguments
                 }
                 catch {
                     return [pscustomobject]@{
@@ -344,6 +345,40 @@ function Get-PackageManagerCommand {
     }
 }
 
+function Write-WingetReviewOutput {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyString()]
+        [string]$Message
+    )
+
+    $customOutput = Get-Command -Name 'Write-Output' -CommandType Function -ErrorAction SilentlyContinue |
+        Select-Object -First 1
+    if ($customOutput) {
+        try {
+            & $customOutput.Name -Message $Message -Color ([System.Drawing.Color]::Gray)
+            return
+        }
+        catch {
+            # Fall through to the host when no GUI writer is available.
+        }
+    }
+
+    Write-Host $Message -ForegroundColor Gray
+}
+
+function Get-WingetAgreementReviewMessage {
+    [CmdletBinding()]
+    param([AllowNull()][Nullable[int]]$ExitCode)
+
+    switch ($ExitCode) {
+        -1978335206 { return 'WinGet requires explicit review of the package agreement. Selecting an app is not consent; review the terms in WinGet and retry only if you agree.' }
+        -1978335207 { return 'WinGet requires explicit review of the source agreement. Selecting an app is not consent; review the terms in WinGet and retry only if you agree.' }
+        default { return $null }
+    }
+}
+
 function Invoke-PackageManagerProcess {
     [CmdletBinding()]
     param(
@@ -389,7 +424,18 @@ function Invoke-PackageManagerProcess {
             $PSNativeCommandUseErrorActionPreference = $false
         }
 
-        $processOutput = @(& $executablePath @Arguments 2>&1)
+        $shouldStreamWinGetReview = $Executable -ieq 'winget' -and
+            $Arguments.Count -gt 0 -and
+            $Arguments[0] -in @('install', 'upgrade') -and
+            $Arguments -contains '--id' -and
+            $Arguments -notcontains '--disable-interactivity'
+        $processOutput = @(& $executablePath @Arguments 2>&1 | ForEach-Object {
+                $outputItem = $_
+                if ($shouldStreamWinGetReview) {
+                    Write-WingetReviewOutput -Message ([string]$outputItem)
+                }
+                $outputItem
+            })
         $processExitCode = $LASTEXITCODE
 
         if ($null -eq $processExitCode) {
@@ -491,8 +537,9 @@ function Install-CrossPlatformApp {
             ''
         }
 
-        # Log output for diagnostics
-        if ($outputStr) {
+        # Keep WinGet agreement text visible in the native review flow, but out
+        # of diagnostic logs. Other package managers retain the legacy detail.
+        if ($outputStr -and $pkgInfo.Executable -cne 'winget') {
             Write-Host "[DEBUG] Installer output: $outputStr" -ForegroundColor Gray
         }
 
@@ -528,6 +575,11 @@ function Install-CrossPlatformApp {
                 return 0
             }
 
+            $agreementReviewMessage = Get-WingetAgreementReviewMessage -ExitCode $installExitCode
+            if ($agreementReviewMessage) {
+                Write-Host "[REVIEW REQUIRED] $agreementReviewMessage" -ForegroundColor Yellow
+            }
+
             Write-Host "[ERROR] Failed to install $AppName (exit code: $installExitCode)" -ForegroundColor Red
             if ($outputStr) {
                 Write-Host "       $outputStr" -ForegroundColor Gray
@@ -556,20 +608,29 @@ function Invoke-WingetPackageCommand {
         [AllowNull()]
         [string]$Source,
 
-        [ValidateSet('--silent', '--accept-source-agreements', '--accept-package-agreements', '--force', '--disable-interactivity', '--interactive')]
+        [ValidateSet('--silent', '--force', '--disable-interactivity', '--interactive')]
         [string[]]$AdditionalArguments = @(),
 
         [string]$ManifestPath
     )
 
     $resolvedSource = Resolve-WingetPackageSource -PackageId $PackageId -DeclaredSource $Source -ManifestPath $ManifestPath
-    $arguments = New-WingetArgumentList `
+    $command = New-WingetPackageCommand `
         -Operation $Operation `
         -PackageId $PackageId `
         -Source $resolvedSource `
-        -AdditionalArguments $AdditionalArguments
-    $processResult = Invoke-PackageManagerProcess -Executable 'winget' -Arguments $arguments
+        -ApprovedOptions $AdditionalArguments
+    $processResult = Invoke-PackageManagerProcess -Executable $command.Executable -Arguments $command.Arguments
     $global:LASTEXITCODE = if ($null -eq $processResult.ExitCode) { 1 } else { [int]$processResult.ExitCode }
+    $agreementReviewMessage = Get-WingetAgreementReviewMessage -ExitCode $processResult.ExitCode
+    if ($agreementReviewMessage) {
+        Write-Host "[REVIEW REQUIRED] $agreementReviewMessage" -ForegroundColor Yellow
+        if ($Operation -in @('install', 'upgrade') -and
+            $command.Arguments -contains '--id' -and
+            $command.Arguments -notcontains '--disable-interactivity') {
+            Write-Host ("[REVIEW] If you choose to proceed after reviewing the terms, retry in a visible terminal: {0} {1}" -f $command.Executable, ($command.Arguments -join ' ')) -ForegroundColor Cyan
+        }
+    }
     return [object[]]$processResult.Output
 }
 

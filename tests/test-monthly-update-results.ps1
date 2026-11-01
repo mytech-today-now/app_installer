@@ -37,7 +37,8 @@ function New-FakeWinget {
     param(
         [Parameter(Mandatory = $true)][string]$ScenarioName,
         [Parameter(Mandatory = $true)][AllowEmptyCollection()][string[]]$OutputLines,
-        [Parameter(Mandatory = $true)][int]$ExitCode
+        [Parameter(Mandatory = $true)][int]$ExitCode,
+        [switch]$MarkMutationOnSuccess
     )
 
     $scenarioRoot = Join-Path $testRoot $ScenarioName
@@ -54,6 +55,7 @@ function New-FakeWinget {
         New-Item -ItemType Directory -Path $modulesPath -Force | Out-Null
         Copy-Item -LiteralPath (Join-Path $repositoryRoot 'apps-manifest.json') -Destination $catalogPath -Force
         Copy-Item -LiteralPath (Join-Path (Join-Path $repositoryRoot 'modules') 'AppInstallerCore.psm1') -Destination (Join-Path $modulesPath 'AppInstallerCore.psm1') -Force
+        Copy-Item -LiteralPath (Join-Path (Join-Path $repositoryRoot 'modules') 'PackageCommand.psm1') -Destination (Join-Path $modulesPath 'PackageCommand.psm1') -Force
         $catalog = Get-Content -LiteralPath $catalogPath -Raw | ConvertFrom-Json
         foreach ($fixtureId in @('Test.Package', 'Test.Good', 'Test.Failed')) {
             $fixtureName = $fixtureId.ToLowerInvariant() -replace '[^a-z0-9]+', '-'
@@ -94,6 +96,11 @@ function New-FakeWinget {
     else {
         foreach ($line in $OutputLines) {
             $cmdLines += ('echo {0}' -f $line)
+        }
+        if ($MarkMutationOnSuccess -and $ExitCode -eq 0) {
+            # A trace-only marker stands in for fake package state; it does not
+            # install or alter anything on the test host.
+            $cmdLines += ('>>"{0}" echo FAKE_PACKAGE_MUTATION' -f $tracePath)
         }
         $cmdLines += ('exit /b {0}' -f $ExitCode)
     }
@@ -221,7 +228,9 @@ $script:incompleteMessage = 'Update status is incomplete. Some applications may 
 try {
     New-Item -ItemType Directory -Path $testRoot -Force | Out-Null
 
-    $successScenario = New-FakeWinget -ScenarioName 'success' -OutputLines @(
+    # Synthetic fake success is not evidence of a real user's agreement.
+    $successScenario = New-FakeWinget -ScenarioName 'fake-agreement-accepted' -MarkMutationOnSuccess -OutputLines @(
+        'FAKE_WINGET_REVIEW_ACCEPTED_BY_TEST_DOUBLE',
         'Found Test Package [Test.Package] Version 2.0',
         'Starting package install...',
         'Successfully installed'
@@ -230,7 +239,28 @@ try {
     Assert-ScenarioResult -Result $success -Category 'COMPLETED' -LogLevel 'SUCCESS' -ExpectedExitCode 0 -ScenarioName 'Successful update'
     Assert-Condition -Condition ($success.Output.Contains('Your applications have been updated.')) -Message 'Successful update retains the success message'
     Assert-Condition -Condition ($success.Trace -match '(?m)^invoked\s*$') -Message 'Successful update invoked only the fake winget executable'
-    Assert-Condition -Condition ($success.Trace -match '(?m)^upgrade --id Test\.Package --exact --source winget --accept-source-agreements --accept-package-agreements\s*$') -Message 'Scoped update uses exact catalog identity, source, and stable argument ordering'
+    Assert-Condition -Condition ($success.Trace -match '(?m)^upgrade --id Test\.Package --exact --source winget --disable-interactivity\s*$') -Message 'Scoped update uses exact catalog identity and disables agreement prompts without accepting terms'
+    Assert-Condition -Condition ($success.Trace -match '(?m)^FAKE_PACKAGE_MUTATION\s*$') -Message 'Only the fake success fixture writes its test-only mutation marker'
+    Assert-Condition -Condition ($success.Trace -notmatch '--accept-source-agreements|--accept-package-agreements') -Message 'Fake success fixture receives no agreement acceptance switches'
+
+    $packageAgreementScenario = New-FakeWinget -ScenarioName 'new-package-agreement' -OutputLines @('FAKE_PACKAGE_TERMS_DO_NOT_LOG') -ExitCode -1978335206
+    $packageAgreement = Invoke-FakeUpdater -Scenario $packageAgreementScenario -PackageIds 'Test.Package'
+    Assert-ScenarioResult -Result $packageAgreement -Category 'FAILED' -LogLevel 'ERROR' -ExpectedExitCode -1978335206 -ScenarioName 'New package agreement requirement'
+    Assert-Condition -Condition ($packageAgreement.Trace -match '(?m)^upgrade --id Test\.Package --exact --source winget --disable-interactivity\s*$' -and $packageAgreement.Trace -notmatch 'FAKE_PACKAGE_MUTATION|--accept-(source|package)-agreements') -Message 'Package agreement requirement fails closed without a fake mutation or acceptance switch'
+    Assert-Condition -Condition (@([regex]::Matches($packageAgreement.Trace, '(?m)^invoked\s*$')).Count -eq 1) -Message 'Package agreement requirement is not retried automatically'
+    Assert-Condition -Condition ($packageAgreement.Log -notmatch 'FAKE_PACKAGE_TERMS_DO_NOT_LOG') -Message 'Package agreement text is excluded from the scheduled update log'
+
+    $sourceAgreementScenario = New-FakeWinget -ScenarioName 'new-source-agreement' -OutputLines @('FAKE_SOURCE_TERMS_DO_NOT_LOG') -ExitCode -1978335207
+    $sourceAgreement = Invoke-FakeUpdater -Scenario $sourceAgreementScenario -PackageIds 'Test.Package'
+    Assert-ScenarioResult -Result $sourceAgreement -Category 'FAILED' -LogLevel 'ERROR' -ExpectedExitCode -1978335207 -ScenarioName 'New source agreement requirement'
+    Assert-Condition -Condition ($sourceAgreement.Trace -notmatch 'FAKE_PACKAGE_MUTATION|--accept-(source|package)-agreements') -Message 'Source agreement requirement fails closed without a fake mutation or acceptance switch'
+    Assert-Condition -Condition ($sourceAgreement.Log -notmatch 'FAKE_SOURCE_TERMS_DO_NOT_LOG') -Message 'Source agreement text is excluded from the scheduled update log'
+
+    $declinedAgreementScenario = New-FakeWinget -ScenarioName 'declined-package-agreement' -OutputLines @('FAKE_USER_DECLINED_PACKAGE_TERMS_DO_NOT_LOG') -ExitCode -1978335206
+    $declinedAgreement = Invoke-FakeUpdater -Scenario $declinedAgreementScenario -PackageIds 'Test.Package'
+    Assert-ScenarioResult -Result $declinedAgreement -Category 'FAILED' -LogLevel 'ERROR' -ExpectedExitCode -1978335206 -ScenarioName 'Declined package agreement'
+    Assert-Condition -Condition ($declinedAgreement.Trace -notmatch 'FAKE_PACKAGE_MUTATION|--accept-(source|package)-agreements' -and @([regex]::Matches($declinedAgreement.Trace, '(?m)^invoked\s*$')).Count -eq 1) -Message 'A declined agreement causes no fake mutation, acceptance, or retry'
+    Assert-Condition -Condition ($declinedAgreement.Log -notmatch 'FAKE_USER_DECLINED_PACKAGE_TERMS_DO_NOT_LOG') -Message 'Declined agreement text is excluded from the scheduled update log'
 
     $unscoped = Invoke-FakeUpdater -Scenario (New-FakeWinget -ScenarioName 'unscoped-update' -OutputLines @() -ExitCode 0)
     Assert-Condition -Condition ($unscoped.ExitCode -eq 2 -and $unscoped.Output -match 'explicit catalog-backed package scope is required') -Message 'Updater rejects an unscoped all-package action'
@@ -264,7 +294,7 @@ try {
     $taskActionScenario = New-FakeWinget -ScenarioName 'scheduled-action-failure' -OutputLines @('Failed to open one or more sources.') -ExitCode 23
     $taskAction = Invoke-FakeUpdater -Scenario $taskActionScenario -PackageIds 'Google.Chrome'
     Assert-Condition -Condition ($taskAction.ExitCode -eq 23 -and $taskAction.Output -match '\[FAILED\] Update outcome:' -and $taskAction.Output -match 'winget-exit-code=23' -and $taskAction.Output.Contains($script:incompleteMessage)) -Message 'Scheduled task action receives the failed result and native exit code'
-    Assert-Condition -Condition ($taskAction.Trace -match '(?m)^upgrade --id Google\.Chrome --exact --source winget --accept-source-agreements --accept-package-agreements\s*$') -Message 'Scheduled task action uses its selected catalog scope with the fake winget command'
+    Assert-Condition -Condition ($taskAction.Trace -match '(?m)^upgrade --id Google\.Chrome --exact --source winget --disable-interactivity\s*$') -Message 'Scheduled task action uses its selected catalog scope without accepting terms'
 
     $malformedScenario = New-FakeWinget -ScenarioName 'malformed-output' -OutputLines @('unstructured fake winget response') -ExitCode 0
     $malformed = Invoke-FakeUpdater -Scenario $malformedScenario -PackageIds 'Test.Package'

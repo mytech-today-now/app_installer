@@ -142,10 +142,11 @@ function Safe-TestPath {
 function Invoke-WingetDependencyCommand {
     param(
         [Parameter(Mandatory = $true)]
-        [string[]]$Arguments
+        [pscustomobject]$Command
     )
 
-    $script:dependencyCommands += ,([string[]]$Arguments)
+    $Arguments = [string[]]$Command.Arguments
+    $script:dependencyCommands += ,$Arguments
     $operation = $Arguments[0]
     $packageId = if ($Arguments -contains '--id') { $Arguments[[array]::IndexOf($Arguments, '--id') + 1] } else { '' }
 
@@ -328,9 +329,9 @@ function Invoke-DependencyHelperCases {
     Assert-ResultState -Result $success -ExpectedStatus 'succeeded' -ExpectedSuccess $true -Context "$EntryPoint successful dependency"
     Assert-Condition -Condition ($success.Outcomes.Count -eq 1 -and $success.Outcomes[0].Status -ceq 'succeeded') -Message "$EntryPoint marks successful dependency succeeded"
     Assert-Condition -Condition ($script:dependencyCommands.Count -eq 3) -Message "$EntryPoint checks and installs a dependency once"
-    Assert-Condition -Condition (($script:dependencyCommands[0] -join '|') -ceq 'show|--id|Test.Parent|--exact|--source|winget') -Message "$EntryPoint queries parent dependencies with exact ID and explicit source"
-    Assert-Condition -Condition (($script:dependencyCommands[1] -join '|') -ceq 'list|--id|Test.Success|--exact|--source|winget') -Message "$EntryPoint checks each dependency with its catalog source"
-    Assert-Condition -Condition (($script:dependencyCommands[2] -join '|') -ceq 'install|--id|Test.Success|--exact|--source|winget|--silent|--accept-source-agreements|--accept-package-agreements') -Message "$EntryPoint installs each dependency with exact ID and explicit source"
+    Assert-Condition -Condition (($script:dependencyCommands[0] -join '|') -ceq 'show|--id|Test.Parent|--exact|--source|winget|--disable-interactivity') -Message "$EntryPoint queries parent dependencies without accepting source agreements"
+    Assert-Condition -Condition (($script:dependencyCommands[1] -join '|') -ceq 'list|--id|Test.Success|--exact|--source|winget|--disable-interactivity') -Message "$EntryPoint checks each dependency without accepting source agreements"
+    Assert-Condition -Condition (($script:dependencyCommands[2] -join '|') -ceq 'install|--id|Test.Success|--exact|--source|winget|--silent') -Message "$EntryPoint installs each dependency without silently accepting agreements"
 
     Reset-MockState
     $script:installedDependencyIds = @('Test.Installed')
