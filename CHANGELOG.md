@@ -26,6 +26,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), wit
 - Updated the CLI container and Windows compatibility, build, and release checks to use PowerShell Core 7.6.9; the container retains architecture-specific SHA-256 verification.
 - Added a read-only compatibility-source review cadence check to the versioned release gate, with deterministic offline tests and a documented Windows client GUI evidence checklist.
 - Added a per-engine CI regression inventory with explicit included, skipped, and unavailable outcomes for standalone checks.
+- Added offline batch-wrapper coverage for PowerShell success and failure statuses, `WhatIf`, and opt-in console waiting.
 - Added local release-protection and Windows client GUI evidence records; remote tag-policy status remains unverified and client GUI results remain not run.
 
 ### Changed
@@ -45,6 +46,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), wit
 - The public entry points now reject unsupported Windows and PowerShell combinations before setup or package operations. The legacy Windows 10 bootstrap helper remains covered offline but is unreachable through those entry points.
 - Recovered GUI queues are validated against the current app manifest and shown for review; resuming still requires the existing Install Selected action and confirmation. Invalid saved state is left untouched.
 - GUI and CLI custom app scripts run in isolated PowerShell processes and report unknown outcomes without marking apps installed.
+- The Windows batch launcher reports nonzero PowerShell results without success output, preserves the result through parent batch calls, and waits only when `-KeepConsoleOpen` is supplied.
 - Removed legacy prompt files from the tracked `ai_prompts/` directory and added ignore rules for local maintainer content.
 
 ### Fixed

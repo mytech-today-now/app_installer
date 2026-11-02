@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "purpose": "Reviewed allowlist for every tests/test-*.ps1 script. Included, skipped, and unavailable dispositions are explicit per CI engine.",
   "documentedCounts": {
-    "totalScripts": 36,
-    "Desktop-5.1": { "included": 30, "skipped": 4, "unavailable": 2 },
-    "Core-7.6.9": { "included": 33, "skipped": 1, "unavailable": 2 }
+    "totalScripts": 37,
+    "Desktop-5.1": { "included": 31, "skipped": 4, "unavailable": 2 },
+    "Core-7.6.9": { "included": 34, "skipped": 1, "unavailable": 2 }
   },
   "tests": [
     {
@@ -155,6 +155,12 @@
       "path": "tests/test-install-bat-elevation.ps1",
       "prerequisites": "Windows, cmd.exe, pwsh.exe, and the installed .NET Framework C# compiler.",
       "boundary": "Uses compiled fake launchers, stubbed Start-Process, and temporary batch fixtures; it does not request elevation or run WinGet.",
+      "engines": { "Desktop-5.1": { "status": "included" }, "Core-7.6.9": { "status": "included" } }
+    },
+    {
+      "path": "tests/test-install-bat-status.ps1",
+      "prerequisites": "Supported Windows 11 x64 client build 26200 or 26300; cmd.exe; fixed PowerShell Core 7.6.9 path; writable temporary directory.",
+      "boundary": "Runs a copied install.bat with a fake Start-Installer.ps1 and return codes 0, 1, and 23 from CMD and a parent batch file; checks path-safe status output and opt-in pause without running the real installer.",
       "engines": { "Desktop-5.1": { "status": "included" }, "Core-7.6.9": { "status": "included" } }
     },
     {

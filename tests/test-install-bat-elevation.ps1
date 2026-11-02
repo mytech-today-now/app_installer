@@ -49,7 +49,8 @@ function Invoke-BatchScenario {
         [Parameter(Mandatory = $true)][string]$Mode,
         [int]$ExitCode = 0,
         [switch]$Delayed,
-        [switch]$NoWindowsPowerShell
+        [switch]$NoWindowsPowerShell,
+        [ValidateSet('default', 'local-programs')][string]$PwshLocation = 'default'
     )
 
     $runnerPath = Join-Path $TestRoot ($Name + '.bat')
@@ -60,6 +61,7 @@ function Invoke-BatchScenario {
     $statusPath = Join-Path $TestRoot ($Name + '-status.txt')
     $argumentLogPath = Join-Path $TestRoot ($Name + '-launcher-arguments.txt')
     $desktopArgumentLogPath = Join-Path $TestRoot ($Name + '-desktop-arguments.txt')
+    $launcherPathLogPath = Join-Path $TestRoot ($Name + '-launcher-path.txt')
     $wingetLogPath = Join-Path $TestRoot ($Name + '-winget-invoked.txt')
     $argumentSuffix = if ($RawArguments.Length -gt 0) { ' ' + $RawArguments } else { '' }
     $runner = @"
@@ -88,10 +90,12 @@ exit /b %ERRORLEVEL%
     $processInfo.EnvironmentVariables['FAKE_IS_ELEVATED'] = ''
     $processInfo.EnvironmentVariables['TEMP'] = $TestRoot
     $processInfo.EnvironmentVariables['TMP'] = $TestRoot
-    $processInfo.EnvironmentVariables['ProgramFiles'] = $TestRoot
-    $processInfo.EnvironmentVariables['ProgramFiles(x86)'] = $TestRoot
-    $processInfo.EnvironmentVariables['ProgramW6432'] = $TestRoot
+    $programFilesRoot = if ($PwshLocation -eq 'default') { $TestRoot } else { Join-Path $TestRoot 'MissingProgramFiles' }
+    $processInfo.EnvironmentVariables['ProgramFiles'] = $programFilesRoot
+    $processInfo.EnvironmentVariables['ProgramFiles(x86)'] = $programFilesRoot
+    $processInfo.EnvironmentVariables['ProgramW6432'] = $programFilesRoot
     $processInfo.EnvironmentVariables['LocalAppData'] = $TestRoot
+    $processInfo.EnvironmentVariables['FAKE_LAUNCHER_PATH_LOG'] = $launcherPathLogPath
     if ($NoWindowsPowerShell) {
         $processInfo.EnvironmentVariables['SystemRoot'] = Join-Path $TestRoot 'NoWindowsSystemRoot'
     }
@@ -141,6 +145,7 @@ exit /b %ERRORLEVEL%
         Output         = Get-TestOutput -Path $outputPath
         ArgumentLog    = $argumentLog
         DesktopArguments = Get-TestOutput -Path $desktopArgumentLogPath
+        LauncherPath    = Get-TestOutput -Path $launcherPathLogPath
         WingetInvoked  = Test-Path -LiteralPath $wingetLogPath -PathType Leaf
         RunnerPath     = $runnerPath
         BatchPath      = $testBatchPath
@@ -303,6 +308,8 @@ try {
     Assert-Condition -Condition ($batch -match '(?i)if not exist "%~dp0app-installer\.ps1" if not exist "%~dp0app-installer-cli\.ps1"') -Message 'The setup entry accepts a CLI-only source tree as well as a GUI source tree.'
     Assert-Condition -Condition ($batch -match '(?i)CLASSIFY_BOOTSTRAP' -and $batch -match '(?i)BOOTSTRAP_STATUS_FILE') -Message 'The executable distinguishes a launcher that started from a preferred executable that could not start.'
     Assert-Condition -Condition ($batch -notmatch '(?i)invoke-elevated-install\.ps1|Install-CompatiblePowerShell\.ps1|winget install|ExecutionPolicy\s+Bypass|Set-ExecutionPolicy') -Message 'The executable neither elevates nor provisions PowerShell nor changes policy during engine discovery.'
+    $compatibility = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'compatibility.json') | ConvertFrom-Json
+    Assert-Condition -Condition (-not [bool]$compatibility.windowsExecutable.runtimeDiscovery.provisioning.requiresAdministrator -and -not [bool]$compatibility.windowsExecutable.runtimeDiscovery.pathSearch) -Message 'The pinned PowerShell runtime contract is current-user scoped and resolves fixed candidate paths without requiring administrator elevation or PATH lookup.'
     Assert-Condition -Condition ($helper -match "Verb\s+=\s+'RunAs'" -and $helper -match 'PassThru\s+=\s+\$true' -and $helper -match 'WaitForExit\(\$timeoutMilliseconds\)' -and $helper -match 'WorkingDirectory\s*=\s*\(Get-Location\s+-PSProvider\s+FileSystem\)\.ProviderPath') -Message 'The helper requests RunAs, retains the process handle, preserves the working directory, and has a bounded wait.'
     Assert-Condition -Condition ($helper -match 'Test-Path\s+-LiteralPath\s+\$targetPath\s+-PathType\s+Leaf' -and $helper -notmatch '(?i)WindowStyle\s*=\s*Hidden|RedirectStandard(Input|Output|Error)') -Message 'The helper rejects missing targets and leaves the elevated console visible without redirecting its streams.'
     Assert-Condition -Condition ($helper -notmatch '(?i)ExecutionPolicy\s+Bypass|Set-ExecutionPolicy') -Message 'The elevation helper does not weaken execution policy or write policy settings.'
@@ -369,6 +376,8 @@ public static class FakeLaunchers
 
         if (HasArgumentFile(args, "Start-Installer.ps1"))
         {
+            string launcherPathLog = Environment.GetEnvironmentVariable("FAKE_LAUNCHER_PATH_LOG");
+            if (!String.IsNullOrEmpty(launcherPathLog)) File.WriteAllText(launcherPathLog, executablePath, Encoding.UTF8);
             string markerPath = Environment.GetEnvironmentVariable("APP_INSTALLER_BOOTSTRAP_STARTED_FILE");
             if (mode == "preferred-start-failure" && String.Equals(executableName, "pwsh", StringComparison.OrdinalIgnoreCase))
             {
@@ -466,6 +475,7 @@ exit $exitCode
             [PSCustomObject]@{ Name = 'no-arguments'; Arguments = ''; Mode = 'success'; ExitCode = 0; ExpectedExtra = @() },
             [PSCustomObject]@{ Name = 'spaces'; Arguments = '--profile "Design Review"'; Mode = 'success'; ExitCode = 0; ExpectedExtra = @('--profile', 'Design Review') },
             [PSCustomObject]@{ Name = 'quoted-path'; Arguments = '--source "C:\Program Files\Editor Tools\profile.json"'; Mode = 'success'; ExitCode = 0; ExpectedExtra = @('--source', 'C:\Program Files\Editor Tools\profile.json') },
+            [PSCustomObject]@{ Name = 'non-interactive'; Arguments = '-NonInteractive --profile "CLI Batch"'; Mode = 'success'; ExitCode = 0; ExpectedExtra = @('-NonInteractive', '--profile', 'CLI Batch') },
             [PSCustomObject]@{ Name = 'mixed-switches'; Arguments = '/silent --profile "Studio Mode" -Destination "D:\Saved Profiles\Work"'; Mode = 'success'; ExitCode = 0; ExpectedExtra = @('/silent', '--profile', 'Studio Mode', '-Destination', 'D:\Saved Profiles\Work') }
         )
 
@@ -476,6 +486,18 @@ exit $exitCode
             Assert-Condition -Condition ($result.ExitCode -eq 0 -and (($receivedArguments -join '|') -eq ($expectedArguments -join '|'))) -Message ("The {0} case preserves argv boundaries (exit {1}; expected [{2}], received [{3}]; output: {4})." -f $scenarioCase.Name, $result.ExitCode, ($expectedArguments -join '|'), ($receivedArguments -join '|'), $result.Output.Trim())
             Assert-Condition -Condition ($result.Output -match '(?i)Setup complete\.' -and -not $result.WingetInvoked) -Message ("The {0} fake child completed without invoking a real package manager." -f $scenarioCase.Name)
         }
+
+        $expectedDefaultPwshPath = Join-Path $testRoot 'PowerShell\7\pwsh.exe'
+        $stalePathResult = Invoke-BatchScenario -TestRoot $testRoot -Name 'stale-path-runtime' -RawArguments '--cli-only' -Mode 'success'
+        Assert-Condition -Condition ($stalePathResult.ExitCode -eq 0 -and [System.IO.Path]::GetFullPath($stalePathResult.LauncherPath).Equals([System.IO.Path]::GetFullPath($expectedDefaultPwshPath), [System.StringComparison]::OrdinalIgnoreCase)) -Message 'A stale PATH entry cannot override the fixed default PowerShell runtime location.'
+
+        $localPwshDirectory = Join-Path $testRoot 'Programs\PowerShell\7'
+        New-Item -ItemType Directory -Path $localPwshDirectory -Force | Out-Null
+        $expectedLocalPwshPath = Join-Path $localPwshDirectory 'pwsh.exe'
+        Copy-Item -LiteralPath $fakeLauncherOutputPath -Destination $expectedLocalPwshPath -Force
+        $nondefaultPathResult = Invoke-BatchScenario -TestRoot $testRoot -Name 'nondefault-runtime-path' -RawArguments '--cli-only' -Mode 'success' -PwshLocation 'local-programs'
+        Assert-Condition -Condition ($nondefaultPathResult.ExitCode -eq 0 -and [System.IO.Path]::GetFullPath($nondefaultPathResult.LauncherPath).Equals([System.IO.Path]::GetFullPath($expectedLocalPwshPath), [System.StringComparison]::OrdinalIgnoreCase)) -Message 'A current-user nondefault PowerShell location is selected when default install roots have no runtime.'
+        Remove-Item -LiteralPath $expectedLocalPwshPath -Force
 
         $delayedResult = Invoke-BatchScenario -TestRoot $testRoot -Name 'delayed-child' -RawArguments '--profile "Slow Setup"' -Mode 'delayed-success' -ExitCode 0 -Delayed
         Assert-Condition -Condition ($delayedResult.ExitCode -eq 0 -and $delayedResult.Output -match '(?i)Setup complete\.') -Message 'The wrapper remains active until a delayed fake elevated child finishes.'

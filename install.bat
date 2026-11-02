@@ -30,9 +30,11 @@ if not defined PWSH_EXE if defined LOCALAPPDATA if exist "%LOCALAPPDATA%\Program
 if not defined PWSH_EXE if defined LOCALAPPDATA if exist "%LOCALAPPDATA%\Microsoft\PowerShell\pwsh.exe" set "PWSH_EXE=%LOCALAPPDATA%\Microsoft\PowerShell\pwsh.exe"
 
 set "APP_INSTALLER_WHATIF="
+set "KEEP_CONSOLE_OPEN="
 for %%A in (%*) do (
     if /I "%%~A"=="-WhatIf" set "APP_INSTALLER_WHATIF=1"
     if /I "%%~A"=="-WhatIf:$true" set "APP_INSTALLER_WHATIF=1"
+    if /I "%%~A"=="-KeepConsoleOpen" set "KEEP_CONSOLE_OPEN=1"
 )
 if defined APP_INSTALLER_WHATIF goto :WHATIF_BOOTSTRAP
 
@@ -118,12 +120,18 @@ del "%BOOTSTRAP_STATUS_FILE%" >nul 2>&1
 del "%BOOTSTRAP_ERROR_FILE%" >nul 2>&1
 if not "%BOOTSTRAP_RC%"=="0" (
     echo.
-    echo [ERROR] Installer exited with code: %BOOTSTRAP_RC%
+    echo [ERROR] PowerShell returned a failure status. Review the stage output; no full-success result is reported.
+    echo [ERROR] Exit code: %BOOTSTRAP_RC%
+    call :PAUSE_IF_REQUESTED
     exit /b %BOOTSTRAP_RC%
 )
 echo.
 echo [INFO] Setup complete.
-pause
+call :PAUSE_IF_REQUESTED
+exit /b 0
+
+:PAUSE_IF_REQUESTED
+if /I "%KEEP_CONSOLE_OPEN%"=="1" pause
 exit /b 0
 
 :WHATIF_BOOTSTRAP
@@ -147,11 +155,14 @@ goto :WHATIF_FINISHED
 set "BOOTSTRAP_RC=%ERRORLEVEL%"
 
 :WHATIF_FINISHED
-echo [INFO] WhatIf completed without creating bootstrap status files or applying a runtime plan.
 if not "%BOOTSTRAP_RC%"=="0" (
-    echo [ERROR] Installer preflight exited with code: %BOOTSTRAP_RC%
+    echo [ERROR] PowerShell returned a failure status. Review the stage output; no full-success result is reported.
+    echo [ERROR] Exit code: %BOOTSTRAP_RC%
+    call :PAUSE_IF_REQUESTED
     exit /b %BOOTSTRAP_RC%
 )
+echo [INFO] WhatIf completed without creating bootstrap status files or applying a runtime plan.
+call :PAUSE_IF_REQUESTED
 exit /b 0
 
 :NO_BOOTSTRAP_ENGINE

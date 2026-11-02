@@ -5,6 +5,9 @@ param(
     [Parameter()]
     [switch]$ForceCLI,
 
+    [Parameter()]
+    [switch]$KeepConsoleOpen,
+
     [Parameter(ValueFromRemainingArguments = $true)]
     [AllowEmptyCollection()]
     [string[]]$InstallerArguments = @()
