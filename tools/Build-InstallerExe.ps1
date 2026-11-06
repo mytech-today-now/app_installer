@@ -7,9 +7,6 @@ param(
     [string]$OutputPath,
 
     [Parameter()]
-    [string]$SeedPath,
-
-    [Parameter()]
     [switch]$KeepBuildFilesOnFailure
 )
 
@@ -82,6 +79,23 @@ function ConvertTo-InstallerExeToolObservation {
     }
 }
 
+function Set-InstallerExeCoffTimestampToZero {
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    $bytes = [System.IO.File]::ReadAllBytes($Path)
+    if ($bytes.Length -lt 64 -or [System.Text.Encoding]::ASCII.GetString($bytes, 0, 2) -cne 'MZ') {
+        throw 'IExpress did not create a valid PE launcher.'
+    }
+    $peOffset = [System.BitConverter]::ToInt32($bytes, 0x3C)
+    if ($peOffset -lt 64 -or $peOffset -gt ($bytes.Length - 28) -or
+        [System.Text.Encoding]::ASCII.GetString($bytes, $peOffset, 4) -cne "PE`0`0") {
+        throw 'IExpress created a launcher with an invalid PE header.'
+    }
+    [Array]::Clear($bytes, $peOffset + 8, 4)
+    [System.IO.File]::WriteAllBytes($Path, $bytes)
+}
+
 $repositoryRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $configurationPath = Join-Path $PSScriptRoot 'installer-exe-build.json'
 $buildModulePath = Join-Path $PSScriptRoot 'InstallerExecutableBuild.psm1'
@@ -107,15 +121,16 @@ catch {
 Import-Module -Name $buildModulePath -Force -DisableNameChecking -ErrorAction Stop | Out-Null
 Import-Module -Name $payloadModulePath -Force -DisableNameChecking -ErrorAction Stop | Out-Null
 
-$seedRelativePath = ([string]$configuration.seed.relativePath).Replace('/', '\')
-if ([string]::IsNullOrWhiteSpace($SeedPath)) {
-    $SeedPath = Join-Path $repositoryRoot $seedRelativePath
+$launcherTemplate = $configuration.launcherTemplate
+if ([string]$launcherTemplate.bootstrapFileName -cne [string]$configuration.artifact.entryPoint -or
+    [string]$launcherTemplate.friendlyName -cne 'myTech.Today_Install-GUI' -or
+    [string]$launcherTemplate.launchCommand -cne 'cmd.exe /c .\install.bat' -or
+    -not [bool]$launcherTemplate.showInstallProgramWindow -or
+    [bool]$launcherTemplate.hideExtractAnimation -or
+    [int]$launcherTemplate.cabinetResourceId -ne 101 -or
+    [string]$launcherTemplate.rebootMode -cne 'N') {
+    throw 'The generated IExpress launcher template does not match the current Windows entry-point contract.'
 }
-elseif (-not [System.IO.Path]::IsPathRooted($SeedPath)) {
-    $SeedPath = Join-Path $repositoryRoot $SeedPath
-}
-if (-not (Test-Path -LiteralPath $SeedPath -PathType Leaf)) { throw 'The pinned IExpress seed executable is missing.' }
-$seedFullPath = [System.IO.Path]::GetFullPath((Resolve-Path -LiteralPath $SeedPath -ErrorAction Stop).Path)
 
 $sourcePayloadStatus = Test-AppInstallerPayload -RootPath $repositoryRoot
 if (-not $sourcePayloadStatus.IsValid -or $sourcePayloadStatus.Mode -ne 'source') {
@@ -145,7 +160,7 @@ $compatibilityContract = Test-InstallerExeCompatibilityContract -Compatibility $
 if (-not $compatibilityContract.IsValid) {
     throw ('The executable build configuration is stale: {0}' -f ($compatibilityContract.Errors -join ' '))
 }
-$context = Get-InstallerExeBuildContext -Configuration $configuration -RepositoryRoot $repositoryRoot -SeedPath $seedFullPath
+$context = Get-InstallerExeBuildContext -Configuration $configuration -RepositoryRoot $repositoryRoot
 $contextStatus = Test-InstallerExeBuildContext -Configuration $configuration -Context $context
 if (-not $contextStatus.IsValid) {
     throw ('Executable build prerequisites failed:' + [Environment]::NewLine + ' - ' + ($contextStatus.Errors -join ([Environment]::NewLine + ' - ')))
@@ -194,21 +209,25 @@ foreach ($legacyArtifact in $legacyArtifactRecords) {
     if ([string]::IsNullOrWhiteSpace($legacyRelativePath) -or
         [System.IO.Path]::IsPathRooted($legacyRelativePath) -or
         $legacyRelativePath.Split([char[]]@('\', '/')) -contains '..' -or
+        -not [bool]$legacyArtifact.historicallyTracked -or
+        [string]$legacyArtifact.repositoryState -cne 'removed' -or
         [bool]$legacyArtifact.releaseEligible -or
         [string]$legacyArtifact.sha256 -notmatch '^[A-Fa-f0-9]{64}$') {
-        throw 'The legacy artifact inventory contains an invalid, unsafe, or release-eligible record.'
+        throw 'The retired artifact inventory contains an invalid, unsafe, or release-eligible record.'
     }
     $legacyFullPath = [System.IO.Path]::GetFullPath((Join-Path $repositoryRoot $legacyRelativePath))
     if (-not (Test-InstallerExeContainedPath -Path $legacyFullPath -RootPath $repositoryRoot) -or
         -not $legacyPathsSeen.Add($legacyFullPath)) {
-        throw 'The legacy artifact inventory contains a duplicate path or a path outside the repository.'
+        throw 'The retired artifact inventory contains a duplicate path or a path outside the repository.'
+    }
+    if (Test-Path -LiteralPath $legacyFullPath) {
+        throw ('A retired executable path has been recreated and must be removed before building: {0}' -f $legacyRelativePath)
     }
     $protectedLegacyPaths.Add($legacyFullPath)
 }
 
 $output = Assert-InstallerExeBuildOutputPath `
     -OutputPath $OutputPath `
-    -SeedPath $seedFullPath `
     -ProtectedOutputPaths @($protectedLegacyPaths.ToArray())
 $outputFullPath = $output.OutputPath
 $outputManifestPath = $output.ManifestPath
@@ -229,6 +248,7 @@ if ($buildRoot -match '[^\x20-\x7E]') {
 
 $makeCabPath = Join-Path $env:WINDIR ([string]$configuration.packager.makeCab.relativePath.Replace('/', '\'))
 $expandPath = Join-Path $env:WINDIR ([string]$configuration.packager.expand.relativePath.Replace('/', '\'))
+$iexpressPath = Join-Path $env:WINDIR ([string]$configuration.packager.iexpress.relativePath.Replace('/', '\'))
 $fixedCabinetTimestamp = [System.DateTime]::SpecifyKind([System.DateTime]::new(2000, 1, 1, 12, 0, 0), [System.DateTimeKind]::Local)
 $outputTempPath = $null
 $manifestTempPath = $null
@@ -240,6 +260,77 @@ $buildCompleted = $false
 try {
     $stagePath = Join-Path $buildRoot 'payload'
     New-Item -ItemType Directory -Path $stagePath -Force -ErrorAction Stop | Out-Null
+    $launcherSourcePath = Join-Path $buildRoot 'launcher-source'
+    New-Item -ItemType Directory -Path $launcherSourcePath -Force -ErrorAction Stop | Out-Null
+    $launcherBatchPath = Join-Path $launcherSourcePath ([string]$launcherTemplate.bootstrapFileName)
+    [System.IO.File]::WriteAllText($launcherBatchPath, "@echo off`r`nexit /b 0`r`n", [System.Text.Encoding]::ASCII)
+    [System.IO.File]::SetLastWriteTime($launcherBatchPath, $fixedCabinetTimestamp)
+
+    $launcherSedPath = Join-Path $buildRoot 'launcher.sed'
+    $launcherSeedPath = Join-Path $buildRoot 'launcher-seed.exe'
+    $launcherSedLines = @(
+        '[Version]',
+        'Class=IEXPRESS',
+        'SEDVersion=3',
+        '[Options]',
+        'PackagePurpose=InstallApp',
+        ('ShowInstallProgramWindow={0}' -f [int][bool]$launcherTemplate.showInstallProgramWindow),
+        ('HideExtractAnimation={0}' -f [int][bool]$launcherTemplate.hideExtractAnimation),
+        'UseLongFileName=1',
+        'InsideCompressed=1',
+        'CAB_FixedSize=0',
+        'CAB_ResvCodeSigning=0',
+        ('RebootMode={0}' -f [string]$launcherTemplate.rebootMode),
+        'InstallPrompt=%InstallPrompt%',
+        'DisplayLicense=%DisplayLicense%',
+        'FinishMessage=%FinishMessage%',
+        'TargetName=%TargetName%',
+        'FriendlyName=%FriendlyName%',
+        'AppLaunched=%AppLaunched%',
+        'PostInstallCmd=%PostInstallCmd%',
+        'AdminQuietInstCmd=%AdminQuietInstCmd%',
+        'UserQuietInstCmd=%UserQuietInstCmd%',
+        'SourceFiles=SourceFiles',
+        '[SourceFiles]',
+        ('SourceFiles0={0}' -f $launcherSourcePath),
+        '[SourceFiles0]',
+        '%FILE0%=',
+        '[Strings]',
+        'InstallPrompt=',
+        'DisplayLicense=',
+        'FinishMessage=',
+        ('TargetName="{0}"' -f $launcherSeedPath),
+        ('FriendlyName={0}' -f [string]$launcherTemplate.friendlyName),
+        ('AppLaunched={0}' -f [string]$launcherTemplate.launchCommand),
+        'PostInstallCmd=<None>',
+        'AdminQuietInstCmd=',
+        'UserQuietInstCmd=',
+        ('FILE0="{0}"' -f [string]$launcherTemplate.bootstrapFileName)
+    )
+    [System.IO.File]::WriteAllLines($launcherSedPath, $launcherSedLines, [System.Text.Encoding]::ASCII)
+    $iexpressOutputPath = Join-Path $buildRoot 'iexpress.out'
+    $iexpressErrorPath = Join-Path $buildRoot 'iexpress.err'
+    $iexpressArguments = '/N /Q "{0}"' -f $launcherSedPath
+    $iexpressProcess = Start-Process -FilePath $iexpressPath -ArgumentList $iexpressArguments -WorkingDirectory $buildRoot -PassThru -Wait -WindowStyle Hidden -RedirectStandardOutput $iexpressOutputPath -RedirectStandardError $iexpressErrorPath
+    if ($iexpressProcess.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $launcherSeedPath -PathType Leaf)) {
+        $iexpressDetails = (Get-Content -LiteralPath $iexpressOutputPath -Raw -ErrorAction SilentlyContinue) + (Get-Content -LiteralPath $iexpressErrorPath -Raw -ErrorAction SilentlyContinue)
+        throw ('IExpress failed to generate a launcher seed. Exit code: {0}. {1}' -f $iexpressProcess.ExitCode, $iexpressDetails)
+    }
+    Set-InstallerExeCoffTimestampToZero -Path $launcherSeedPath
+    $launcherSeedText = [System.Text.Encoding]::ASCII.GetString([System.IO.File]::ReadAllBytes($launcherSeedPath))
+    if (-not $launcherSeedText.Contains([string]$launcherTemplate.launchCommand) -or
+        -not $launcherSeedText.Contains([string]$launcherTemplate.friendlyName)) {
+        throw 'The generated IExpress launcher does not contain the configured command and product identity.'
+    }
+    if ((Get-InstallerExeMachineArchitecture -Path $launcherSeedPath) -ne [string]$configuration.artifact.architecture) {
+        throw 'The generated IExpress launcher does not target the configured x64 architecture.'
+    }
+    $launcherSeedSignature = Get-AuthenticodeSignature -FilePath $launcherSeedPath
+    if ([string]$launcherSeedSignature.Status -ne 'NotSigned' -or $launcherSeedSignature.SignerCertificate) {
+        throw 'The generated IExpress launcher seed unexpectedly has an Authenticode signature.'
+    }
+    $launcherSeedHash = (Get-FileHash -LiteralPath $launcherSeedPath -Algorithm SHA256 -ErrorAction Stop).Hash.ToLowerInvariant()
+
     $inventory = @(New-InstallerExeBuildInventory -Files $sourceInventory)
     $sourceByPath = @{}
     foreach ($payloadFile in $sourceInventory) { $sourceByPath[$payloadFile.Path.ToLowerInvariant()] = $payloadFile }
@@ -334,12 +425,8 @@ try {
     }
 
     Add-Type -Path $metadataSource -ErrorAction Stop
-    $seedBytes = [System.IO.File]::ReadAllBytes($seedFullPath)
-    $seedText = [System.Text.Encoding]::ASCII.GetString($seedBytes)
-    if (-not $seedText.Contains('cmd.exe /c .\install.bat')) { throw 'The pinned IExpress seed does not launch install.bat.' }
-    if (-not $seedText.Contains('myTech.Today_Install-GUI')) { throw 'The pinned IExpress seed does not identify the current product package.' }
     $buildExePath = Join-Path $buildRoot 'AppInstaller.exe'
-    Copy-Item -LiteralPath $seedFullPath -Destination $buildExePath -Force -ErrorAction Stop
+    Copy-Item -LiteralPath $launcherSeedPath -Destination $buildExePath -Force -ErrorAction Stop
     $cabinetBytes = [System.IO.File]::ReadAllBytes($cabPath)
     [InstallerExecutableVersionInfo]::ReplaceCabinetResource($buildExePath, $cabinetBytes)
 
@@ -381,7 +468,8 @@ try {
     $buildArtifact = Get-InstallerExeBuildFileObservation -Path $buildExePath
 
     $provenance = [PSCustomObject][ordered]@{
-        schemaVersion = 1
+        schemaVersion = 2
+        digestLimit = 'SHA-256 detects byte changes only when the expected digest is obtained through a trusted release channel. It does not authenticate the publisher or replace a digital signature.'
         artifact = [PSCustomObject][ordered]@{
             identity = [string]$configuration.artifact.identity
             fileName = [System.IO.Path]::GetFileName($outputFullPath)
@@ -425,12 +513,16 @@ try {
             }
             makeCab = ConvertTo-InstallerExeToolObservation -Name 'MakeCab' -Observation $context.Packager.MakeCab
             expand = ConvertTo-InstallerExeToolObservation -Name 'Expand' -Observation $context.Packager.Expand
-            seed = [PSCustomObject][ordered]@{
-                relativePath = $seedRelativePath.Replace('\', '/')
-                fileVersion = [string]$context.Seed.File.FileVersion
-                sha256 = [string]$context.Seed.File.Sha256.ToLowerInvariant()
-                architecture = [string]$context.Seed.Architecture
-                authenticodeStatus = [string]$context.Seed.File.SignatureStatus
+            iExpress = ConvertTo-InstallerExeToolObservation -Name 'IExpress' -Observation $context.Packager.IExpress
+            launcherSeed = [PSCustomObject][ordered]@{
+                generatedBy = 'Pinned Microsoft IExpress'
+                friendlyName = [string]$launcherTemplate.friendlyName
+                launchCommand = [string]$launcherTemplate.launchCommand
+                fileName = 'launcher-seed.exe'
+                sha256 = $launcherSeedHash
+                architecture = [string]$configuration.artifact.architecture
+                authenticodeStatus = 'NotSigned'
+                normalizedCoffTimestamp = 0
             }
         }
         payload = [PSCustomObject][ordered]@{

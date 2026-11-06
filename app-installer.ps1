@@ -4709,8 +4709,7 @@ function Create-Buttons {
             $saveDialog.Title = "Export Installation Profile"
             $saveDialog.InitialDirectory = $script:ProfilesPath
             $timestamp = Get-Date -Format "yyyy-MM-dd-HHmmss"
-            $computerName = $env:COMPUTERNAME
-            $saveDialog.FileName = "profile-$computerName-$timestamp.json"
+            $saveDialog.FileName = "profile-$timestamp.json"
 
             if ($saveDialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
                 $filePath = Export-InstallationProfile -SelectedApps $selectedAppNames -FilePath $saveDialog.FileName
@@ -6388,9 +6387,8 @@ function Export-InstallationProfile {
         Exports selected applications to a JSON profile file.
 
     .DESCRIPTION
-        Creates a JSON file containing the list of selected applications along with
-        metadata such as timestamp, computer name, user name, and installer version.
-        Useful for backing up selections or deploying to multiple machines.
+        Creates a JSON file containing the selected application names, timestamp,
+        and installer version without exporting computer or user identifiers.
 
     .PARAMETER SelectedApps
         Array of application names to export.
@@ -6426,16 +6424,13 @@ function Export-InstallationProfile {
         # Generate default filename if not specified
         if ([string]::IsNullOrWhiteSpace($FilePath)) {
             $timestamp = Get-Date -Format "yyyy-MM-dd-HHmmss"
-            $computerName = $env:COMPUTERNAME
-            $FilePath = Join-Path $profilesDir "profile-$computerName-$timestamp.json"
+            $FilePath = Join-Path $profilesDir "profile-$timestamp.json"
         }
 
         # Create profile object
         $profile = [PSCustomObject]@{
             Version = "1.0"
             Timestamp = (Get-Date).ToString("yyyy-MM-ddTHH:mm:ss")
-            ComputerName = $env:COMPUTERNAME
-            UserName = $env:USERNAME
             InstallerVersion = $script:ScriptVersion
             Applications = $SelectedApps
         }
@@ -6511,9 +6506,11 @@ function Import-InstallationProfile {
         Write-Log "Importing profile from: $FilePath" -Level INFO
         Write-Log "Profile version: $($profile.Version)" -Level INFO
         Write-Log "Profile created: $($profile.Timestamp)" -Level INFO
-        Write-Log "Profile computer: $($profile.ComputerName)" -Level INFO
-        Write-Log "Profile user: $($profile.UserName)" -Level INFO
         Write-Log "Profile installer version: $($profile.InstallerVersion)" -Level INFO
+
+        # Legacy identity fields are accepted as unknown metadata but excluded from
+        # import diagnostics and returned profile information.
+        $profileInfo = $profile | Select-Object * -ExcludeProperty ComputerName, UserName
 
         # Get list of available application names
         $availableAppNames = $script:Applications | ForEach-Object { $_.Name }
@@ -6543,7 +6540,7 @@ function Import-InstallationProfile {
             Applications = $validApps
             MissingApps = $missingApps
             Message = "Successfully imported profile with $($validApps.Count) application(s)"
-            ProfileInfo = $profile
+            ProfileInfo = $profileInfo
         }
     }
     catch {

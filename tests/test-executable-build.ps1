@@ -53,8 +53,7 @@ function New-CleanBuildCopy {
         'tools/Set-InstallerExeMetadata.ps1',
         'tools/installer-exe-build.json',
         'compatibility.json',
-        'README.md',
-        'builds/install-GUI.exe'
+        'README.md'
     )) {
         Copy-BuildFixtureFile -SourceRoot $repositoryRoot -DestinationRoot $DestinationRoot -RelativePath $relativePath
     }
@@ -118,7 +117,7 @@ try {
         throw 'The Windows cabinet test requires an ASCII-only temporary path for Expand.exe.'
     }
 
-    $context = Get-InstallerExeBuildContext -Configuration $configuration -RepositoryRoot $repositoryRoot -SeedPath (Join-Path $repositoryRoot 'builds\install-GUI.exe')
+    $context = Get-InstallerExeBuildContext -Configuration $configuration -RepositoryRoot $repositoryRoot
     $contextResult = Test-InstallerExeBuildContext -Configuration $configuration -Context $context
     Assert-BuildCondition -Condition $contextResult.IsValid -Message ('The pinned build context must validate: ' + ($contextResult.Errors -join '; '))
 
@@ -138,25 +137,13 @@ try {
     Assert-BuildCondition -Condition ($guiSource -match '(?m)^Write-Host "Version: \$script:ScriptVersion"' -and $cliSource -match '(?m)^Write-Host "Version: \$script:ScriptVersion"') -Message 'Both startup banners must display the validated script version.'
     Assert-BuildCondition -Condition ($configuration.artifact.identity -ceq 'app-installer-versioned-release-v1') -Message 'The build configuration must name the current versioned release artifact.'
     $protectedLegacyPaths = New-Object 'System.Collections.Generic.List[string]'
-    $legacyHashesBefore = @{}
-    $gitCommand = Get-Command git.exe -ErrorAction SilentlyContinue
-    if ($null -eq $gitCommand) { $gitCommand = Get-Command git -ErrorAction SilentlyContinue }
-    if ($null -eq $gitCommand) { throw 'Git is required to verify tracked legacy artifact inventory.' }
     foreach ($legacyArtifact in @($configuration.legacyArtifacts)) {
         $legacyRelativePath = ([string]$legacyArtifact.path).Replace('/', '\')
         $legacyPath = [System.IO.Path]::GetFullPath((Join-Path $repositoryRoot $legacyRelativePath))
-        if (-not (Test-Path -LiteralPath $legacyPath -PathType Leaf)) { throw ('A configured legacy artifact is missing: {0}' -f $legacyRelativePath) }
-        $trackedOutput = @(& $gitCommand.Source -C $repositoryRoot ls-files --error-unmatch -- $legacyRelativePath 2>&1)
-        $trackedExitCode = $LASTEXITCODE
-        Assert-BuildCondition -Condition ($trackedExitCode -eq 0 -and [string]::Join('', $trackedOutput).Trim() -ceq $legacyRelativePath.Replace('\', '/')) -Message ('The legacy artifact must remain Git tracked: {0}' -f $legacyRelativePath)
-        $legacyHash = (Get-FileHash -LiteralPath $legacyPath -Algorithm SHA256 -ErrorAction Stop).Hash.ToUpperInvariant()
-        $legacyInfo = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($legacyPath)
-        $legacySignature = Get-AuthenticodeSignature -FilePath $legacyPath -ErrorAction Stop
-        Assert-BuildCondition -Condition ($legacyHash -ceq [string]$legacyArtifact.sha256 -and [string]$legacyInfo.FileVersion -ceq [string]$legacyArtifact.fileVersion) -Message ('The recorded legacy hash and file version must match: {0}' -f $legacyRelativePath)
-        Assert-BuildCondition -Condition ([bool]$legacyArtifact.gitTracked -and [string]$legacyInfo.ProductName -ceq [string]$legacyArtifact.productName -and [string]$legacySignature.Status -ceq [string]$legacyArtifact.authenticodeStatus -and -not [bool]$legacyArtifact.releaseEligible) -Message ('Legacy metadata must match the inventory and remain tracked and release-ineligible: {0}' -f $legacyRelativePath)
+        Assert-BuildCondition -Condition (-not (Test-Path -LiteralPath $legacyPath -PathType Leaf)) -Message ('A retired executable must be absent from the repository: {0}' -f $legacyRelativePath)
+        Assert-BuildCondition -Condition ([bool]$legacyArtifact.historicallyTracked -and [string]$legacyArtifact.repositoryState -ceq 'removed' -and [string]$legacyArtifact.sha256 -match '^[A-Fa-f0-9]{64}$' -and -not [bool]$legacyArtifact.releaseEligible) -Message ('Historical executable evidence must be retained as removed and release-ineligible: {0}' -f $legacyRelativePath)
         Assert-BuildCondition -Condition ([string]$legacyArtifact.provenanceStatus -ceq 'unknown' -and [string]$legacyArtifact.identity -ne [string]$configuration.artifact.identity) -Message ('Legacy provenance must remain explicitly unknown and distinct: {0}' -f $legacyRelativePath)
         $protectedLegacyPaths.Add($legacyPath)
-        $legacyHashesBefore[$legacyPath] = $legacyHash
     }
     $badGuiSource = [regex]::Replace($guiSource, '(?m)^(\$script:ScriptVersion\s*=\s*)[''"]2\.0\.6[''"]', '$script:ScriptVersion = ''9.9.9''', 1)
     $badVersionResult = Test-InstallerExeVersionContract -VersionText $versionText -GuiSource $badGuiSource -CliSource $cliSource -ReadmeText $readmeText
@@ -196,10 +183,10 @@ try {
     $missingToolContext.Packager.MakeCab.Exists = $false
     $missingToolResult = Test-InstallerExeBuildContext -Configuration $configuration -Context $missingToolContext
     Assert-BuildCondition -Condition (-not $missingToolResult.IsValid) -Message 'A missing pinned packager must fail build configuration validation.'
-    $corruptSeedContext = $context | ConvertTo-Json -Depth 20 | ConvertFrom-Json
-    $corruptSeedContext.Seed.File.Sha256 = ('0' * 64)
-    $corruptSeedResult = Test-InstallerExeBuildContext -Configuration $configuration -Context $corruptSeedContext
-    Assert-BuildCondition -Condition (-not $corruptSeedResult.IsValid) -Message 'A changed seed hash must fail build configuration validation.'
+    $corruptIExpressContext = $context | ConvertTo-Json -Depth 20 | ConvertFrom-Json
+    $corruptIExpressContext.Packager.IExpress.Sha256 = ('0' * 64)
+    $corruptIExpressResult = Test-InstallerExeBuildContext -Configuration $configuration -Context $corruptIExpressContext
+    Assert-BuildCondition -Condition (-not $corruptIExpressResult.IsValid) -Message 'A changed IExpress hash must fail build configuration validation.'
     $missingCompilerContext = $context | ConvertTo-Json -Depth 20 | ConvertFrom-Json
     $missingCompilerContext.Compiler.Assemblies[0].Exists = $false
     $missingCompilerResult = Test-InstallerExeBuildContext -Configuration $configuration -Context $missingCompilerContext
@@ -224,14 +211,14 @@ try {
 
     $staleOutputPath = Join-Path $temporaryRoot 'stale-output.exe'
     [System.IO.File]::WriteAllText($staleOutputPath, 'stale')
-    Assert-BuildFailure -Action { Assert-InstallerExeBuildOutputPath -OutputPath $staleOutputPath -SeedPath (Join-Path $repositoryRoot 'builds\install-GUI.exe') } -Message 'A stale executable output must not be overwritten.'
+    Assert-BuildFailure -Action { Assert-InstallerExeBuildOutputPath -OutputPath $staleOutputPath -ProtectedOutputPaths @($protectedLegacyPaths.ToArray()) } -Message 'A stale executable output must not be overwritten.'
     $staleManifestOutputPath = Join-Path $temporaryRoot 'stale-manifest.exe'
     [System.IO.File]::WriteAllText(($staleManifestOutputPath + '.build.json'), '{}')
-    Assert-BuildFailure -Action { Assert-InstallerExeBuildOutputPath -OutputPath $staleManifestOutputPath -SeedPath (Join-Path $repositoryRoot 'builds\install-GUI.exe') } -Message 'A stale provenance manifest must not be overwritten.'
+    Assert-BuildFailure -Action { Assert-InstallerExeBuildOutputPath -OutputPath $staleManifestOutputPath -ProtectedOutputPaths @($protectedLegacyPaths.ToArray()) } -Message 'A stale provenance manifest must not be overwritten.'
     foreach ($legacyPath in @($protectedLegacyPaths.ToArray())) {
         Assert-BuildFailure -Action {
-            Assert-InstallerExeBuildOutputPath -OutputPath $legacyPath -SeedPath (Join-Path $repositoryRoot 'builds\install-GUI.exe') -ProtectedOutputPaths @($protectedLegacyPaths.ToArray())
-        } -Message ('A tracked legacy executable must never be selected as output: {0}' -f $legacyPath)
+            Assert-InstallerExeBuildOutputPath -OutputPath $legacyPath -ProtectedOutputPaths @($protectedLegacyPaths.ToArray())
+        } -Message ('A retired executable path must never be selected as output: {0}' -f $legacyPath)
     }
 
     $fixtureRoot = Join-Path $temporaryRoot 'InventoryFixture'
@@ -289,27 +276,28 @@ try {
 
     $cleanCopyA = Join-Path $temporaryRoot 'CleanCopyA'
     $cleanCopyB = Join-Path $temporaryRoot 'CleanCopyB'
-    $corruptSeedCopy = Join-Path $temporaryRoot 'CorruptSeedCopy'
+    $corruptToolCopy = Join-Path $temporaryRoot 'CorruptToolCopy'
     New-CleanBuildCopy -DestinationRoot $cleanCopyA
     New-CleanBuildCopy -DestinationRoot $cleanCopyB
 
-    New-CleanBuildCopy -DestinationRoot $corruptSeedCopy
-    $corruptSeedPath = Join-Path $corruptSeedCopy 'builds\install-GUI.exe'
-    $corruptSeedBytes = [System.IO.File]::ReadAllBytes($corruptSeedPath)
-    $corruptSeedBytes[$corruptSeedBytes.Length - 1] = [byte]($corruptSeedBytes[$corruptSeedBytes.Length - 1] -bxor 0xFF)
-    [System.IO.File]::WriteAllBytes($corruptSeedPath, $corruptSeedBytes)
-    $corruptOutputDirectory = Join-Path $corruptSeedCopy 'builds\generated'
+    New-CleanBuildCopy -DestinationRoot $corruptToolCopy
+    $corruptConfigurationPath = Join-Path $corruptToolCopy 'tools\installer-exe-build.json'
+    $corruptConfiguration = Get-Content -LiteralPath $corruptConfigurationPath -Raw | ConvertFrom-Json
+    $corruptConfiguration.packager.iexpress.sha256 = '0' * 64
+    [System.IO.File]::WriteAllText($corruptConfigurationPath, (ConvertTo-Json -InputObject $corruptConfiguration -Depth 16), [System.Text.UTF8Encoding]::new($false))
+    $corruptOutputDirectory = Join-Path $corruptToolCopy 'builds\generated'
     New-Item -ItemType Directory -Path $corruptOutputDirectory -Force -ErrorAction Stop | Out-Null
-    $corruptArtifactPath = Join-Path $corruptOutputDirectory 'AppInstaller-corrupt-seed.exe'
+    $corruptArtifactName = ([string]$configuration.artifact.outputNamePattern).Replace('{guiVersion}', $versionResult.GuiVersion)
+    $corruptArtifactPath = Join-Path $corruptOutputDirectory $corruptArtifactName
     $pwsh = Get-Command pwsh.exe -ErrorAction SilentlyContinue
     if ($null -eq $pwsh) { $pwsh = Get-Command pwsh -ErrorAction SilentlyContinue }
     if ($null -eq $pwsh) { throw 'PowerShell Core 7.6.9 is required for the corrupted-input build test.' }
-    $corruptBuilderPath = Join-Path $corruptSeedCopy 'tools\Build-InstallerExe.ps1'
+    $corruptBuilderPath = Join-Path $corruptToolCopy 'tools\Build-InstallerExe.ps1'
     $corruptBuildOutput = @(& $pwsh.Source -NoProfile -File $corruptBuilderPath -OutputPath $corruptArtifactPath -Confirm:$false 2>&1)
     $corruptBuildExitCode = $LASTEXITCODE
-    Assert-BuildCondition -Condition ($corruptBuildExitCode -ne 0) -Message 'The builder must reject a corrupted pinned IExpress seed.'
+    Assert-BuildCondition -Condition ($corruptBuildExitCode -ne 0) -Message 'The builder must reject a changed IExpress tool pin.'
     Assert-BuildCondition -Condition (-not (Test-Path -LiteralPath $corruptArtifactPath) -and -not (Test-Path -LiteralPath ($corruptArtifactPath + '.build.json'))) -Message 'A corrupted build input must be rejected before any output is published.'
-    Write-Output '[OK] A corrupted pinned seed was rejected before output publication.'
+    Write-Output '[OK] A changed IExpress tool pin was rejected before output publication.'
 
     $releaseExecutableName = ([string]$configuration.artifact.outputNamePattern).Replace('{guiVersion}', $versionResult.GuiVersion)
     $expectedReleasePath = [System.IO.Path]::GetFullPath((Join-Path (Join-Path $repositoryRoot ([string]$configuration.artifact.defaultOutputDirectory)) $releaseExecutableName))
@@ -324,9 +312,11 @@ try {
     Assert-BuildCondition -Condition ($buildA.Manifest.payload.inventorySha256 -ceq $buildB.Manifest.payload.inventorySha256) -Message 'Clean builds must produce the same normalized payload inventory digest.'
     Assert-BuildCondition -Condition ($buildA.Manifest.payload.files.Count -eq $sourceInventory.Count -and $buildB.Manifest.payload.files.Count -eq $sourceInventory.Count) -Message 'Build manifests must contain every source runtime file.'
     Assert-BuildCondition -Condition ($buildA.Manifest.artifact.sha256 -ceq $buildA.ArtifactHash -and $buildB.Manifest.artifact.sha256 -ceq $buildB.ArtifactHash) -Message 'Each provenance manifest must contain the generated artifact digest.'
+    $expectedDigestLimit = 'SHA-256 detects byte changes only when the expected digest is obtained through a trusted release channel. It does not authenticate the publisher or replace a digital signature.'
+    Assert-BuildCondition -Condition ([int]$buildA.Manifest.schemaVersion -eq 2 -and [int]$buildB.Manifest.schemaVersion -eq 2 -and $buildA.Manifest.digestLimit -ceq $expectedDigestLimit -and $buildB.Manifest.digestLimit -ceq $expectedDigestLimit) -Message 'Builder provenance must state the trusted-channel limit of SHA-256 without implying publisher authentication.'
     Assert-BuildCondition -Condition ($buildA.Manifest.artifact.identity -ceq $configuration.artifact.identity -and $buildB.Manifest.artifact.identity -ceq $configuration.artifact.identity) -Message 'Both current builds must carry the configured release artifact identity.'
     Assert-BuildCondition -Condition ($buildA.Manifest.artifact.fileName -ceq $releaseExecutableName -and $buildB.Manifest.artifact.fileName -ceq $releaseExecutableName) -Message 'Both current builds must use the exact versioned filename.'
-    Assert-BuildCondition -Condition ($buildA.Manifest.artifact.authenticodeStatus -ceq 'NotSigned' -and $buildB.Manifest.artifact.authenticodeStatus -ceq 'NotSigned') -Message 'Both generated executable files must remain unsigned.'
+    Assert-BuildCondition -Condition ($buildA.Manifest.artifact.authenticodeStatus -ceq 'NotSigned' -and $buildB.Manifest.artifact.authenticodeStatus -ceq 'NotSigned' -and [string]::IsNullOrEmpty([string]$buildA.Manifest.artifact.signerSubject) -and [string]::IsNullOrEmpty([string]$buildB.Manifest.artifact.signerSubject)) -Message 'Both generated executable files must remain unsigned and have no signer identity.'
     Assert-BuildCondition -Condition ($buildA.Manifest.artifact.architecture -ceq 'X64' -and $buildB.Manifest.artifact.architecture -ceq 'X64') -Message 'Both generated executable files must target x64.'
     $manifestText = ConvertTo-Json -InputObject $buildA.Manifest -Depth 16 -Compress
     Assert-BuildCondition -Condition ($manifestText -notmatch '(?i)([A-Z]:\\|\\\\)') -Message 'The provenance manifest must not embed machine-local absolute paths.'
@@ -334,9 +324,8 @@ try {
     if ($buildA.ArtifactHash -ne $buildB.ArtifactHash) {
         throw ('Clean builds produced different executable hashes ({0} and {1}) despite identical payload inventory and toolchain.' -f $buildA.ArtifactHash, $buildB.ArtifactHash)
     }
-    foreach ($legacyPath in $legacyHashesBefore.Keys) {
-        $legacyHashAfter = (Get-FileHash -LiteralPath $legacyPath -Algorithm SHA256 -ErrorAction Stop).Hash.ToUpperInvariant()
-        Assert-BuildCondition -Condition ($legacyHashAfter -ceq $legacyHashesBefore[$legacyPath]) -Message ('The build must leave legacy bytes unchanged: {0}' -f $legacyPath)
+    foreach ($legacyPath in @($protectedLegacyPaths.ToArray())) {
+        Assert-BuildCondition -Condition (-not (Test-Path -LiteralPath $legacyPath -PathType Leaf)) -Message ('The build must not recreate a retired executable: {0}' -f $legacyPath)
     }
     Write-Output ('[OK] Two clean-copy builds matched byte-for-byte: {0}' -f $buildA.ArtifactHash)
     Write-Output ('[OK] Executable build tests passed: assertions={0}; payloadFiles={1}' -f $script:AssertionCount, $sourceInventory.Count)

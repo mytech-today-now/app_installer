@@ -126,7 +126,9 @@ $criticalIncludedTests = @(
     'test-gui-startup-capability.ps1',
     'test-instruction-html-security.ps1',
     'test-package-dependency-outcomes.ps1',
+    'test-profile-export-privacy.ps1',
     'test-remote-helper-trust.ps1',
+    'test-release-protection-readiness.ps1',
     'test-update-scan-status.ps1',
     'test-winget-bootstrap.ps1'
 )
@@ -167,7 +169,7 @@ Assert-InventoryCondition -Condition ($failurePropagationEntry.engines.PSObject.
 Assert-InventoryCondition -Condition ($failureScriptText.Contains('-InjectFailureForTest') -and $failureScriptText.Contains('$probeExitCode -ne 31') -and $failureScriptText.Contains('exited with code 31')) -Message 'The failure-propagation regression verifies the injected exit code and failure report.'
 Assert-InventoryCondition -Condition ($fixtureText -match '(?m)^exit 31\s*$' -and $runnerText.Contains('exit $testExitCode')) -Message 'The injected child failure is nonzero and the runner preserves its exact exit code.'
 Assert-InventoryCondition -Condition ($workflowContractText.Contains('test-ci-regression-inventory.ps1')) -Message 'The workflow contract test is itself included in the inventory.'
-Assert-InventoryCondition -Condition ($readmeText.Contains('37 standalone `test-*.ps1` scripts') -and $readmeText.Contains('Desktop-5.1: 31 included, 4 skipped, 2 unavailable') -and $readmeText.Contains('Core-7.6.9: 34 included, 1 skipped, 2 unavailable')) -Message 'README inventory counts match the tested dispositions.'
+Assert-InventoryCondition -Condition ($readmeText.Contains('40 standalone `test-*.ps1` scripts') -and $readmeText.Contains('Desktop-5.1: 34 included, 4 skipped, 2 unavailable') -and $readmeText.Contains('Core-7.6.9: 37 included, 1 skipped, 2 unavailable')) -Message 'README inventory counts match the tested dispositions.'
 
 $previouslyOmittedTests = @(
     'test-belarc-installer-trust.ps1',

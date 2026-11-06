@@ -6,6 +6,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), wit
 
 ## [Unreleased]
 
+### Changed
+
+- Versioned release publication now requires revision-bound Windows client GUI capability and isolated startup evidence for Desktop 5.1 and Core 7.6.9; Server CI remains separate.
+- The Windows executable build is configured to generate an IExpress launcher from a pinned Microsoft tool and current source template, without a checked-in executable seed.
+- The executable build toolchain now pins the supported .NET 10.0.14 runtime and its verified Microsoft-signed files.
+- Profile exports now omit device and user identifiers by default; the CLI includes them only after the user confirms the diagnostic disclosure.
+
+### Removed
+
+- Removed the two release-ineligible legacy executables. Their historical hashes and provenance limits remain recorded, and their former paths stay blocked as build outputs.
+
 ### Added
 
 - Added offline fake transport, signature, and process coverage for a verified executable helper, including McAfee fail-closed behavior while its production trust identity remains unset.

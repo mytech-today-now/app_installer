@@ -58,7 +58,7 @@ foreach ($legacyArtifact in $legacyArtifacts) {
     $legacyPath = [System.IO.Path]::GetFullPath((Join-Path $repoRoot ([string]$legacyArtifact.path)))
     if ([string]::Equals($outputFullPath, $legacyPath, [System.StringComparison]::OrdinalIgnoreCase) -or
         [string]::Equals($resolvedOutputPath, $legacyPath, [System.StringComparison]::OrdinalIgnoreCase)) {
-        throw ('Metadata output cannot target a tracked legacy executable: {0}' -f [string]$legacyArtifact.path)
+        throw ('Metadata output cannot target a retired executable path: {0}' -f [string]$legacyArtifact.path)
     }
 }
 

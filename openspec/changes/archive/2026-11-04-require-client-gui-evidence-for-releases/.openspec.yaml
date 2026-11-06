@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-11-04
+goal: Require successful Desktop 5.1 and Core 7.6.9 GUI capability and isolated
+  startup evidence on a supported Windows 11 client before publication.

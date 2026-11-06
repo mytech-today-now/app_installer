@@ -64,11 +64,111 @@ jobs:
     with:
       validate_release_tag: true
 
+  supported_client_gui_evidence:
+    name: Validate supported Windows client GUI evidence
+    needs: validate_release_tag
+    if: ${{ github.event.repository.private == false }}
+    runs-on: windows-2025
+    timeout-minutes: 10
+    steps:
+      - name: Check out the tagged source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          clean: true
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Check out the manual evidence record from the default branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: client-evidence
+          clean: true
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Require complete evidence for both supported client engines
+        shell: powershell
+        env:
+          RELEASE_SOURCE_REVISION: ${{ github.sha }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Import-Module -Name .\modules\InstallerClientGuiReleaseEvidence.psm1 -Force -DisableNameChecking -ErrorAction Stop
+          $evidencePath = Join-Path $env:GITHUB_WORKSPACE 'client-evidence\WINDOWS_CLIENT_GUI_RELEASE_EVIDENCE.json'
+          $result = Test-InstallerClientGuiReleaseEvidence -EvidencePath $evidencePath -SourceRevision $env:RELEASE_SOURCE_REVISION -CompatibilityPath (Join-Path $env:GITHUB_WORKSPACE 'compatibility.json')
+          if (-not $result.IsReady) {
+              foreach ($message in $result.Errors) {
+                  Write-Host ('::error::{0}' -f $message)
+              }
+              exit 1
+          }
+
+          $desktop = $result.Record.engines.'Desktop-5.1'
+          $core = $result.Record.engines.'Core-7.6.9'
+          $summaryLines = @(
+              '## Supported Windows client GUI evidence gate'
+              ('- Release source revision: {0}.' -f $result.SourceRevision)
+              ('- Windows PowerShell Desktop 5.1: capability {0}, isolated startup {1}, recorded {2}; evidence {3}.' -f $desktop.capabilityResult, $desktop.isolatedStartupResult, $desktop.recordedAtUtc, $desktop.evidenceLocation)
+              ('- PowerShell Core 7.6.9: capability {0}, isolated startup {1}, recorded {2}; evidence {3}.' -f $core.capabilityResult, $core.isolatedStartupResult, $core.recordedAtUtc, $core.evidenceLocation)
+              '- Gate runner: Windows Server 2025. It validated the manual record and did not run client GUI checks.'
+          )
+          Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Value ($summaryLines -join [Environment]::NewLine)
+
+  release_protection_readiness:
+    name: Validate remote release protection record
+    needs: validate_release_tag
+    if: ${{ github.event.repository.private == false }}
+    runs-on: windows-2025
+    timeout-minutes: 10
+    steps:
+      - name: Check out the tagged source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          clean: true
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Check out the release protection record from the default branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: release-protection
+          clean: true
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Require current, complete remote settings evidence
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Import-Module -Name .\modules\InstallerReleaseProtectionReadiness.psm1 -Force -DisableNameChecking -ErrorAction Stop
+          $evidenceRoot = Join-Path $env:GITHUB_WORKSPACE 'release-protection'
+          $recordPath = Join-Path $evidenceRoot 'RELEASE_PROTECTION_VERIFICATION.json'
+          $result = Test-InstallerReleaseProtectionReadiness -VerificationPath $recordPath -EvidenceRoot $evidenceRoot
+          if (-not $result.IsReady) {
+              foreach ($message in $result.Errors) {
+                  Write-Host ('::error::{0}' -f $message)
+              }
+              exit 1
+          }
+
+          $activeTagRulesetCount = @($result.Record.settings.rulesets | Where-Object { $_.target -ceq 'tag' -and $_.enforcement -ceq 'active' }).Count
+          $summaryLines = @(
+              '## Remote release protection readiness gate'
+              ('- Repository: {0}.' -f $result.Record.repository)
+              ('- Settings observed at (UTC): {0}.' -f $result.Record.observedAtUtc)
+              ('- Durable evidence: {0} (SHA-256 verified).' -f $result.Record.evidence.location)
+              ('- Active tag rulesets observed: {0}.' -f $activeTagRulesetCount)
+          )
+          Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Value ($summaryLines -join [Environment]::NewLine)
+
   publish_release:
     needs:
       - validate_release_tag
       - compatibility
-    if: ${{ github.event.repository.private == false && needs.validate_release_tag.result == 'success' && needs.compatibility.result == 'success' }}
+      - supported_client_gui_evidence
+      - release_protection_readiness
+    if: ${{ github.event.repository.private == false && needs.validate_release_tag.result == 'success' && needs.compatibility.result == 'success' && needs.supported_client_gui_evidence.result == 'success' && needs.release_protection_readiness.result == 'success' }}
     runs-on: windows-2025
     timeout-minutes: 30
     permissions:

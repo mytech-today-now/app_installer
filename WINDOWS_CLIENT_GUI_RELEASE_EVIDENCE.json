@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "records": [
+    {
+      "sourceRevision": "NOT RUN",
+      "engines": {
+        "Desktop-5.1": {
+          "recordedAtUtc": "NOT RUN",
+          "evidenceLocation": "NOT RUN",
+          "host": {
+            "operatingSystem": "NOT RUN",
+            "displayVersion": "NOT RUN",
+            "build": 0,
+            "edition": "NOT RUN",
+            "productType": "NOT RUN",
+            "installationType": "NOT RUN",
+            "architecture": "NOT RUN"
+          },
+          "engine": {
+            "id": "Desktop-5.1",
+            "edition": "NOT RUN",
+            "version": "NOT RUN",
+            "processArchitecture": "NOT RUN",
+            "executable": "NOT RUN"
+          },
+          "staConfirmed": false,
+          "runtime": {
+            "name": "NOT RUN",
+            "version": "NOT RUN",
+            "release": 0
+          },
+          "assemblies": {
+            "System.Windows.Forms": "NOT RUN",
+            "System.Drawing": "NOT RUN",
+            "System.Web": "NOT RUN"
+          },
+          "capabilityResult": "NOT RUN",
+          "startupMode": "NOT RUN",
+          "isolatedStartupResult": "NOT RUN"
+        },
+        "Core-7.6.9": {
+          "recordedAtUtc": "NOT RUN",
+          "evidenceLocation": "NOT RUN",
+          "host": {
+            "operatingSystem": "NOT RUN",
+            "displayVersion": "NOT RUN",
+            "build": 0,
+            "edition": "NOT RUN",
+            "productType": "NOT RUN",
+            "installationType": "NOT RUN",
+            "architecture": "NOT RUN"
+          },
+          "engine": {
+            "id": "Core-7.6.9",
+            "edition": "NOT RUN",
+            "version": "NOT RUN",
+            "processArchitecture": "NOT RUN",
+            "executable": "NOT RUN"
+          },
+          "staConfirmed": false,
+          "runtime": {
+            "name": "NOT RUN",
+            "family": "NOT RUN",
+            "version": "NOT RUN"
+          },
+          "assemblies": {
+            "System.Windows.Forms": "NOT RUN",
+            "System.Drawing": "NOT RUN",
+            "System.Web": "NOT RUN"
+          },
+          "capabilityResult": "NOT RUN",
+          "startupMode": "NOT RUN",
+          "isolatedStartupResult": "NOT RUN"
+        }
+      }
+    }
+  ]
+}

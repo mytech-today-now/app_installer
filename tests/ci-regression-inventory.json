@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "purpose": "Reviewed allowlist for every tests/test-*.ps1 script. Included, skipped, and unavailable dispositions are explicit per CI engine.",
   "documentedCounts": {
-    "totalScripts": 37,
-    "Desktop-5.1": { "included": 31, "skipped": 4, "unavailable": 2 },
-    "Core-7.6.9": { "included": 34, "skipped": 1, "unavailable": 2 }
+    "totalScripts": 40,
+    "Desktop-5.1": { "included": 34, "skipped": 4, "unavailable": 2 },
+    "Core-7.6.9": { "included": 37, "skipped": 1, "unavailable": 2 }
   },
   "tests": [
     {
@@ -203,6 +203,18 @@
       "engines": { "Desktop-5.1": { "status": "included" }, "Core-7.6.9": { "status": "included" } }
     },
     {
+      "path": "tests/test-profile-export-privacy.ps1",
+      "prerequisites": "PowerShell 5.1 or later; writable temporary directory.",
+      "boundary": "AST-isolates CLI and GUI profile functions, injects known identity environment values that are restored, and uses temporary profile files and fake confirmation input; no package operation or persistent system state change.",
+      "engines": { "Desktop-5.1": { "status": "included" }, "Core-7.6.9": { "status": "included" } }
+    },
+    {
+      "path": "tests/test-release-protection-readiness.ps1",
+      "prerequisites": "PowerShell 5.1 or later; writable temporary directory and local release-protection module.",
+      "boundary": "Validates synthetic current, stale, incomplete, NOT VERIFIED, and digest-mismatch records; it performs no GitHub request or repository-setting change.",
+      "engines": { "Desktop-5.1": { "status": "included" }, "Core-7.6.9": { "status": "included" } }
+    },
+    {
       "path": "tests/test-remote-helper-trust.ps1",
       "prerequisites": "Windows and PowerShell 5.1 or later; writable temporary directory.",
       "boundary": "Uses fake transport, signature, and process callbacks; checks policy read-only and stubs test ACL writes; no helper download or launch.",
@@ -245,6 +257,12 @@
       "path": "tests/test-update-scan-status.ps1",
       "prerequisites": "PowerShell 5.1 or later; temporary test state.",
       "boundary": "Uses synthetic scan outcomes and fake provider responses; no live package provider.",
+      "engines": { "Desktop-5.1": { "status": "included" }, "Core-7.6.9": { "status": "included" } }
+    },
+    {
+      "path": "tests/test-windows-client-gui-release-evidence.ps1",
+      "prerequisites": "PowerShell 5.1 or later; writable temporary directory and repository compatibility.json.",
+      "boundary": "Validates synthetic revision-bound client evidence fixtures; it does not inspect the current host, run a GUI, install a runtime, or perform a package operation.",
       "engines": { "Desktop-5.1": { "status": "included" }, "Core-7.6.9": { "status": "included" } }
     },
     {

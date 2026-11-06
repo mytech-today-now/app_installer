@@ -90,10 +90,7 @@ function Get-InstallerExeBuildContext {
         [object]$Configuration,
 
         [Parameter(Mandatory = $true)]
-        [string]$RepositoryRoot,
-
-        [Parameter(Mandatory = $true)]
-        [string]$SeedPath
+        [string]$RepositoryRoot
     )
 
     $hostExecutable = (Get-Process -Id $PID -ErrorAction Stop).Path
@@ -131,11 +128,12 @@ function Get-InstallerExeBuildContext {
         }
     }
 
+    $iexpressPath = Join-Path $env:WINDIR ([string]$Configuration.packager.iexpress.relativePath.Replace('/', [System.IO.Path]::DirectorySeparatorChar))
     $makeCabPath = Join-Path $env:WINDIR ([string]$Configuration.packager.makeCab.relativePath.Replace('/', [System.IO.Path]::DirectorySeparatorChar))
     $expandPath = Join-Path $env:WINDIR ([string]$Configuration.packager.expand.relativePath.Replace('/', [System.IO.Path]::DirectorySeparatorChar))
+    $iexpressObservation = Get-InstallerExeBuildFileObservation -Path $iexpressPath
     $makeCabObservation = Get-InstallerExeBuildFileObservation -Path $makeCabPath
     $expandObservation = Get-InstallerExeBuildFileObservation -Path $expandPath
-    $seedObservation = Get-InstallerExeBuildFileObservation -Path $SeedPath
 
     return [PSCustomObject]@{
         Host = [PSCustomObject]@{
@@ -159,12 +157,9 @@ function Get-InstallerExeBuildContext {
             Assemblies = $compilerAssemblies
         }
         Packager = [PSCustomObject]@{
+            IExpress = $iexpressObservation
             MakeCab = $makeCabObservation
             Expand = $expandObservation
-        }
-        Seed = [PSCustomObject]@{
-            File = $seedObservation
-            Architecture = Get-InstallerExeMachineArchitecture -Path $SeedPath
         }
     }
 }
@@ -250,9 +245,13 @@ function Test-InstallerExeBuildContext {
         }
     }
 
-    foreach ($toolName in @('makeCab', 'expand')) {
+    foreach ($toolName in @('iexpress', 'makeCab', 'expand')) {
         $toolPin = $Configuration.packager.$toolName
-        $toolObservation = if ($toolName -eq 'makeCab') { $Context.Packager.MakeCab } else { $Context.Packager.Expand }
+        $toolObservation = switch ($toolName) {
+            'iexpress' { $Context.Packager.IExpress }
+            'makeCab' { $Context.Packager.MakeCab }
+            default { $Context.Packager.Expand }
+        }
         if ($null -eq $toolObservation -or -not [bool]$toolObservation.Exists -or
             [string]$toolObservation.FileVersion -ne [string]$toolPin.fileVersion -or
             [string]$toolObservation.Sha256 -ne [string]$toolPin.sha256 -or
@@ -260,16 +259,6 @@ function Test-InstallerExeBuildContext {
             [string]$toolObservation.SignerSubject -ne [string]$toolPin.signerSubject) {
             $errors.Add(('Pinned Windows packaging tool is missing or does not match: {0}' -f $toolName))
         }
-    }
-
-    $seedPin = $Configuration.seed
-    if (-not [bool]$Context.Seed.File.Exists -or
-        [string]$Context.Seed.File.FileVersion -ne [string]$seedPin.fileVersion -or
-        [string]$Context.Seed.File.Sha256 -ne [string]$seedPin.sha256 -or
-        [string]$Context.Seed.File.SignatureStatus -ne [string]$seedPin.signatureStatus -or
-        -not [string]::IsNullOrEmpty([string]$Context.Seed.File.SignerSubject) -or
-        [string]$Context.Seed.Architecture -ne [string]$seedPin.machine) {
-        $errors.Add('The IExpress seed is missing, changed, signed, or has the wrong architecture.')
     }
 
     return [PSCustomObject]@{
@@ -422,9 +411,6 @@ function Assert-InstallerExeBuildOutputPath {
         [Parameter(Mandatory = $true)]
         [string]$OutputPath,
 
-        [Parameter(Mandatory = $true)]
-        [string]$SeedPath,
-
         [Parameter()]
         [string[]]$ProtectedOutputPaths = @()
     )
@@ -434,11 +420,11 @@ function Assert-InstallerExeBuildOutputPath {
         throw 'The executable output path must end in .exe.'
     }
 
-    foreach ($protectedPath in @($SeedPath) + @($ProtectedOutputPaths)) {
+    foreach ($protectedPath in @($ProtectedOutputPaths)) {
         if ([string]::IsNullOrWhiteSpace([string]$protectedPath)) { continue }
         $protectedFullPath = [System.IO.Path]::GetFullPath([string]$protectedPath)
         if ([string]::Equals($outputFullPath, $protectedFullPath, [System.StringComparison]::OrdinalIgnoreCase)) {
-            throw ('The output path is reserved for a tracked legacy artifact: {0}' -f $protectedFullPath)
+            throw ('The output path is reserved for a retired executable: {0}' -f $protectedFullPath)
         }
     }
 

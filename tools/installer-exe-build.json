@@ -12,7 +12,8 @@
   "legacyArtifacts": [
     {
       "path": "builds/install-GUI.exe",
-      "gitTracked": true,
+      "historicallyTracked": true,
+      "repositoryState": "removed",
       "identity": "legacy-iexpress-seed",
       "format": "IExpress package",
       "fileVersion": "2.0.6.0",
@@ -24,8 +25,8 @@
       "provenanceStatus": "unknown",
       "addedCommit": "81952a64201bbadf4418922953890497157db669",
       "lastChangedCommit": "96b07b97894988a00660d967c53d4623a3e83115",
-      "currentRole": "Pinned launcher seed used to produce current versioned builds. The original seed creation recipe and any historical distribution path are unknown.",
-      "runtimeRequirement": "Repository documentation describes the package as requiring compatible installed PowerShell. The original seed payload was not revalidated during this review.",
+      "currentRole": "Removed from the repository and no longer used as a build seed. Historical artifact evidence is retained for audit only.",
+      "runtimeRequirement": "Unknown. Do not infer prerequisites from historical documentation or version resources.",
       "embeddedSupportMetadata": {
         "status": "historical",
         "powerShellCoreVersion": "7.6.7"
@@ -33,7 +34,8 @@
     },
     {
       "path": "builds/new/install-gui.exe",
-      "gitTracked": true,
+      "historicallyTracked": true,
+      "repositoryState": "removed",
       "identity": "unverified-legacy-executable",
       "format": "unknown",
       "fileVersion": "11.00.26100.1 (WinBuild.160101.0800)",
@@ -46,7 +48,7 @@
       "provenanceStatus": "unknown",
       "addedCommit": "737cb1c01964a0743c4eb815e46fcfde4a3e15a8",
       "lastChangedCommit": "737cb1c01964a0743c4eb815e46fcfde4a3e15a8",
-      "currentRole": "No current repository consumer or reproducible source recipe was found. File version resources identify Internet Explorer but do not establish origin or contents.",
+      "currentRole": "Removed as an unrelated, unverified executable. File version resources identify Internet Explorer but do not establish origin or contents.",
       "runtimeRequirement": "Unknown. Do not infer prerequisites from the filename or version resources."
     }
   ],
@@ -67,33 +69,33 @@
       "distributionSha256": "CE7484804C0F0AD4DDA10C958E71ACDAF7EEBFB22505C1B480F89E0E9F1DA94D"
     },
     "dotnetRuntime": {
-      "version": "10.0.13",
-      "source": "https://github.com/dotnet/core/blob/main/release-notes/10.0/10.0.13/release.json",
-      "installer": "https://builds.dotnet.microsoft.com/dotnet/Runtime/10.0.13/dotnet-runtime-10.0.13-win-x64.exe",
-      "installerSha512": "44da78e619ae23e352e81fbc3a5803d78b1375dff89c176dd17a884d4e42e17850bb7adb78c799ca15b2127b67529395df1143976e33f6c8157f53bfc5a42e62",
+      "version": "10.0.14",
+      "source": "https://github.com/dotnet/core/blob/main/release-notes/10.0/10.0.14/10.0.14.md",
+      "installer": "https://builds.dotnet.microsoft.com/dotnet/Runtime/10.0.14/dotnet-runtime-10.0.14-win-x64.exe",
+      "installerSha512": "6277b0feac2ec312276ec62ccaaec7fb49a22baa0c4157d0418eb4bfc7c443fa90aa06318725c113da1ea19343b5a315749825299a71e34010f4554496cf36e8",
       "runtimeFiles": [
         {
-          "path": "shared/Microsoft.NETCore.App/10.0.13/coreclr.dll",
-          "fileVersion": "10,0,1326,50504 @Commit: 4099f83977f4d29604a9aeb971fb0a7bc1d5f699",
-          "sha256": "18EED8C40D05FC455BE95D12CC77EACF379265063B15CA84BD7A11CF29078A22",
+          "path": "shared/Microsoft.NETCore.App/10.0.14/coreclr.dll",
+          "fileVersion": "10,0,1426,52326 @Commit: 0427b9abbead3fa64c6655eb4290c537397131fa",
+          "sha256": "1BC65B8D45474B19ADF3CA85CE881087AFF599FFC72B2C1A323E878227757B65",
           "signerSubject": "CN=.NET, O=Microsoft Corporation, L=Redmond, S=Washington, C=US"
         },
         {
-          "path": "host/fxr/10.0.13/hostfxr.dll",
-          "fileVersion": "10,0,1326,50504 @Commit: 4099f83977f4d29604a9aeb971fb0a7bc1d5f699",
-          "sha256": "2E6BF792D54303A54467102FD873A7D7A993F828E8D19C040E13E428E5F2D9C8",
+          "path": "host/fxr/10.0.14/hostfxr.dll",
+          "fileVersion": "10,0,1426,52326 @Commit: 0427b9abbead3fa64c6655eb4290c537397131fa",
+          "sha256": "5B9358572DAA76176F97F1BB80FE764B24EE1BC2CCE0579230E7F9A28E3FBBED",
           "signerSubject": "CN=.NET, O=Microsoft Corporation, L=Redmond, S=Washington, C=US"
         },
         {
-          "path": "shared/Microsoft.NETCore.App/10.0.13/hostpolicy.dll",
-          "fileVersion": "10,0,1326,50504 @Commit: 4099f83977f4d29604a9aeb971fb0a7bc1d5f699",
-          "sha256": "90F9826F48E6416902199DEE0FA1954536FE4C5191F5FD44B1BC6DE623EB99C8",
+          "path": "shared/Microsoft.NETCore.App/10.0.14/hostpolicy.dll",
+          "fileVersion": "10,0,1426,52326 @Commit: 0427b9abbead3fa64c6655eb4290c537397131fa",
+          "sha256": "84275DC570382246B4B36EBB3094C2B38190C2FD80998D1DA20B95DFCAE1C546",
           "signerSubject": "CN=.NET, O=Microsoft Corporation, L=Redmond, S=Washington, C=US"
         },
         {
-          "path": "shared/Microsoft.NETCore.App/10.0.13/System.Private.CoreLib.dll",
-          "fileVersion": "10.0.1326.50504",
-          "sha256": "0A175CDD09067C52F8B2477CFCEBF894B2F926D7302E55AE76FC921529662C7B",
+          "path": "shared/Microsoft.NETCore.App/10.0.14/System.Private.CoreLib.dll",
+          "fileVersion": "10.0.1426.52326",
+          "sha256": "69D56E12535D3A8F2F8F89AC8F97577E6DC788D26F2E7B69BE8FB5F6FF17FF28",
           "signerSubject": "CN=.NET, O=Microsoft Corporation, L=Redmond, S=Washington, C=US"
         }
       ]
@@ -105,18 +107,24 @@
       "assemblies": [
         {
           "name": "Microsoft.CodeAnalysis.dll",
-          "sha256": "0C5159274EF1790BEEF54DD796B51933D2B9C05A5568F968ACCF32A3CBF6D0C0",
+          "sha256": "E7A25CBDEC95390E9672659872189DA368032625D784C25569617617932C145F",
           "signerSubject": "CN=Microsoft 3rd Party Application Component, O=Microsoft Corporation, L=Redmond, S=Washington, C=US"
         },
         {
           "name": "Microsoft.CodeAnalysis.CSharp.dll",
-          "sha256": "9DA18199A80C5892FE84F67F4FCE159A06259EBF9D3B73DF036B28249DBBB31F",
+          "sha256": "5E9323E98D99F669ACD10705C40D985DBABEAF0984285ED32922F91DF223124B",
           "signerSubject": "CN=Microsoft 3rd Party Application Component, O=Microsoft Corporation, L=Redmond, S=Washington, C=US"
         }
       ]
     }
   },
   "packager": {
+    "iexpress": {
+      "relativePath": "System32/iexpress.exe",
+      "fileVersion": "11.00.26100.1 (WinBuild.160101.0800)",
+      "sha256": "EC67D2202A10186F9038EFDBD56FEB376F841FFA2BD57723C6A641C6683BA2DF",
+      "signerSubject": "CN=Microsoft Windows, O=Microsoft Corporation, L=Redmond, S=Washington, C=US"
+    },
     "makeCab": {
       "relativePath": "System32/makecab.exe",
       "fileVersion": "5.00 (WinBuild.160101.0800)",
@@ -130,12 +138,14 @@
       "signerSubject": "CN=Microsoft Windows, O=Microsoft Corporation, L=Redmond, S=Washington, C=US"
     }
   },
-  "seed": {
-    "relativePath": "builds/install-GUI.exe",
-    "sha256": "D24CAF70EB50CAD3F54F5CF11F8FF2D961D8090F929B0AB820CD2F9D9376AA86",
-    "fileVersion": "2.0.6.0",
-    "machine": "X64",
-    "signatureStatus": "NotSigned"
+  "launcherTemplate": {
+    "friendlyName": "myTech.Today_Install-GUI",
+    "launchCommand": "cmd.exe /c .\\install.bat",
+    "bootstrapFileName": "install.bat",
+    "showInstallProgramWindow": true,
+    "hideExtractAnimation": false,
+    "cabinetResourceId": 101,
+    "rebootMode": "N"
   },
   "reproducibility": {
     "cabinetFileTimestamp": "2000-01-01T12:00:00 local",

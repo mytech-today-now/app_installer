@@ -871,9 +871,9 @@ function Export-InstallationProfile {
         Exports selected applications to a JSON profile file.
 
     .DESCRIPTION
-        Creates a JSON file containing the list of selected applications along with
-        metadata such as timestamp, computer name, user name, and installer version.
-        Useful for backing up selections or deploying to multiple machines.
+        Creates a JSON file containing the selected application names, timestamp,
+        and installer version. Computer and user identifiers are omitted unless
+        diagnostic identity export is explicitly requested and confirmed.
 
     .PARAMETER SelectedApps
         Array of application objects to export.
@@ -881,6 +881,10 @@ function Export-InstallationProfile {
     .PARAMETER FilePath
         Optional custom file path. If not specified, uses default naming convention
         in %USERPROFILE%\myTech.Today\AppInstaller\profiles\
+
+    .PARAMETER IncludeIdentity
+        Prompts for explicit confirmation before adding the current computer and user
+        names to the profile for diagnostic sharing.
 
     .OUTPUTS
         String - Path to the created profile file, or $null if export failed.
@@ -895,10 +899,22 @@ function Export-InstallationProfile {
         [array]$SelectedApps,
 
         [Parameter(Mandatory = $false)]
-        [string]$FilePath
+        [string]$FilePath,
+
+        [Parameter(Mandatory = $false)]
+        [switch]$IncludeIdentity
     )
 
     try {
+        $includeIdentityFields = $false
+        if ($IncludeIdentity) {
+            Write-Host ''
+            Write-Host '[DISCLOSURE] Diagnostic identity export adds this computer name and user name to the profile.' -ForegroundColor Yellow
+            Write-Host 'Anyone who receives the profile may learn the device and account identifiers.' -ForegroundColor Yellow
+            $identityChoice = Read-Host 'Type YES to include these identifiers; press Enter to omit them'
+            $includeIdentityFields = ([string]$identityChoice -ieq 'YES')
+        }
+
         # Create profiles directory if it doesn't exist
         $profilesDir = $script:ProfilesPath
         if (-not (Safe-TestPath $profilesDir)) {
@@ -909,22 +925,25 @@ function Export-InstallationProfile {
         # Generate default filename if not specified
         if ([string]::IsNullOrWhiteSpace($FilePath)) {
             $timestamp = Get-Date -Format "yyyy-MM-dd-HHmmss"
-            $computerName = $env:COMPUTERNAME
-            $FilePath = Join-Path $profilesDir "profile-$computerName-$timestamp.json"
+            $FilePath = Join-Path $profilesDir "profile-$timestamp.json"
         }
 
         # Extract application names from app objects
         $appNames = $SelectedApps | ForEach-Object { $_.Name }
 
         # Create profile object
-        $profile = [PSCustomObject]@{
+        $profileData = [ordered]@{
             Version = "1.0"
             Timestamp = (Get-Date).ToString("yyyy-MM-ddTHH:mm:ss")
-            ComputerName = $env:COMPUTERNAME
-            UserName = $env:USERNAME
             InstallerVersion = $script:ScriptVersion
             Applications = $appNames
         }
+        if ($includeIdentityFields) {
+            $profileData['ComputerName'] = $env:COMPUTERNAME
+            $profileData['UserName'] = $env:USERNAME
+            Write-Log 'Diagnostic identity fields included after explicit confirmation.' -Level WARNING
+        }
+        $profile = [PSCustomObject]$profileData
 
         # Export to JSON
         $profile | ConvertTo-Json -Depth 10 | Set-Content -Path $FilePath -Encoding UTF8
@@ -997,9 +1016,11 @@ function Import-InstallationProfile {
         Write-Log "Importing profile from: $FilePath" -Level INFO
         Write-Log "Profile version: $($profile.Version)" -Level INFO
         Write-Log "Profile created: $($profile.Timestamp)" -Level INFO
-        Write-Log "Profile computer: $($profile.ComputerName)" -Level INFO
-        Write-Log "Profile user: $($profile.UserName)" -Level INFO
         Write-Log "Profile installer version: $($profile.InstallerVersion)" -Level INFO
+
+        # Legacy identity fields are accepted as unknown metadata but excluded from
+        # import diagnostics and returned profile information.
+        $profileInfo = $profile | Select-Object * -ExcludeProperty ComputerName, UserName
 
         # Match application names to application objects
         $validApps = @()
@@ -1027,7 +1048,7 @@ function Import-InstallationProfile {
             Applications = $validApps
             MissingApps = $missingApps
             Message = "Successfully imported profile with $($validApps.Count) application(s)"
-            ProfileInfo = $profile
+            ProfileInfo = $profileInfo
         }
     }
     catch {
@@ -4097,8 +4118,7 @@ try {
 
                     # Generate default filename
                     $timestamp = Get-Date -Format "yyyy-MM-dd-HHmmss"
-                    $computerName = $env:COMPUTERNAME
-                    $defaultFileName = "profile-$computerName-$timestamp.json"
+                    $defaultFileName = "profile-$timestamp.json"
 
                     Write-Host ""
                     Write-Host "Enter filename (or press Enter for default: $defaultFileName):" -ForegroundColor Yellow
@@ -4114,7 +4134,7 @@ try {
 
                     $filePath = Join-Path $profilesDir $fileName
 
-                    $exportedPath = Export-InstallationProfile -SelectedApps $selectedApps -FilePath $filePath
+                    $exportedPath = Export-InstallationProfile -SelectedApps $selectedApps -FilePath $filePath -IncludeIdentity
 
                     if ($exportedPath) {
                         Write-Host ""

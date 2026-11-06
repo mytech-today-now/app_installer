@@ -4,9 +4,22 @@
 
 - **Repository:** `mytech-today-now/app_installer` (from the local `origin` remote)
 - **Remote settings status:** NOT VERIFIED
-- **Local access check timestamp:** `2026-10-30T00:05:58Z` (UTC; this is not a remote observation timestamp)
+- **Local access check timestamp:** `2026-11-05T04:03:31Z` (UTC; this is not a remote observation timestamp)
 - **Remote observation timestamp:** NOT VERIFIED; no settings response was available to record.
-- **Reason:** No GitHub CLI or authenticated read-only GitHub connector was available in the implementation environment. No remote settings were queried or changed.
+- **Machine-readable record:** [RELEASE_PROTECTION_VERIFICATION.json](RELEASE_PROTECTION_VERIFICATION.json)
+- **Reason:** The `gh` CLI is not installed, no GitHub MCP connector is configured, and the browser access host was unavailable. No remote settings were queried or changed.
+
+The versioned release workflow reads the machine-readable record from the default branch and blocks publication unless it is complete. A passing record must:
+
+- Use status `VERIFIED` for `mytech-today-now/app_installer` and contain a valid UTC observation timestamp no more than 30 days old.
+- Point to a durable evidence file inside the checked-out repository and include its matching SHA-256 digest.
+- List every applicable ruleset, with identity, source, tag scope, enforcement, include patterns, and exclusions. At least one tag ruleset must be active.
+- Record tag creation, update, and deletion controls. Updates and deletions must be restricted.
+- Record the tag approval control, or explicitly say it is not applicable, and record default-branch approval controls for workflow changes.
+- Record every bypass actor and mode, using an empty array only when the inspected settings show that no bypass actors apply.
+- Record repository and inherited organization or enterprise Actions permission values, including the default workflow token permission, whether Actions can approve pull requests, and any additional effective token scopes.
+
+The validator rejects an incomplete, stale, future-dated, path-escaping, or digest-mismatched record. The SHA-256 check detects evidence-file changes relative to the recorded digest; it does not authenticate who captured the evidence. The current machine-readable record remains `NOT VERIFIED`, so the release readiness job is expected to fail until authenticated read-only evidence is recorded.
 
 | Remote setting | Observed value |
 | --- | --- |

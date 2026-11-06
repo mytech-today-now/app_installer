@@ -117,6 +117,10 @@ try {
     Assert-ReleaseCondition -Condition ($checksumText -match ('^' + $stagedHash + '\s{2}' + [regex]::Escape($expectedExecutable) + '\r?\n$')) -Message 'The SHA-256 sidecar must contain the exact digest and executable name.'
     Assert-ReleaseCondition -Condition ($releaseAssets.Manifest.artifact.sha256 -ceq $stagedHash) -Message 'The release manifest digest must match the staged executable bytes.'
     Assert-ReleaseCondition -Condition ($releaseAssets.Manifest.artifact.authenticodeStatus -ceq 'NotSigned' -and [string]::IsNullOrEmpty([string]$releaseAssets.Manifest.artifact.signerSubject)) -Message 'Release metadata must identify the artifact as unsigned.'
+    $expectedDigestLimit = 'SHA-256 detects byte changes only when the expected digest is obtained through a trusted release channel. It does not authenticate the publisher or replace a digital signature.'
+    $stagedBuildManifest = Get-Content -LiteralPath $releaseAssets.BuildProvenancePath -Raw | ConvertFrom-Json -ErrorAction Stop
+    Assert-ReleaseCondition -Condition ([int]$stagedBuildManifest.schemaVersion -eq 2 -and [string]$stagedBuildManifest.artifact.authenticodeStatus -ceq 'NotSigned' -and [string]::IsNullOrEmpty([string]$stagedBuildManifest.artifact.signerSubject) -and [string]$stagedBuildManifest.digestLimit -ceq $expectedDigestLimit) -Message 'Builder provenance must identify the package as unsigned and explain that SHA-256 does not authenticate the publisher.'
+    Assert-ReleaseCondition -Condition ($releaseAssets.Manifest.digestLimit -ceq $expectedDigestLimit) -Message 'Release metadata must distinguish checksum integrity from publisher identity.'
     Assert-ReleaseCondition -Condition ($releaseAssets.Manifest.artifact.identity -ceq $buildConfiguration.artifact.identity) -Message 'Release metadata must retain the current versioned artifact identity.'
     Assert-ReleaseCondition -Condition ($releaseAssets.Manifest.artifact.architecture -ceq 'X64' -and $releaseAssets.Manifest.artifact.fileName -ceq $expectedExecutable) -Message 'Release metadata must match the x64 artifact name and target.'
     Assert-ReleaseCondition -Condition ($releaseAssets.Manifest.product.guiVersion -ceq '2.0.6' -and $releaseAssets.Manifest.product.cliVersion -ceq '2.0.2') -Message 'Release metadata must preserve the separate documented GUI and CLI versions.'
@@ -128,6 +132,8 @@ try {
     Assert-ReleaseCondition -Condition ($releaseAssets.Manifest.buildToolchain.powerShell.version -ceq '7.6.9' -and $releaseAssets.Manifest.compatibility.sha256 -match '^[0-9a-f]{64}$') -Message 'The release manifest must include the pinned build toolchain and compatibility digest.'
     $releaseNotesText = Get-Content -LiteralPath $releaseAssets.ReleaseNotesPath -Raw
     Assert-ReleaseCondition -Condition ($releaseNotesText.Contains($expectedExecutable) -and $releaseNotesText.Contains('GUI script version 2.0.6; the bundled CLI keeps its separate script version 2.0.2')) -Message 'Release notes must name the exact executable and preserve the GUI to CLI version mapping.'
+    Assert-ReleaseCondition -Condition ($releaseNotesText.Contains($expectedDigestLimit) -and $releaseNotesText.Contains('This release is not signed.')) -Message 'Generated release notes must plainly state the trusted-channel checksum limit and unsigned status.'
+    Assert-ReleaseCondition -Condition ($readmeText.Contains($expectedDigestLimit) -and $readmeText.Contains('The EXE is intentionally unsigned')) -Message 'README release guidance must distinguish byte integrity from publisher authentication and identify the unsigned package.'
     Assert-ReleaseCondition -Condition (-not $releaseNotesText.Contains([string][char]0x2014)) -Message 'Release notes must not contain an em dash.'
 
     Assert-ReleaseFailure -Action {
@@ -195,6 +201,15 @@ try {
             -DefaultBranch 'main' -WorkflowName $workflowName -RunId $runId -PassedEngines $testEngines
     } -Message 'Signed output must be rejected before release publication.'
 
+    $signedIdentityManifest = $buildManifest | ConvertTo-Json -Depth 32 | ConvertFrom-Json
+    $signedIdentityManifest.artifact.signerSubject = 'CN=Unverified Publisher'
+    $signedIdentityInput = Copy-ReleaseInputVariant -VariantName 'signed-identity' -Manifest $signedIdentityManifest
+    Assert-ReleaseFailure -Action {
+        New-InstallerReleaseAssets -RepositoryRoot $root -ExecutablePath $signedIdentityInput.Executable -BuildManifestPath $signedIdentityInput.Manifest `
+            -OutputDirectory (Join-Path $tempRoot 'signed-identity-assets') -TagName $tagName -SourceCommit $sourceCommit `
+            -DefaultBranch 'main' -WorkflowName $workflowName -RunId $runId -PassedEngines $testEngines
+    } -Message 'A signer identity must be rejected when the executable is required to remain unsigned.'
+
     $unexpectedSignature = Get-AuthenticodeSignature -FilePath $releaseAssets.ExecutablePath
     Assert-ReleaseCondition -Condition ([string]$unexpectedSignature.Status -ceq 'NotSigned' -and $null -eq $unexpectedSignature.SignerCertificate) -Message 'The fixture executable must be unsigned according to Authenticode inspection.'
 
@@ -205,6 +220,24 @@ try {
         -AssetsDirectory $outputDirectory -AssetPaths $releaseAssets.AssetPaths -ReleaseNotesPath $releaseAssets.ReleaseNotesPath `
         -DryRun -ApiRequest $forbiddenApiRequest
     Assert-ReleaseCondition -Condition ($dryRun.Status -ceq 'DryRun' -and $dryRun.ApiRequests -eq 0) -Message 'Dry-run mode must validate the asset set without making API requests.'
+
+    $releaseManifestPath = $releaseAssets.ReleaseManifestPath
+    $originalReleaseManifestText = [System.IO.File]::ReadAllText($releaseManifestPath)
+    try {
+        $forgedReleaseManifest = $originalReleaseManifestText | ConvertFrom-Json -ErrorAction Stop
+        $forgedReleaseManifest.artifact.authenticodeStatus = 'Valid'
+        $forgedReleaseManifest.artifact.signerSubject = 'CN=Unverified Publisher'
+        [System.IO.File]::WriteAllText($releaseManifestPath, (ConvertTo-Json -InputObject $forgedReleaseManifest -Depth 32) + [Environment]::NewLine, [System.Text.UTF8Encoding]::new($false))
+        Assert-ReleaseFailure -Action {
+            Publish-InstallerRelease `
+                -Repository 'mytech-today-now/app_installer' -TagName $tagName -SourceCommit $sourceCommit -RemoteTagCommit $sourceCommit `
+                -AssetsDirectory $outputDirectory -AssetPaths $releaseAssets.AssetPaths -ReleaseNotesPath $releaseAssets.ReleaseNotesPath `
+                -DryRun -ApiRequest $forbiddenApiRequest
+        } -Message 'The publisher must reject release metadata that labels the unsigned executable as signed.'
+    }
+    finally {
+        [System.IO.File]::WriteAllText($releaseManifestPath, $originalReleaseManifestText, [System.Text.UTF8Encoding]::new($false))
+    }
 
     $duplicateReleaseApi = {
         param($Method, $Uri, $Token, $Body, $FilePath)

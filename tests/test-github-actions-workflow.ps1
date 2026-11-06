@@ -14,7 +14,11 @@ $buildConfigurationPath = Join-Path $repositoryRoot 'tools\installer-exe-build.j
 $compatibilityPath = Join-Path $repositoryRoot 'compatibility.json'
 $releaseAssetPreparationPath = Join-Path $repositoryRoot 'tools\New-InstallerReleaseAssets.ps1'
 $clientGuiChecklistPath = Join-Path $repositoryRoot 'WINDOWS_CLIENT_GUI_RELEASE_CHECKLIST.md'
+$clientGuiEvidencePath = Join-Path $repositoryRoot 'WINDOWS_CLIENT_GUI_RELEASE_EVIDENCE.json'
+$clientGuiEvidenceModulePath = Join-Path $repositoryRoot 'modules\InstallerClientGuiReleaseEvidence.psm1'
 $releaseProtectionVerificationPath = Join-Path $repositoryRoot 'RELEASE_PROTECTION_VERIFICATION.md'
+$releaseProtectionVerificationRecordPath = Join-Path $repositoryRoot 'RELEASE_PROTECTION_VERIFICATION.json'
+$releaseProtectionReadinessModulePath = Join-Path $repositoryRoot 'modules\InstallerReleaseProtectionReadiness.psm1'
 
 function Assert-WorkflowCondition {
     param(
@@ -89,11 +93,20 @@ $startupEntrypointTestText = Get-Content -LiteralPath (Join-Path $PSScriptRoot '
 $cliWhatIfTestText = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'test-cli-whatif.ps1') -Raw -ErrorAction Stop
 $buildTestText = Get-Content -LiteralPath $buildTestPath -Raw -ErrorAction Stop
 $releaseAssetTestText = Get-Content -LiteralPath $releaseAssetTestPath -Raw -ErrorAction Stop
+$buildScriptText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'tools\Build-InstallerExe.ps1') -Raw -ErrorAction Stop
 $releaseModuleText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'tools\InstallerRelease.psm1') -Raw -ErrorAction Stop
 $releasePublisherText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'tools\Publish-InstallerRelease.ps1') -Raw -ErrorAction Stop
 $releaseAssetPreparationText = Get-Content -LiteralPath $releaseAssetPreparationPath -Raw -ErrorAction Stop
 $clientGuiChecklistText = Get-Content -LiteralPath $clientGuiChecklistPath -Raw -ErrorAction Stop
+$clientGuiEvidenceText = Get-Content -LiteralPath $clientGuiEvidencePath -Raw -ErrorAction Stop
+$clientGuiEvidence = $clientGuiEvidenceText | ConvertFrom-Json -ErrorAction Stop
+$clientGuiEvidenceModuleText = Get-Content -LiteralPath $clientGuiEvidenceModulePath -Raw -ErrorAction Stop
+$clientGuiEvidenceTestText = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'test-windows-client-gui-release-evidence.ps1') -Raw -ErrorAction Stop
 $releaseProtectionVerificationText = Get-Content -LiteralPath $releaseProtectionVerificationPath -Raw -ErrorAction Stop
+$releaseProtectionVerificationRecordText = Get-Content -LiteralPath $releaseProtectionVerificationRecordPath -Raw -ErrorAction Stop
+$releaseProtectionVerificationRecord = $releaseProtectionVerificationRecordText | ConvertFrom-Json -ErrorAction Stop
+$releaseProtectionReadinessModuleText = Get-Content -LiteralPath $releaseProtectionReadinessModulePath -Raw -ErrorAction Stop
+$releaseProtectionReadinessTestText = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'test-release-protection-readiness.ps1') -Raw -ErrorAction Stop
 $clientRuntimeTestText = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'test-compatibility-runtime-current-host.ps1') -Raw -ErrorAction Stop
 $buildConfiguration = Get-Content -LiteralPath $buildConfigurationPath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
 $compatibility = Get-Content -LiteralPath $compatibilityPath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
@@ -113,6 +126,10 @@ Assert-WorkflowCondition -Condition ($workflowText.Contains('ProductType -ne 3')
 Assert-WorkflowCondition -Condition ($workflowText.Contains('SERVER_HOST_OUTCOME: ${{ steps.server_host.outcome }}') -and $workflowText.Contains('OFFLINE_REGRESSION_OUTCOME: ${{ steps.offline_regressions.outcome }}') -and $workflowText.Contains('Supported Windows client GUI capability/startup: `NOT RUN`') -and $workflowText.Contains('Server build success and Server engine results are not client GUI validation')) -Message 'The workflow summary reports Server, engine/offline, and client GUI evidence separately and marks Server client GUI validation NOT RUN.'
 Assert-WorkflowCondition -Condition ($clientRuntimeTestText.Contains('$hostInfo.ProductType -ne ''WinNT''') -and $clientRuntimeTestText.Contains('cannot count as client GUI validation') -and $startupEntrypointTestText.Contains('cannot count as client validation') -and $startupEntrypointTestText.Contains('$hostInfo.ProductType -ne ''WinNT''')) -Message 'Both client-only runtime and GUI startup tests reject Server hosts as client evidence.'
 Assert-WorkflowCondition -Condition ($clientGuiChecklistText.Contains('Windows 11 25H2') -and $clientGuiChecklistText.Contains('Windows 11 26H2') -and $clientGuiChecklistText.Contains('Windows PowerShell 5.1') -and $clientGuiChecklistText.Contains('PowerShell Core 7.6.9') -and $clientGuiChecklistText.Contains('System.Windows.Forms') -and $clientGuiChecklistText.Contains('System.Drawing') -and $clientGuiChecklistText.Contains('System.Web') -and $clientGuiChecklistText.Contains('GUI startup result')) -Message 'The client release checklist captures the supported host, both exact engines, required assemblies, and GUI startup result.'
+Assert-WorkflowCondition -Condition ([int]$clientGuiEvidence.schemaVersion -eq 1 -and $clientGuiEvidence.records.Count -eq 1 -and [string]$clientGuiEvidence.records[0].sourceRevision -ceq 'NOT RUN' -and [string]$clientGuiEvidence.records[0].engines.'Desktop-5.1'.capabilityResult -ceq 'NOT RUN' -and [string]$clientGuiEvidence.records[0].engines.'Core-7.6.9'.isolatedStartupResult -ceq 'NOT RUN') -Message 'The checked-in client evidence template keeps both engine rows NOT RUN until revision-bound results are recorded.'
+Assert-WorkflowCondition -Condition ($clientGuiChecklistText.Contains('WINDOWS_CLIENT_GUI_RELEASE_EVIDENCE.json') -and $clientGuiChecklistText.Contains('sourceRevision must equal the commit that will receive the release tag') -and $clientGuiChecklistText.Contains('committed separately on the default branch')) -Message 'The checklist documents the manual default-branch evidence path and exact release-revision binding.'
+Assert-WorkflowCondition -Condition ($clientGuiEvidenceModuleText.Contains('consumerEndOfSupport') -and $clientGuiEvidenceModuleText.Contains('minimumRelease') -and $clientGuiEvidenceModuleText.Contains('runtimeFamily') -and $clientGuiEvidenceModuleText.Contains('isolatedStartupResult') -and $clientGuiEvidenceModuleText.Contains('Server evidence is rejected')) -Message 'The release evidence validator enforces current Windows servicing, GUI runtime, client host, and isolated startup requirements.'
+Assert-WorkflowCondition -Condition ($clientGuiEvidenceTestText.Contains('wrong-host') -and $clientGuiEvidenceTestText.Contains('wrong-engine') -and $clientGuiEvidenceTestText.Contains('stale-revision') -and $clientGuiEvidenceTestText.Contains('expired-release') -and $clientGuiEvidenceTestText.Contains('NOT RUN')) -Message 'The client evidence fixture test covers invalid hosts, engines, stale revisions, expired releases, and NOT RUN results.'
 Assert-WorkflowCondition -Condition ($workflowText -match '(?m)^\s+cancel-in-progress: true$') -Message 'The workflow must cancel superseded runs.'
 Assert-WorkflowCondition -Condition ($workflowText -match '(?ms)matrix:\s*\r?\n\s+engine:\s*\r?\n\s+- Desktop-5\.1\r?\n\s+- Core-7\.6\.9') -Message 'The workflow must include Windows PowerShell 5.1 and PowerShell Core 7.6.9.'
 Assert-WorkflowCondition -Condition ($workflowText -match 'Build-InstallerExe\.ps1\s+-Confirm:\$false') -Message 'The workflow must invoke the repository-local executable build command without an interactive prompt.'
@@ -146,7 +163,9 @@ $requiredOfflineTests = @(
     'test-monthly-update-scheduling.ps1',
     'test-monthly-update-results.ps1',
     'test-execution-policy-launchers.ps1',
-    'test-runtime-engine-discovery-offline.ps1'
+    'test-runtime-engine-discovery-offline.ps1',
+    'test-windows-client-gui-release-evidence.ps1',
+    'test-release-protection-readiness.ps1'
 )
 foreach ($testName in $requiredOfflineTests) {
     foreach ($engine in @('Desktop-5.1', 'Core-7.6.9')) {
@@ -248,20 +267,27 @@ $releaseJobBodies = @{}
 foreach ($releaseJob in $releaseJobMatches) {
     $releaseJobBodies[$releaseJob.Groups['name'].Value] = $releaseJob.Groups['body'].Value
 }
-Assert-WorkflowCondition -Condition ($releaseJobsSectionMatch.Success -and $releaseJobMatches.Count -eq 3 -and $releaseJobBodies.ContainsKey('validate_release_tag') -and $releaseJobBodies.ContainsKey('compatibility') -and $releaseJobBodies.ContainsKey('publish_release')) -Message 'The release dependency contract covers exactly the three declared release jobs.'
+Assert-WorkflowCondition -Condition ($releaseJobsSectionMatch.Success -and $releaseJobMatches.Count -eq 5 -and $releaseJobBodies.ContainsKey('validate_release_tag') -and $releaseJobBodies.ContainsKey('compatibility') -and $releaseJobBodies.ContainsKey('supported_client_gui_evidence') -and $releaseJobBodies.ContainsKey('release_protection_readiness') -and $releaseJobBodies.ContainsKey('publish_release')) -Message 'The release dependency contract covers exactly the five declared release jobs.'
 $tagValidationJobBody = [string]$releaseJobBodies['validate_release_tag']
 $compatibilityJobBody = [string]$releaseJobBodies['compatibility']
+$clientEvidenceJobBody = [string]$releaseJobBodies['supported_client_gui_evidence']
+$protectionReadinessJobBody = [string]$releaseJobBodies['release_protection_readiness']
 $releasePublisherJobBody = [string]$releaseJobBodies['publish_release']
 $validationNeedsCount = [regex]::Matches($tagValidationJobBody, '(?m)^    needs:').Count
 $compatibilityNeedsCount = [regex]::Matches($compatibilityJobBody, '(?m)^    needs:').Count
+$clientEvidenceNeedsCount = [regex]::Matches($clientEvidenceJobBody, '(?m)^    needs:').Count
+$protectionReadinessNeedsCount = [regex]::Matches($protectionReadinessJobBody, '(?m)^    needs:').Count
 $publisherNeedsCount = [regex]::Matches($releasePublisherJobBody, '(?m)^    needs:').Count
-Assert-WorkflowCondition -Condition ($validationNeedsCount -eq 0 -and $compatibilityNeedsCount -eq 1 -and $compatibilityJobBody -match '(?m)^    needs: validate_release_tag$' -and $publisherNeedsCount -eq 1 -and $releasePublisherJobBody -match '(?ms)^    needs:\r?\n      - validate_release_tag\r?\n      - compatibility$') -Message 'Every release job has exactly its reviewed dependency set: validation is the root, compatibility needs validation, and publication needs both.'
+Assert-WorkflowCondition -Condition ($validationNeedsCount -eq 0 -and $compatibilityNeedsCount -eq 1 -and $compatibilityJobBody -match '(?m)^    needs: validate_release_tag$' -and $clientEvidenceNeedsCount -eq 1 -and $clientEvidenceJobBody -match '(?m)^    needs: validate_release_tag$' -and $protectionReadinessNeedsCount -eq 1 -and $protectionReadinessJobBody -match '(?m)^    needs: validate_release_tag$' -and $publisherNeedsCount -eq 1 -and $releasePublisherJobBody -match '(?ms)^    needs:\r?\n      - validate_release_tag\r?\n      - compatibility\r?\n      - supported_client_gui_evidence\r?\n      - release_protection_readiness$' -and $releasePublisherJobBody -match 'needs\.supported_client_gui_evidence\.result == ''success''' -and $releasePublisherJobBody -match 'needs\.release_protection_readiness\.result == ''success''') -Message 'Release publication depends on tag validation, compatibility, supported client GUI evidence, and remote protection readiness.'
+Assert-WorkflowCondition -Condition ($clientEvidenceJobBody -match '(?m)^    runs-on: windows-2025$' -and $clientEvidenceJobBody.Contains('github.event.repository.default_branch') -and $clientEvidenceJobBody.Contains('github.sha') -and $clientEvidenceJobBody.Contains('WINDOWS_CLIENT_GUI_RELEASE_EVIDENCE.json') -and $clientEvidenceJobBody.Contains('Test-InstallerClientGuiReleaseEvidence') -and $clientEvidenceJobBody.Contains('did not run client GUI checks')) -Message 'The release gate validates the default-branch record against the tagged SHA and labels its Server runner as metadata-only.'
+Assert-WorkflowCondition -Condition ($protectionReadinessJobBody -match '(?m)^    runs-on: windows-2025$' -and $protectionReadinessJobBody.Contains('github.event.repository.default_branch') -and $protectionReadinessJobBody.Contains('release-protection') -and $protectionReadinessJobBody.Contains('RELEASE_PROTECTION_VERIFICATION.json') -and $protectionReadinessJobBody.Contains('Test-InstallerReleaseProtectionReadiness') -and $protectionReadinessJobBody.Contains('if (-not $result.IsReady)') -and $protectionReadinessJobBody.Contains('exit 1')) -Message 'The release gate checks the default-branch remote record and fails before publication when it is not ready.'
 $protectedTagStepMatch = [regex]::Match($tagValidationJobBody, '(?ms)^      - name: Require a protected semantic-version tag\r?\n(?<body>.*?)(?=^      - name:|\z)')
 $protectedTagStepBody = [string]$protectedTagStepMatch.Groups['body'].Value
 Assert-WorkflowCondition -Condition ($protectedTagStepMatch.Success -and $protectedTagStepBody.Contains('RELEASE_REF_PROTECTED: ${{ github.ref_protected }}') -and $protectedTagStepBody.Contains("if (`$env:RELEASE_REF_PROTECTED -cne 'true') {") -and $protectedTagStepBody.Contains("throw 'The release tag must be protected by a GitHub ruleset or tag protection rule.'")) -Message 'Tag validation maps github.ref_protected and fails closed unless its value is exactly true.'
 Assert-WorkflowCondition -Condition ($tagValidationJobBody -match '(?ms)tools[\\/]Test-CompatibilityReview\.ps1\s+-RequireFresh') -Message 'Release tag validation requires a fresh manual compatibility source review before matrix release work.'
 Assert-WorkflowCondition -Condition ($releasePublisherJobBody.Contains('RELEASE_REF_PROTECTED: ${{ github.ref_protected }}')) -Message 'The publishing job independently passes github.ref_protected to the release publisher.'
-Assert-WorkflowCondition -Condition ($releaseProtectionVerificationText.Contains('**Remote settings status:** NOT VERIFIED') -and $releaseProtectionVerificationText.Contains('**Local access check timestamp:**') -and $releaseProtectionVerificationText.Contains('**Remote observation timestamp:** NOT VERIFIED')) -Message 'The release readiness record keeps remote status and observation time separate from the local access check.'
+Assert-WorkflowCondition -Condition ($releaseProtectionVerificationText.Contains('**Remote settings status:** NOT VERIFIED') -and $releaseProtectionVerificationText.Contains('**Local access check timestamp:**') -and $releaseProtectionVerificationText.Contains('**Remote observation timestamp:** NOT VERIFIED') -and $releaseProtectionVerificationText.Contains('30 days')) -Message 'The release readiness record keeps remote status separate from the local check and documents the evidence freshness window.'
+Assert-WorkflowCondition -Condition ($releaseProtectionVerificationRecord.status -ceq 'NOT VERIFIED' -and $releaseProtectionVerificationRecord.repository -ceq 'mytech-today-now/app_installer' -and $null -eq $releaseProtectionVerificationRecord.observedAtUtc -and $null -eq $releaseProtectionVerificationRecord.evidence.location -and $releaseProtectionReadinessModuleText.Contains('Test-InstallerReleaseProtectionReadiness') -and $releaseProtectionReadinessTestText.Contains('stale') -and $releaseProtectionReadinessTestText.Contains('incomplete')) -Message 'The machine-readable remote record remains NOT VERIFIED and the validator tests incomplete and stale evidence fixtures.'
 Assert-WorkflowCondition -Condition ($releaseProtectionVerificationText.Contains('| Ruleset name/ID, source, and enforcement status | NOT VERIFIED |') -and $releaseProtectionVerificationText.Contains('| Target tag pattern and exclusions | NOT VERIFIED |') -and $releaseProtectionVerificationText.Contains('| Tag creation, update, and deletion restrictions | NOT VERIFIED |') -and $releaseProtectionVerificationText.Contains('| Required reviewers or approval control | NOT VERIFIED |') -and $releaseProtectionVerificationText.Contains('| Bypass actors and modes | NOT VERIFIED |') -and $releaseProtectionVerificationText.Contains('| Effective repository/organization workflow permission scope | NOT VERIFIED |')) -Message 'Each unobserved remote release control is explicitly recorded as NOT VERIFIED.'
 foreach ($verificationField in @('Ruleset identity and enforcement', 'Tag pattern', 'Required reviewers and approval control', 'Bypass actors', 'Workflow permission scope')) {
     Assert-WorkflowCondition -Condition ($releaseProtectionVerificationText.Contains($verificationField)) -Message ('The release readiness checklist records the remote setting to verify: {0}.' -f $verificationField)
@@ -271,17 +297,19 @@ Assert-WorkflowCondition -Condition ($releaseWorkflowText -notmatch '(?i)\$\{\{\
 Assert-WorkflowCondition -Condition ($releaseWorkflowText.Contains('${{ github.token }}')) -Message 'Release publication must use the automatically provided workflow token.'
 Assert-WorkflowCondition -Condition ($releaseWorkflowText -notmatch '(?i)git\s+tag|git\s+push|signtool|Set-AuthenticodeSignature|codesign') -Message 'The workflow must not create or push tags or sign the executable.'
 $releaseActionReferences = [regex]::Matches($releaseWorkflowText, '(?m)^\s*uses:\s*([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+@[0-9a-f]{40})')
-Assert-WorkflowCondition -Condition ($releaseActionReferences.Count -eq 2) -Message 'The release workflow must use only its two pinned checkout actions.'
+Assert-WorkflowCondition -Condition ($releaseActionReferences.Count -eq 6) -Message 'The release workflow must use only its six pinned checkout actions.'
 foreach ($actionReference in $releaseActionReferences) {
     Assert-WorkflowCondition -Condition ($actionReference.Groups[1].Value -ceq 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1') -Message 'Every third-party release action must use the verified immutable checkout commit.'
 }
 Assert-WorkflowCondition -Condition ($releaseWorkflowText -match '(?m)^  compatibility:\r?\n    needs: validate_release_tag\r?\n    if:.*?\r?\n    uses: \.\/\.github\/workflows\/windows-build-compatibility\.yml') -Message 'The release matrix job must use the local reusable workflow after tag validation.'
 Assert-WorkflowCondition -Condition ($releaseWorkflowText -match 'Build-InstallerExe\.ps1' -and $releaseWorkflowText -match 'New-InstallerReleaseAssets\.ps1' -and $releaseWorkflowText -match 'Publish-InstallerRelease\.ps1') -Message 'The release must reuse the pinned builder and the shared asset and publication tooling.'
 Assert-WorkflowCondition -Condition ($releaseModuleText -match 'outputNamePattern' -and $releaseModuleText -match 'artifact\.identity' -and $releaseModuleText -match '\.sha256' -and $releaseModuleText -match "authenticodeStatus = 'NotSigned'") -Message 'Release tooling must enforce the current artifact identity, versioned x64 name, digest, and unsigned status.'
+Assert-WorkflowCondition -Condition ($buildScriptText -match '(?m)^\s*schemaVersion = 2$' -and $buildScriptText.Contains('digestLimit = ''SHA-256 detects byte changes only when the expected digest is obtained through a trusted release channel. It does not authenticate the publisher or replace a digital signature.''')) -Message 'Builder provenance must version and carry the SHA-256 publisher-authentication limitation.'
+Assert-WorkflowCondition -Condition ($releaseModuleText.Contains('SHA-256 detects byte changes only when the expected digest is obtained through a trusted release channel. It does not authenticate the publisher or replace a digital signature.') -and $releaseModuleText.Contains('This release is not signed.') -and $releaseModuleText.Contains("signerSubject = ''")) -Message 'Release metadata and notes must retain the unsigned disclosure, empty signer identity, and checksum limitation.'
 Assert-WorkflowCondition -Condition ($releaseModuleText -match "'/releases/tags/'" -and $releasePublisherText -match 'RELEASE_REF_PROTECTED') -Message 'The publisher must check for duplicate releases and protected tags.'
 Assert-WorkflowCondition -Condition ($buildTestText -match 'test-installer-release-assets\.ps1') -Message 'The clean executable fixture test must run the focused release asset simulation.'
 Assert-WorkflowCondition -Condition ($releaseAssetTestText -match 'DryRun' -and $releaseAssetTestText -match 'failed upload must block publication' -and $releaseAssetTestText -match 'existing release must be rejected') -Message 'The focused release test must cover dry-run, duplicate release, and failed upload gates.'
 $releaseSigningReferences = ($releaseWorkflowText + $releaseModuleText + $releasePublisherText) -match '(?i)\b(?:signtool(?:\.exe)?|Set-AuthenticodeSignature|codesign|osslsigncode)\b'
 Assert-WorkflowCondition -Condition (-not $releaseSigningReferences) -Message 'No release workflow or publisher step may invoke a signing tool.'
 
-Write-Output ('[OK] GitHub Actions workflow contract passed: assertions={0}; immutableActions={1}; engines=2; releaseGates=protected-tag+tests.' -f $script:assertionCount, $actionReferences.Count)
+Write-Output ('[OK] GitHub Actions workflow contract passed: assertions={0}; releaseActions={1}; engines=2; releaseGates=protected-tag+client-gui-evidence+remote-protection+tests.' -f $script:assertionCount, $releaseActionReferences.Count)
