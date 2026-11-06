@@ -12,8 +12,10 @@
     "invoke-elevated-install.ps1",
     "payload-manifest.json",
     "platform-detect.ps1",
+    "tools/Install-CompatiblePowerShell.ps1",
     "tools/Manage-AppInstallerInstall.ps1",
     "tools/Start-Installer.ps1",
+    "tools/Test-InstallerCompatibility.ps1",
     "VERSION"
   ],
   "fileSets": [

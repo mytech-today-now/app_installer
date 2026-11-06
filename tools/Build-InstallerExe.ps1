@@ -96,6 +96,46 @@ function Set-InstallerExeCoffTimestampToZero {
     [System.IO.File]::WriteAllBytes($Path, $bytes)
 }
 
+function Set-InstallerExePeChecksum {
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    $bytes = [System.IO.File]::ReadAllBytes($Path)
+    if ($bytes.Length -lt 64 -or [System.Text.Encoding]::ASCII.GetString($bytes, 0, 2) -cne 'MZ') {
+        throw 'The generated launcher is not a valid PE image for checksum normalization.'
+    }
+    $peOffset = [System.BitConverter]::ToInt32($bytes, 0x3C)
+    if ($peOffset -lt 64 -or $peOffset -gt ($bytes.Length - 28) -or
+        [System.BitConverter]::ToUInt32($bytes, $peOffset) -ne 0x00004550) {
+        throw 'The generated launcher has an invalid PE header for checksum normalization.'
+    }
+
+    $optionalHeaderOffset = $peOffset + 24
+    $optionalHeaderSize = [System.BitConverter]::ToUInt16($bytes, $peOffset + 20)
+    $optionalHeaderMagic = [System.BitConverter]::ToUInt16($bytes, $optionalHeaderOffset)
+    $checksumOffset = $optionalHeaderOffset + 64
+    if (($optionalHeaderMagic -ne 0x10B -and $optionalHeaderMagic -ne 0x20B) -or
+        $optionalHeaderSize -lt 68 -or $checksumOffset -gt ($bytes.Length - 4) -or
+        ($optionalHeaderOffset + $optionalHeaderSize) -gt $bytes.Length) {
+        throw 'The generated launcher has an invalid PE optional header for checksum normalization.'
+    }
+
+    $checksum = [UInt64]0
+    for ($index = 0; $index -lt $bytes.Length; $index += 2) {
+        if ($index -ge $checksumOffset -and $index -lt ($checksumOffset + 4)) { continue }
+        $word = [UInt64]$bytes[$index]
+        if (($index + 1) -lt $bytes.Length) {
+            $word += ([UInt64]$bytes[$index + 1] * 256)
+        }
+        $checksum += $word
+        $checksum = ($checksum -band 0xFFFF) + ($checksum -shr 16)
+    }
+    $checksum = (($checksum -band 0xFFFF) + ($checksum -shr 16)) + [UInt64]$bytes.Length
+    $checksumBytes = [System.BitConverter]::GetBytes([UInt32]$checksum)
+    [Array]::Copy($checksumBytes, 0, $bytes, $checksumOffset, 4)
+    [System.IO.File]::WriteAllBytes($Path, $bytes)
+}
+
 $repositoryRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $configurationPath = Join-Path $PSScriptRoot 'installer-exe-build.json'
 $buildModulePath = Join-Path $PSScriptRoot 'InstallerExecutableBuild.psm1'
@@ -310,7 +350,8 @@ try {
     [System.IO.File]::WriteAllLines($launcherSedPath, $launcherSedLines, [System.Text.Encoding]::ASCII)
     $iexpressOutputPath = Join-Path $buildRoot 'iexpress.out'
     $iexpressErrorPath = Join-Path $buildRoot 'iexpress.err'
-    $iexpressArguments = '/N /Q "{0}"' -f $launcherSedPath
+    # IExpress rejects a quoted SED path. Use the basename in its working directory.
+    $iexpressArguments = '/N /Q {0}' -f [System.IO.Path]::GetFileName($launcherSedPath)
     $iexpressProcess = Start-Process -FilePath $iexpressPath -ArgumentList $iexpressArguments -WorkingDirectory $buildRoot -PassThru -Wait -WindowStyle Hidden -RedirectStandardOutput $iexpressOutputPath -RedirectStandardError $iexpressErrorPath
     if ($iexpressProcess.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $launcherSeedPath -PathType Leaf)) {
         $iexpressDetails = (Get-Content -LiteralPath $iexpressOutputPath -Raw -ErrorAction SilentlyContinue) + (Get-Content -LiteralPath $iexpressErrorPath -Raw -ErrorAction SilentlyContinue)
@@ -434,6 +475,8 @@ try {
     $metadataArguments = '-NoProfile -File "{0}" -InputPath "{1}" -OutputPath "{1}"' -f $metadataScript, $buildExePath
     $metadataProcess = Start-Process -FilePath $hostExecutable -ArgumentList $metadataArguments -PassThru -Wait -WindowStyle Hidden
     if ($metadataProcess.ExitCode -ne 0) { throw ('The executable metadata step failed. Exit code: {0}' -f $metadataProcess.ExitCode) }
+    # Recalculate the PE checksum after Windows resource updates so equal inputs produce equal bytes.
+    Set-InstallerExePeChecksum -Path $buildExePath
 
     $embeddedCabinet = [InstallerExecutableVersionInfo]::ReadCabinetResource($buildExePath)
     if ($embeddedCabinet.Length -ne $cabinetBytes.Length) { throw 'The executable metadata update changed the embedded cabinet length.' }

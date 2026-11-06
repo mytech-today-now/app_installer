@@ -319,7 +319,13 @@ try {
     Assert-BuildCondition -Condition ($buildA.Manifest.artifact.authenticodeStatus -ceq 'NotSigned' -and $buildB.Manifest.artifact.authenticodeStatus -ceq 'NotSigned' -and [string]::IsNullOrEmpty([string]$buildA.Manifest.artifact.signerSubject) -and [string]::IsNullOrEmpty([string]$buildB.Manifest.artifact.signerSubject)) -Message 'Both generated executable files must remain unsigned and have no signer identity.'
     Assert-BuildCondition -Condition ($buildA.Manifest.artifact.architecture -ceq 'X64' -and $buildB.Manifest.artifact.architecture -ceq 'X64') -Message 'Both generated executable files must target x64.'
     $manifestText = ConvertTo-Json -InputObject $buildA.Manifest -Depth 16 -Compress
-    Assert-BuildCondition -Condition ($manifestText -notmatch '(?i)([A-Z]:\\|\\\\)') -Message 'The provenance manifest must not embed machine-local absolute paths.'
+    $machineLocalPathPattern = '(?i)([A-Z]:\\|(?<=")\\\\)'
+    $relativeCommandManifest = ConvertTo-Json -InputObject ([ordered]@{ launchCommand = 'cmd.exe /c .\install.bat' }) -Compress
+    $absolutePathExamples = @('{"path":"C:\\build\\artifact.exe"}', '{"path":"\\\\buildserver\share\artifact.exe"}')
+    $pathPatternIsPrecise = ($relativeCommandManifest -notmatch $machineLocalPathPattern) -and
+        @($absolutePathExamples | Where-Object { $_ -match $machineLocalPathPattern }).Count -eq $absolutePathExamples.Count
+    Assert-BuildCondition -Condition $pathPatternIsPrecise -Message 'The provenance path check must distinguish relative launcher paths from rooted machine-local paths.'
+    Assert-BuildCondition -Condition ($manifestText -notmatch $machineLocalPathPattern) -Message 'The provenance manifest must not embed machine-local absolute paths.'
     Assert-BuildCondition -Condition (-not [bool]$buildA.Manifest.reproducibility.buildTimestampRecorded -and -not [bool]$buildA.Manifest.toolchain.compiler.dotnetSdkRequired) -Message 'The provenance manifest must omit build timestamps and confirm no separate .NET SDK was used.'
     if ($buildA.ArtifactHash -ne $buildB.ArtifactHash) {
         throw ('Clean builds produced different executable hashes ({0} and {1}) despite identical payload inventory and toolchain.' -f $buildA.ArtifactHash, $buildB.ArtifactHash)
