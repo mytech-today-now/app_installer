@@ -104,10 +104,14 @@ function Copy-IsolatedInstallerTree {
 
     $sourceLauncher = Join-Path $repositoryRoot 'tools\Start-Installer.ps1'
     $sourceLifecycleManager = Join-Path $repositoryRoot 'tools\Manage-AppInstallerInstall.ps1'
+    $sourceRuntimeInstaller = Join-Path $repositoryRoot 'tools\Install-CompatiblePowerShell.ps1'
+    $sourceCompatibilityTester = Join-Path $repositoryRoot 'tools\Test-InstallerCompatibility.ps1'
     $destinationTools = Join-Path $Destination 'tools'
     New-Item -ItemType Directory -Path $destinationTools -Force | Out-Null
     Copy-Item -LiteralPath $sourceLauncher -Destination $destinationTools -Force
     Copy-Item -LiteralPath $sourceLifecycleManager -Destination $destinationTools -Force
+    Copy-Item -LiteralPath $sourceRuntimeInstaller -Destination $destinationTools -Force
+    Copy-Item -LiteralPath $sourceCompatibilityTester -Destination $destinationTools -Force
 
     foreach ($directoryName in @('modules', 'apps', 'profiles')) {
         $sourceDirectory = Join-Path $repositoryRoot $directoryName

@@ -134,6 +134,11 @@ try {
     $stale = Invoke-ReadinessFixture -Name 'stale' -Record $staleRecord
     Assert-Condition -Condition (-not $stale.IsReady -and ($stale.Errors -join ' ') -match 'stale; the maximum age is 30 days') -Message 'A record older than 30 days fails.'
 
+    $notVerifiedRecord = New-ValidReadinessRecord -ObservedAtUtc $currentUtc -EvidenceHash $evidenceHash
+    $notVerifiedRecord.status = 'NOT VERIFIED'
+    $notVerifiedFixture = Invoke-ReadinessFixture -Name 'not-verified' -Record $notVerifiedRecord
+    Assert-Condition -Condition (-not $notVerifiedFixture.IsReady -and ($notVerifiedFixture.Errors -join ' ') -match 'NOT VERIFIED blocks release readiness') -Message 'A complete-shaped record with NOT VERIFIED status fails.'
+
     $notVerifiedPath = Join-Path $repositoryRoot 'RELEASE_PROTECTION_VERIFICATION.json'
     $notVerified = Test-InstallerReleaseProtectionReadiness -VerificationPath $notVerifiedPath -EvidenceRoot $repositoryRoot
     Assert-Condition -Condition (-not $notVerified.IsReady -and ($notVerified.Errors -join ' ') -match 'status must be VERIFIED' -and ($notVerified.Errors -join ' ') -match 'settings.rulesets') -Message 'The current NOT VERIFIED record and its unobserved settings block readiness.'

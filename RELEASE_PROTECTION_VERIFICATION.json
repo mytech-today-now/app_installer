@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "repository": "mytech-today-now/app_installer",
   "status": "NOT VERIFIED",
-  "localAccessCheckAtUtc": "2026-11-05T04:03:31Z",
+  "localAccessCheckAtUtc": "2026-11-07T03:23:17Z",
   "notVerifiedReason": "The gh CLI is not installed, no GitHub MCP connector is configured, and the browser access host was unavailable. No remote settings were queried or changed.",
   "observedAtUtc": null,
   "evidence": {
