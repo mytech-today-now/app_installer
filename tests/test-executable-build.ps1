@@ -318,6 +318,9 @@ try {
     Assert-BuildCondition -Condition ($buildA.Manifest.artifact.fileName -ceq $releaseExecutableName -and $buildB.Manifest.artifact.fileName -ceq $releaseExecutableName) -Message 'Both current builds must use the exact versioned filename.'
     Assert-BuildCondition -Condition ($buildA.Manifest.artifact.authenticodeStatus -ceq 'NotSigned' -and $buildB.Manifest.artifact.authenticodeStatus -ceq 'NotSigned' -and [string]::IsNullOrEmpty([string]$buildA.Manifest.artifact.signerSubject) -and [string]::IsNullOrEmpty([string]$buildB.Manifest.artifact.signerSubject)) -Message 'Both generated executable files must remain unsigned and have no signer identity.'
     Assert-BuildCondition -Condition ($buildA.Manifest.artifact.architecture -ceq 'X64' -and $buildB.Manifest.artifact.architecture -ceq 'X64') -Message 'Both generated executable files must target x64.'
+    $launcherSeed = $buildA.Manifest.toolchain.launcherSeed
+    Assert-BuildCondition -Condition ($launcherSeed.generatedBy -ceq 'Pinned Microsoft IExpress' -and $launcherSeed.fileName -ceq 'launcher-seed.exe' -and $launcherSeed.launchCommand -ceq [string]$configuration.launcherTemplate.launchCommand) -Message 'The successful build must record the generated IExpress launcher seed and configured launch command.'
+    Assert-BuildCondition -Condition ($launcherSeed.sha256 -match '^[0-9a-f]{64}$' -and $launcherSeed.architecture -ceq 'X64' -and $launcherSeed.authenticodeStatus -ceq 'NotSigned' -and [int]$launcherSeed.normalizedCoffTimestamp -eq 0) -Message 'The generated launcher seed must be hashed, x64, unsigned, and timestamp-normalized.'
     $manifestText = ConvertTo-Json -InputObject $buildA.Manifest -Depth 16 -Compress
     $machineLocalPathPattern = '(?i)([A-Z]:\\|(?<=")\\\\)'
     $relativeCommandManifest = ConvertTo-Json -InputObject ([ordered]@{ launchCommand = 'cmd.exe /c .\install.bat' }) -Compress
@@ -330,6 +333,58 @@ try {
     if ($buildA.ArtifactHash -ne $buildB.ArtifactHash) {
         throw ('Clean builds produced different executable hashes ({0} and {1}) despite identical payload inventory and toolchain.' -f $buildA.ArtifactHash, $buildB.ArtifactHash)
     }
+
+    $failedSedConfigurationPath = Join-Path $corruptToolCopy 'tools\installer-exe-build.json'
+    Copy-Item -LiteralPath $configurationPath -Destination $failedSedConfigurationPath -Force -ErrorAction Stop
+    $failedSedBuilderPath = Join-Path $corruptToolCopy 'tools\Build-InstallerExe.ps1'
+    $failedSedBuilderText = [System.IO.File]::ReadAllText($failedSedBuilderPath)
+    $sedWriteLine = '    [System.IO.File]::WriteAllLines($launcherSedPath, $launcherSedLines, [System.Text.Encoding]::ASCII)'
+    $invalidSedWriteLine = '    [System.IO.File]::WriteAllText($launcherSedPath, "[Version]`r`nClass=IEXPRESS`r`nSEDVersion=3`r`n[Options]`r`nPackagePurpose=InstallApp`r`n", [System.Text.Encoding]::ASCII)'
+    if (-not $failedSedBuilderText.Contains($sedWriteLine)) {
+        throw 'The clean-copy failure fixture could not locate the generated IExpress SED write.'
+    }
+    $failedSedBuilderText = $failedSedBuilderText.Replace($sedWriteLine, $invalidSedWriteLine)
+    [System.IO.File]::WriteAllText($failedSedBuilderPath, $failedSedBuilderText, [System.Text.UTF8Encoding]::new($false))
+
+    $failedSedBuildTemp = Join-Path $temporaryRoot 'FailedIExpressTemp'
+    New-Item -ItemType Directory -Path $failedSedBuildTemp -Force -ErrorAction Stop | Out-Null
+    $failedSedOutputPath = Join-Path $corruptOutputDirectory $releaseExecutableName
+    $previousTemp = $env:TEMP
+    $previousTmp = $env:TMP
+    try {
+        $env:TEMP = $failedSedBuildTemp
+        $env:TMP = $failedSedBuildTemp
+        $failedSedBuildOutput = @(& $pwsh.Source -NoProfile -File $failedSedBuilderPath -OutputPath $failedSedOutputPath -KeepBuildFilesOnFailure -Confirm:$false 2>&1)
+        $failedSedBuildExitCode = $LASTEXITCODE
+    }
+    finally {
+        $env:TEMP = $previousTemp
+        $env:TMP = $previousTmp
+    }
+    Assert-BuildCondition -Condition ($failedSedBuildExitCode -ne 0 -and (($failedSedBuildOutput -join [Environment]::NewLine) -match 'IExpress failed to generate a launcher seed')) -Message 'A failed IExpress invocation must fail the clean-copy builder.'
+    Assert-BuildCondition -Condition (-not (Test-Path -LiteralPath $failedSedOutputPath) -and -not (Test-Path -LiteralPath ($failedSedOutputPath + '.build.json')) -and @(Get-ChildItem -LiteralPath $corruptOutputDirectory -Force -ErrorAction Stop).Count -eq 0) -Message 'A failed IExpress invocation must not publish an executable, provenance manifest, or staging output.'
+
+    $failedBuildRoots = @(Get-ChildItem -LiteralPath $failedSedBuildTemp -Directory -Filter 'InstallerExeBuild-*' -ErrorAction Stop)
+    Assert-BuildCondition -Condition ($failedBuildRoots.Count -eq 1) -Message 'The failed IExpress fixture must retain exactly one contained build root for diagnosis.'
+    $failedBuildRoot = [System.IO.Path]::GetFullPath($failedBuildRoots[0].FullName)
+    $failedBuildTempBoundary = [System.IO.Path]::GetFullPath($failedSedBuildTemp).TrimEnd([char[]]@([char]92, [char]47)) + [System.IO.Path]::DirectorySeparatorChar
+    Assert-BuildCondition -Condition $failedBuildRoot.StartsWith($failedBuildTempBoundary, [System.StringComparison]::OrdinalIgnoreCase) -Message 'Retained IExpress failure evidence must remain inside the test temporary root.'
+    $failedSedPath = Join-Path $failedBuildRoot 'launcher.sed'
+    $failedInvocationPath = Join-Path $failedBuildRoot 'iexpress-invocation.json'
+    $failedStdoutPath = Join-Path $failedBuildRoot 'iexpress.out'
+    $failedStderrPath = Join-Path $failedBuildRoot 'iexpress.err'
+    Assert-BuildCondition -Condition ((Test-Path -LiteralPath $failedSedPath -PathType Leaf) -and (Test-Path -LiteralPath $failedInvocationPath -PathType Leaf) -and (Test-Path -LiteralPath $failedStdoutPath -PathType Leaf) -and (Test-Path -LiteralPath $failedStderrPath -PathType Leaf)) -Message 'The failed IExpress fixture must retain its exact SED, invocation record, stdout, and stderr.'
+    $expectedInvalidSed = "[Version]`r`nClass=IEXPRESS`r`nSEDVersion=3`r`n[Options]`r`nPackagePurpose=InstallApp`r`n"
+    $retainedSedText = [System.IO.File]::ReadAllText($failedSedPath)
+    $failedInvocation = Get-Content -LiteralPath $failedInvocationPath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+    $retainedStdout = [System.IO.File]::ReadAllText($failedStdoutPath)
+    $retainedStderr = [System.IO.File]::ReadAllText($failedStderrPath)
+    $expectedIExpressPath = Join-Path $env:WINDIR ([string]$configuration.packager.iexpress.relativePath.Replace('/', '\'))
+    Assert-BuildCondition -Condition ($retainedSedText -ceq $expectedInvalidSed -and $failedInvocation.sedSha256 -ceq (Get-FileHash -LiteralPath $failedSedPath -Algorithm SHA256).Hash.ToLowerInvariant()) -Message 'The retained IExpress failure record must identify the exact malformed SED bytes.'
+    Assert-BuildCondition -Condition ($failedInvocation.executablePath -ceq $expectedIExpressPath -and $failedInvocation.argumentList -ceq '/N /Q launcher.sed' -and $failedInvocation.workingDirectory -ceq $failedBuildRoot -and $failedInvocation.sedPath -ceq $failedSedPath) -Message 'The retained IExpress failure record must preserve the pinned executable, exact arguments, working directory, and SED path.'
+    Assert-BuildCondition -Condition ([int]$failedInvocation.exitCode -ne 0 -and [int]$failedInvocation.exitCode -eq $failedSedBuildExitCode -and [string]$failedInvocation.standardOutput -ceq $retainedStdout -and [string]$failedInvocation.standardError -ceq $retainedStderr) -Message 'The retained IExpress failure record must preserve its exit code and captured output.'
+    Write-Output '[OK] A failed IExpress SED fixture retained invocation evidence and published no executable or provenance.'
+
     foreach ($legacyPath in @($protectedLegacyPaths.ToArray())) {
         Assert-BuildCondition -Condition (-not (Test-Path -LiteralPath $legacyPath -PathType Leaf)) -Message ('The build must not recreate a retired executable: {0}' -f $legacyPath)
     }

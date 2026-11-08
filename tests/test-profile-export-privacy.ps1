@@ -146,7 +146,11 @@ try {
     foreach ($sourceCase in $sourceCases) {
         Remove-Item -LiteralPath 'Function:\Export-InstallationProfile' -ErrorAction SilentlyContinue
         Remove-Item -LiteralPath 'Function:\Import-InstallationProfile' -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath 'Function:\ConvertTo-BoundedProfileText' -ErrorAction SilentlyContinue
         Invoke-Expression (Get-FunctionDefinitionText -Path $sourceCase.Path -Name 'Export-InstallationProfile')
+        if ($sourceCase.IsCli) {
+            Invoke-Expression (Get-FunctionDefinitionText -Path $sourceCase.Path -Name 'ConvertTo-BoundedProfileText')
+        }
         Invoke-Expression (Get-FunctionDefinitionText -Path $sourceCase.Path -Name 'Import-InstallationProfile')
 
         $script:ProfilesPath = Join-Path $testRoot $sourceCase.Name

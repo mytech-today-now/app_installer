@@ -6,6 +6,8 @@ $productionModulePath = Join-Path $repositoryRoot 'modules\OOShutUp10Trust.psm1'
 $guiPath = Join-Path $repositoryRoot 'app-installer.ps1'
 $cliPath = Join-Path $repositoryRoot 'app-installer-cli.ps1'
 $fallbackScriptPath = Join-Path $repositoryRoot 'apps\shutup10.ps1'
+$appInstallerCorePath = Join-Path $repositoryRoot 'modules\AppInstallerCore.psm1'
+Import-Module -Name $appInstallerCorePath -Force -DisableNameChecking -ErrorAction Stop | Out-Null
 $tempBase = [System.IO.Path]::GetFullPath([System.IO.Path]::GetTempPath())
 $testRoot = [System.IO.Path]::GetFullPath((Join-Path $tempBase ('app-installer-ooshutup10-tests-' + [Guid]::NewGuid().ToString('N'))))
 $checkCount = 0
@@ -123,6 +125,7 @@ try {
     Remove-Module -ModuleInfo $productionModule -Force -ErrorAction Stop
     $productionModuleContent = [System.IO.File]::ReadAllText($productionModulePath)
     Assert-Condition -Condition ($productionModuleContent.Contains('$directorySecurity.SetAccessRuleProtection($true, $false)') -and $productionModuleContent.Contains('S-1-5-18') -and $productionModuleContent.Contains('S-1-5-32-544') -and $productionModuleContent.Contains('Set-Acl -LiteralPath $LiteralPath')) -Message 'Production temp ACL is protected and grants access only to the current user, SYSTEM, and Administrators.'
+    Assert-Condition -Condition ($productionModuleContent.Contains('$request.AllowAutoRedirect = $false') -and $productionModuleContent.Contains('source-changed-during-download') -and $productionModuleContent.Contains('$response.ResponseUri.AbsoluteUri')) -Message 'Production O&O downloads reject HTTP redirects and changed response sources.'
 
     # The current Codex sandbox blocks DACL updates on temp directories. Test a copy
     # with only the ACL setter call stubbed so the transfer, hash, child, and cleanup
@@ -137,6 +140,28 @@ try {
     [System.IO.File]::WriteAllText($testModulePath, $testModuleSource, $encoding)
     $modulePath = $testModulePath
     Import-Module -Name $modulePath -Force -DisableNameChecking -ErrorAction Stop
+
+    $redirectProcessState = [PSCustomObject]@{ Calls = 0 }
+    $redirectDownload = {
+        param($RequestedUri)
+        return [PSCustomObject]@{
+            Bytes = $approvedBytes
+            ResponseUri = 'https://redirect.invalid/Install-OOShutUp10.ps1'
+        }
+    }.GetNewClosure()
+    $redirectExecutor = {
+        param($LiteralPath, $ScriptArguments)
+        $redirectProcessState.Calls++
+        return [PSCustomObject]@{ ExitCode = 0 }
+    }.GetNewClosure()
+    $redirectResult = Invoke-VerifiedOOShutUp10Script `
+        -Uri $immutableUri `
+        -ExpectedSha256 $approvedHash `
+        -TempRoot $tempRoot `
+        -DownloadScript $redirectDownload `
+        -ExecutorScript $redirectExecutor
+    Assert-Condition -Condition (-not $redirectResult.Success -and $redirectResult.FailureReason -eq 'source-changed-during-download' -and $redirectResult.DownloadStatus -eq 'redirect-rejected') -Message 'A redirected O&O response is rejected at the fake transport boundary.'
+    Assert-Condition -Condition ($redirectProcessState.Calls -eq 0 -and $redirectResult.CleanupStatus -eq 'cleaned') -Message 'A redirected O&O response never starts a child and cleans its owned staging directory.'
 
     $approvedResult = Invoke-VerifiedOOShutUp10Script `
         -Uri $immutableUri `

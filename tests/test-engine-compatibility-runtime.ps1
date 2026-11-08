@@ -40,9 +40,9 @@ try {
     $currentDecision = Test-InstallerPowerShellEngine -EngineInfo $currentEngine -Manifest $manifest
     Assert-Condition -Condition $currentDecision.IsSupported -Message ("Current engine is in compatibility.json: {0} {1}" -f $currentEngine.PSEdition, $currentEngine.PSVersion)
 
-    $unsupportedCore = [PSCustomObject]@{ PSEdition = 'Core'; PSVersion = [version]'7.6.6' }
+    $unsupportedCore = [PSCustomObject]@{ PSEdition = 'Core'; PSVersion = [version]'7.1.9' }
     $unsupportedDecision = Test-InstallerPowerShellEngine -EngineInfo $unsupportedCore -Manifest $manifest
-    Assert-Condition -Condition (-not $unsupportedDecision.IsSupported) -Message 'PowerShell Core 7.6.6 is rejected by the actual compatibility contract.'
+    Assert-Condition -Condition (-not $unsupportedDecision.IsSupported) -Message 'PowerShell Core 7.1.9 is rejected below the declared compatibility floor.'
 
     $argumentListProperty = [System.Diagnostics.ProcessStartInfo].GetProperty('ArgumentList')
     if ($currentEngine.PSEdition -eq 'Desktop') {

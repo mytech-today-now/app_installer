@@ -13,7 +13,7 @@
 .NOTES
     File Name      : AppInstallerCore.psm1
     Author         : myTech.Today
-    Prerequisite   : Windows PowerShell Desktop 5.1 or PowerShell Core 7.6.9 per compatibility.json
+    Prerequisite   : Windows PowerShell Desktop 5.1 or PowerShell Core 7.2.0 through 7.6.9 per compatibility.json
     Copyright      : (c) 2025 myTech.Today. All rights reserved.
     Version        : 1.0.0
 #>
@@ -166,6 +166,35 @@ function Test-WingetPackageSource {
     return [bool](PackageCommand\Test-WingetPackageSource -Source $Source)
 }
 
+function Get-ApplicationUnavailableReason {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [object]$Application
+    )
+
+    $availableProperty = $Application.PSObject.Properties['Available']
+    if ($null -eq $availableProperty) {
+        return $null
+    }
+
+    if ($availableProperty.Value -isnot [bool]) {
+        return 'The catalog availability value is invalid. No installer action will be started.'
+    }
+
+    if ($availableProperty.Value) {
+        return $null
+    }
+
+    $reasonProperty = $Application.PSObject.Properties['AvailabilityReason']
+    $reason = if ($null -ne $reasonProperty) { [string]$reasonProperty.Value } else { '' }
+    if ([string]::IsNullOrWhiteSpace($reason)) {
+        return 'No approved production release identity is configured. No installer action will be started.'
+    }
+
+    return $reason.Trim()
+}
+
 function Get-ApplicationRegistry {
     <#
     .SYNOPSIS
@@ -206,6 +235,28 @@ function Get-ApplicationRegistry {
             # Convert manifest apps to PSCustomObject array
             $applications = @()
             foreach ($app in $manifest.apps) {
+                $availabilityStatus = 'available'
+                $availabilityReason = $null
+                $availabilityProperty = $app.PSObject.Properties['availability']
+                if ($null -ne $availabilityProperty) {
+                    if ($null -eq $availabilityProperty.Value) {
+                        throw "Application '$($app.name)' has invalid availability metadata."
+                    }
+
+                    $availabilityStatus = [string]$availabilityProperty.Value.status
+                    if ($availabilityStatus -notin @('available', 'unavailable')) {
+                        throw "Application '$($app.name)' has an unsupported availability status."
+                    }
+
+                    if ($availabilityStatus -eq 'unavailable') {
+                        $availabilityReason = [string]$availabilityProperty.Value.reason
+                        if ([string]::IsNullOrWhiteSpace($availabilityReason)) {
+                            throw "Application '$($app.name)' is unavailable without an explanation."
+                        }
+                        $availabilityReason = $availabilityReason.Trim()
+                    }
+                }
+
                 $applications += [PSCustomObject]@{
                     Name = $app.displayName
                     ScriptName = "$($app.name).ps1"
@@ -220,6 +271,9 @@ function Get-ApplicationRegistry {
                     DnfPackage = $app.packages.dnf
                     PacmanPackage = $app.packages.pacman
                     SnapPackage = $app.packages.snap
+                    AvailabilityStatus = $availabilityStatus
+                    Available = ($availabilityStatus -eq 'available')
+                    AvailabilityReason = $availabilityReason
                 }
             }
 
@@ -734,6 +788,7 @@ Export-ModuleMember -Function @(
     'Get-InstallerAppsPath',
     'Get-InstallerProfilesPath',
     'Initialize-InstallerDirectories',
+    'Get-ApplicationUnavailableReason',
     'Get-ApplicationRegistry',
     'Test-WingetPackageIdentifier',
     'Test-WingetPackageSource',

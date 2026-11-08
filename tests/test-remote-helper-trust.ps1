@@ -357,6 +357,19 @@ try {
     Assert-Condition -Condition (-not $unapprovedSource.Success -and $unapprovedSource.RequestStatus -eq 'not-attempted' -and $unapprovedSource.FailureReason -eq 'source-not-allowed') -Message 'A modified MCPR source URL is rejected before transport.'
     Assert-Condition -Condition ($executableState.DownloadCalls -eq 0 -and $executableState.ProcessCalls -eq 0) -Message 'Rejected MCPR source metadata reaches neither the fake transport nor executor.'
 
+    $redirectExecutableDownload = {
+        param($RequestedUri)
+        $executableState.DownloadCalls++
+        return [PSCustomObject]@{
+            Bytes = $mcafeeBytes
+            ResponseUri = 'https://redirect.invalid/MCPR.exe'
+        }
+    }.GetNewClosure()
+    $redirectProcessCalls = $executableState.ProcessCalls
+    $redirectExecutable = Invoke-VerifiedRemoteExecutableHelper -HelperId McAfee -Uri $mcafeeUri -ExpectedSha256 $mcafeeDigest -ExpectedSignerThumbprint $expectedSigner -DownloadScript $redirectExecutableDownload -SignatureVerifierScript $signatureVerifier -ExecutorScript $executableExecutor -TempRoot $tempRoot
+    Assert-Condition -Condition (-not $redirectExecutable.Success -and $redirectExecutable.FailureReason -eq 'source-changed-during-download' -and $redirectExecutable.RequestStatus -eq 'redirect-rejected') -Message 'A redirected MCPR response is rejected at the fake transport boundary.'
+    Assert-Condition -Condition ($executableState.ProcessCalls -eq $redirectProcessCalls) -Message 'A redirected MCPR response never reaches the process executor.'
+
     $aclProbe = Invoke-VerifiedRemoteExecutableHelper -HelperId McAfee -Uri $mcafeeUri -ExpectedSha256 $mcafeeDigest -ExpectedSignerThumbprint $expectedSigner -DownloadScript $executableDownload -SignatureVerifierScript $signatureVerifier -ExecutorScript $executableExecutor -TempRoot $tempRoot
     if ($aclProbe.Success) {
         Assert-Condition -Condition ($aclProbe.CleanupStatus -eq 'cleaned' -and -not (Test-Path -LiteralPath $aclProbe.TempDirectory)) -Message 'The production executable boundary stages and cleans MCPR when protected ACL setup is available.'
@@ -424,7 +437,7 @@ try {
         Assert-Condition -Condition ($sourceText -notmatch '(?i)Invoke-WebRequest|Start-Process\s+-FilePath\s+\$mcprPath' -and $sourceText -notmatch '(?i)-ExecutionPolicy\b' -and $sourceText -notmatch 'Invoke-Expression') -Message "McAfee production helper code uses the verified boundary without direct unverified launch: $(Split-Path $sourceFile -Leaf)"
     }
     $productionTrustSource = [System.IO.File]::ReadAllText($modulePath)
-    Assert-Condition -Condition ($productionTrustSource.Contains('$directorySecurity.SetAccessRuleProtection($true, $false)') -and $productionTrustSource.Contains('S-1-5-18') -and $productionTrustSource.Contains('S-1-5-32-544') -and $productionTrustSource.Contains('Set-Acl -LiteralPath $LiteralPath') -and $productionTrustSource.Contains('$request.AllowAutoRedirect = $false')) -Message 'Production executable staging retains protected DACL checks, restricted principals, and disabled HTTP redirects.'
+    Assert-Condition -Condition ($productionTrustSource.Contains('$directorySecurity.SetAccessRuleProtection($true, $false)') -and $productionTrustSource.Contains('S-1-5-18') -and $productionTrustSource.Contains('S-1-5-32-544') -and $productionTrustSource.Contains('Set-Acl -LiteralPath $LiteralPath') -and $productionTrustSource.Contains('$request.AllowAutoRedirect = $false') -and $productionTrustSource.Contains('$response.ResponseUri.AbsoluteUri') -and $productionTrustSource.Contains('source-changed-during-download')) -Message 'Production executable staging keeps protected ACLs and rejects redirected or changed-source downloads.'
 
     Write-Host "Remote helper trust checks passed ($checkCount assertions)." -ForegroundColor Cyan
 }

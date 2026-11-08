@@ -8,6 +8,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), wit
 
 ### Changed
 
+- Declared exact Windows 10 compatibility pairs from version 1809 through 22H2 and PowerShell Core 7.2.0 through 7.6.9. The contract separates technical targets from vendor servicing, and records that native Windows 10 and PowerShell 7.2.0 runtime evidence was not run.
+- Catalog entries for Belarc Advisor, O&O ShutUp10, and McAfee are unavailable while required source identities and trust pins are unset; selection and direct install paths stop before download or process launch.
+- Verified helper downloads reject redirects or changed response sources before execution.
+- Profile import logging normalizes Markdown delimiters and line breaks, bounds untrusted fields, and keeps legacy device and account identifiers out of diagnostics.
+- With `-KeepBuildFilesOnFailure`, a failed IExpress run retains the exact invocation, SED digest, exit code, and captured output in its temporary build root while publishing no executable or provenance manifest.
 - Versioned release publication now requires revision-bound Windows client GUI capability and isolated startup evidence for Desktop 5.1 and Core 7.6.9; Server CI remains separate.
 - The Windows executable build is configured to generate an IExpress launcher from a pinned Microsoft tool and current source template, without a checked-in executable seed.
 - The executable build toolchain now pins the supported .NET 10.0.14 runtime and its verified Microsoft-signed files.
@@ -39,6 +44,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), wit
 - Added a per-engine CI regression inventory with explicit included, skipped, and unavailable outcomes for standalone checks.
 - Added offline batch-wrapper coverage for PowerShell success and failure statuses, `WhatIf`, and opt-in console waiting.
 - Added local release-protection and Windows client GUI evidence records; remote tag-policy status remains unverified and client GUI results remain not run.
+- Expanded offline regression coverage for the compatibility boundaries, helper redirect rejection, unavailable app actions, profile log safety, and retained IExpress failure evidence.
 
 ### Changed
 

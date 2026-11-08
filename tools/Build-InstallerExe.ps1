@@ -352,9 +352,31 @@ try {
     $iexpressErrorPath = Join-Path $buildRoot 'iexpress.err'
     # IExpress rejects a quoted SED path. Use the basename in its working directory.
     $iexpressArguments = '/N /Q {0}' -f [System.IO.Path]::GetFileName($launcherSedPath)
+    $iexpressInvocationPath = Join-Path $buildRoot 'iexpress-invocation.json'
+    $iexpressInvocation = [PSCustomObject][ordered]@{
+        executablePath = $iexpressPath
+        argumentList = $iexpressArguments
+        workingDirectory = $buildRoot
+        sedPath = $launcherSedPath
+        sedSha256 = (Get-FileHash -LiteralPath $launcherSedPath -Algorithm SHA256 -ErrorAction Stop).Hash.ToLowerInvariant()
+        standardOutputPath = $iexpressOutputPath
+        standardErrorPath = $iexpressErrorPath
+        exitCode = $null
+        standardOutput = $null
+        standardError = $null
+    }
+    $invocationJson = (ConvertTo-Json -InputObject $iexpressInvocation -Depth 4) + [Environment]::NewLine
+    [System.IO.File]::WriteAllText($iexpressInvocationPath, $invocationJson, (New-Object System.Text.UTF8Encoding($false)))
     $iexpressProcess = Start-Process -FilePath $iexpressPath -ArgumentList $iexpressArguments -WorkingDirectory $buildRoot -PassThru -Wait -WindowStyle Hidden -RedirectStandardOutput $iexpressOutputPath -RedirectStandardError $iexpressErrorPath
+    $iexpressStandardOutput = if (Test-Path -LiteralPath $iexpressOutputPath -PathType Leaf) { [System.IO.File]::ReadAllText($iexpressOutputPath) } else { '' }
+    $iexpressStandardError = if (Test-Path -LiteralPath $iexpressErrorPath -PathType Leaf) { [System.IO.File]::ReadAllText($iexpressErrorPath) } else { '' }
+    $iexpressInvocation.exitCode = [int]$iexpressProcess.ExitCode
+    $iexpressInvocation.standardOutput = $iexpressStandardOutput
+    $iexpressInvocation.standardError = $iexpressStandardError
+    $invocationJson = (ConvertTo-Json -InputObject $iexpressInvocation -Depth 4) + [Environment]::NewLine
+    [System.IO.File]::WriteAllText($iexpressInvocationPath, $invocationJson, (New-Object System.Text.UTF8Encoding($false)))
     if ($iexpressProcess.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $launcherSeedPath -PathType Leaf)) {
-        $iexpressDetails = (Get-Content -LiteralPath $iexpressOutputPath -Raw -ErrorAction SilentlyContinue) + (Get-Content -LiteralPath $iexpressErrorPath -Raw -ErrorAction SilentlyContinue)
+        $iexpressDetails = $iexpressStandardOutput + $iexpressStandardError
         throw ('IExpress failed to generate a launcher seed. Exit code: {0}. {1}' -f $iexpressProcess.ExitCode, $iexpressDetails)
     }
     Set-InstallerExeCoffTimestampToZero -Path $launcherSeedPath

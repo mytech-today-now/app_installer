@@ -71,11 +71,13 @@ if (-not $versionContract.IsValid) {
 $guiVersion = [string]$versionContract.GuiVersion
 $contract = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
 $releaseNames = @($contract.windowsClient.releases | ForEach-Object { 'Windows 11 {0} build {1}' -f $_.displayVersion, $_.build }) -join ' or '
-$coreVersion = [string]$contract.engines.powerShellCore.version
+$windows10Target = $contract.windowsClient.windows10CompatibilityTarget
+$windows10Text = 'Windows 10 {0} through {1} with exact release/build pairs in compatibility.json' -f $windows10Target.displayVersionMinimum, $windows10Target.displayVersionMaximum
+$coreRange = 'PowerShell Core {0} through {1}' -f [string]$contract.engines.powerShellCore.minimumVersion, [string]$contract.engines.powerShellCore.maximumVersionInclusive
 $desktop = $contract.engines.windowsPowerShell
 $frameworkVersion = [string]$contract.runtimePrerequisites.windowsPowerShellGui.minimumVersion
 $desktopRuntimeMajor = [int]$contract.runtimePrerequisites.powerShellCoreGui.runtimeMajor
-$comments = "Windows support: $releaseNames, Home or Pro, x64. Windows PowerShell $($desktop.major).$($desktop.minor) GUI and CLI; GUI requires .NET Framework $frameworkVersion. PowerShell Core $coreVersion CLI; GUI requires Windows Desktop runtime $desktopRuntimeMajor and loadable System.Windows.Forms and System.Drawing. See compatibility.json."
+$comments = "Windows support: $windows10Text or $releaseNames, Home or Pro, x64. Windows PowerShell $($desktop.major).$($desktop.minor) GUI and CLI; GUI requires .NET Framework $frameworkVersion. $coreRange CLI; GUI requires Windows Desktop runtime $desktopRuntimeMajor and loadable System.Windows.Forms and System.Drawing. See compatibility.json."
 
 $outputDirectory = Split-Path -Parent $outputFullPath
 

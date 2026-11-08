@@ -7,8 +7,8 @@
     multiple applications across Windows, macOS, and Linux. Features include:
 
     CROSS-PLATFORM FEATURES:
-    - Works on supported Windows clients with Windows PowerShell 5.1 or PowerShell Core 7.6.9
-    - Works on supported macOS and Linux platforms with PowerShell Core 7.6.9
+    - Works on supported Windows clients with Windows PowerShell 5.1 or PowerShell Core 7.2.0 through 7.6.9
+    - Works on supported macOS and Linux platforms with PowerShell Core 7.2.0 through 7.6.9
     - Automatic package manager detection (winget, brew, apt, dnf, pacman, snap)
     - Platform-aware application filtering
     - Cross-platform path handling
@@ -88,8 +88,8 @@
     File Name      : install.ps1
     Author         : myTech.Today
     Prerequisite   : See compatibility.json for the authoritative support contract
-                     Windows: Windows 11 25H2 or 26H2, Home or Pro, x64; Windows PowerShell 5.1 or PowerShell Core 7.6.9
-                     macOS/Linux: PowerShell Core 7.6.9 on a supported platform
+                     Windows: Windows 10 1809 through 22H2 or listed Windows 11 releases, Home or Pro, x64; Windows PowerShell 5.1 or PowerShell Core 7.2.0 through 7.6.9
+                     macOS/Linux: PowerShell Core 7.2.0 through 7.6.9 on a supported platform
     Copyright      : (c) 2025 myTech.Today. All rights reserved.
     Version        : 2.0.2
 
@@ -519,6 +519,42 @@ function Initialize-Logging {
     }
 }
 
+function ConvertTo-MarkdownLogMessage {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [AllowNull()]
+        [object]$Message
+    )
+
+    if ($null -eq $Message) {
+        $normalizedMessage = ''
+    }
+    elseif ($Message -is [string]) {
+        $normalizedMessage = $Message
+    }
+    else {
+        $normalizedMessage = '[non-text message]'
+    }
+
+    # Keep untrusted values inside one Markdown table cell and one physical row.
+    $normalizedMessage = [regex]::Replace($normalizedMessage, '[\r\n\u0085\u2028\u2029]+', ' ')
+    $normalizedMessage = $normalizedMessage.Replace('|', '/')
+    $normalizedMessage = [regex]::Replace($normalizedMessage, '[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]', '')
+
+    $maximumLength = 1024
+    if ($normalizedMessage.Length -gt $maximumLength) {
+        $suffix = '...'
+        $prefixLength = $maximumLength - $suffix.Length
+        if ($prefixLength -gt 0 -and [char]::IsHighSurrogate($normalizedMessage[$prefixLength - 1]) -and [char]::IsLowSurrogate($normalizedMessage[$prefixLength])) {
+            $prefixLength--
+        }
+        $normalizedMessage = $normalizedMessage.Substring(0, $prefixLength) + $suffix
+    }
+
+    return $normalizedMessage
+}
+
 function Write-Log {
     <#
     .SYNOPSIS
@@ -527,7 +563,8 @@ function Write-Log {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]
-        [string]$Message,
+        [AllowNull()]
+        [object]$Message,
 
         [Parameter(Mandatory = $false)]
         [ValidateSet('INFO', 'WARNING', 'ERROR', 'SUCCESS')]
@@ -536,6 +573,7 @@ function Write-Log {
 
     try {
         $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
+        $safeMessage = ConvertTo-MarkdownLogMessage -Message $Message
 
         # Create markdown-formatted log entry
         $icon = switch ($Level) {
@@ -545,19 +583,19 @@ function Write-Log {
             'SUCCESS' { '[OK]' }
         }
 
-        $logEntry = "| $timestamp | $icon **$Level** | $Message |"
+        $logEntry = "| $timestamp | $icon **$Level** | $safeMessage |"
 
         # Write to log file in markdown table format
         if (-not $WhatIfPreference -and $script:LogPath -and (Safe-TestPath $script:LogPath)) {
-            Add-Content -Path $script:LogPath -Value $logEntry -ErrorAction SilentlyContinue
+            Add-Content -Path $script:LogPath -Value $logEntry -Encoding UTF8 -ErrorAction SilentlyContinue
         }
 
         # Write to console
         switch ($Level) {
-            'INFO'    { Write-Host "INFO: $Message" -ForegroundColor Cyan }
-            'WARNING' { Write-Warning $Message }
-            'ERROR'   { Write-Host "ERROR: $Message" -ForegroundColor Red }
-            'SUCCESS' { Write-Host "SUCCESS: $Message" -ForegroundColor Green }
+            'INFO'    { Write-Host "INFO: $safeMessage" -ForegroundColor Cyan }
+            'WARNING' { Write-Warning $safeMessage }
+            'ERROR'   { Write-Host "ERROR: $safeMessage" -ForegroundColor Red }
+            'SUCCESS' { Write-Host "SUCCESS: $safeMessage" -ForegroundColor Green }
         }
     }
     catch {
@@ -959,6 +997,45 @@ function Export-InstallationProfile {
     }
 }
 
+function ConvertTo-BoundedProfileText {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $false)]
+        [AllowNull()]
+        [object]$Value,
+
+        [Parameter(Mandatory = $true)]
+        [string]$FieldName,
+
+        [Parameter(Mandatory = $false)]
+        [ValidateRange(32, 4096)]
+        [int]$MaximumLength = 128
+    )
+
+    if ($null -eq $Value) {
+        return '[not provided]'
+    }
+
+    if ($FieldName -eq 'Timestamp' -and $Value -is [datetime]) {
+        $Value = $Value.ToString('o', [System.Globalization.CultureInfo]::InvariantCulture)
+    }
+    elseif ($Value -isnot [string]) {
+        return "[invalid $FieldName type]"
+    }
+
+    if ($Value.Length -le $MaximumLength) {
+        return $Value
+    }
+
+    $suffix = '... [truncated]'
+    $prefixLength = $MaximumLength - $suffix.Length
+    if ($prefixLength -gt 0 -and [char]::IsHighSurrogate($Value[$prefixLength - 1]) -and [char]::IsLowSurrogate($Value[$prefixLength])) {
+        $prefixLength--
+    }
+
+    return $Value.Substring(0, $prefixLength) + $suffix
+}
+
 function Import-InstallationProfile {
     <#
     .SYNOPSIS
@@ -1013,10 +1090,18 @@ function Import-InstallationProfile {
             }
         }
 
+        $profileLogMetadata = @{
+            Version          = (ConvertTo-BoundedProfileText -Value $profile.Version -FieldName 'Version' -MaximumLength 64)
+            Timestamp        = (ConvertTo-BoundedProfileText -Value $profile.Timestamp -FieldName 'Timestamp' -MaximumLength 128)
+            ComputerName     = (ConvertTo-BoundedProfileText -Value $profile.ComputerName -FieldName 'ComputerName' -MaximumLength 128)
+            UserName         = (ConvertTo-BoundedProfileText -Value $profile.UserName -FieldName 'UserName' -MaximumLength 128)
+            InstallerVersion = (ConvertTo-BoundedProfileText -Value $profile.InstallerVersion -FieldName 'InstallerVersion' -MaximumLength 128)
+        }
+
         Write-Log "Importing profile from: $FilePath" -Level INFO
-        Write-Log "Profile version: $($profile.Version)" -Level INFO
-        Write-Log "Profile created: $($profile.Timestamp)" -Level INFO
-        Write-Log "Profile installer version: $($profile.InstallerVersion)" -Level INFO
+        Write-Log "Profile version: $($profileLogMetadata.Version)" -Level INFO
+        Write-Log "Profile created: $($profileLogMetadata.Timestamp)" -Level INFO
+        Write-Log "Profile installer version: $($profileLogMetadata.InstallerVersion)" -Level INFO
 
         # Legacy identity fields are accepted as unknown metadata but excluded from
         # import diagnostics and returned profile information.
@@ -1026,7 +1111,21 @@ function Import-InstallationProfile {
         $validApps = @()
         $missingApps = @()
 
-        foreach ($appName in $profile.Applications) {
+        $applicationEntries = @($profile.Applications)
+        foreach ($appName in $applicationEntries) {
+            if ($appName -isnot [string]) {
+                $missingApps += '[invalid application name type]'
+                Write-Log 'Application entry ignored because its name is not a string' -Level WARNING
+                continue
+            }
+
+            if ($appName.Length -gt 256) {
+                $boundedAppName = ConvertTo-BoundedProfileText -Value $appName -FieldName 'application name' -MaximumLength 256
+                $missingApps += $boundedAppName
+                Write-Log "Application name ignored because it exceeds 256 characters: $boundedAppName" -Level WARNING
+                continue
+            }
+
             $app = $script:Applications | Where-Object { $_.Name -eq $appName } | Select-Object -First 1
             if ($app) {
                 $validApps += $app
@@ -1037,7 +1136,7 @@ function Import-InstallationProfile {
             }
         }
 
-        Write-Log "Profile contains $($profile.Applications.Count) application(s)" -Level INFO
+        Write-Log "Profile contains $($applicationEntries.Count) application(s)" -Level INFO
         Write-Log "Found $($validApps.Count) valid application(s)" -Level INFO
         if ($missingApps.Count -gt 0) {
             Write-Log "Missing $($missingApps.Count) application(s) not in current installer" -Level WARNING
@@ -1099,6 +1198,12 @@ function Show-Menu {
         Write-Host ""
 
         foreach ($app in $category.Group | Sort-Object Name) {
+            $unavailableReason = AppInstallerCore\Get-ApplicationUnavailableReason -Application $app
+            if ($unavailableReason) {
+                Write-Host "    --. $($app.Name) - [UNAVAILABLE] $unavailableReason" -ForegroundColor DarkGray
+                continue
+            }
+
             $menuItems[$index] = $app
 
             $status = if ($installedApps.ContainsKey($app.Name)) {
@@ -1184,7 +1289,19 @@ function Parse-SelectionInput {
 
         if ($category) {
             Write-Host "`nSelected category: $($category.Name)" -ForegroundColor Green
-            $selectedApps = $category.Group | Sort-Object Name
+            $categoryApps = @()
+            foreach ($app in $category.Group | Sort-Object Name) {
+                $unavailableReason = AppInstallerCore\Get-ApplicationUnavailableReason -Application $app
+                if ($unavailableReason) {
+                    Write-Host "[UNAVAILABLE] $($app.Name): $unavailableReason" -ForegroundColor DarkGray
+                    continue
+                }
+                $categoryApps += $app
+            }
+            $selectedApps = $categoryApps
+            if ($selectedApps.Count -eq 0) {
+                Write-Host 'No available applications were found in this category.' -ForegroundColor Yellow
+            }
         }
         else {
             Write-Host "`nCategory '$categoryName' not found." -ForegroundColor Red
@@ -1257,6 +1374,21 @@ function Install-SelectedApplications {
         Write-Host "`nNo applications selected." -ForegroundColor Yellow
         return
     }
+
+    $availableApps = @()
+    foreach ($app in $Apps) {
+        $unavailableReason = AppInstallerCore\Get-ApplicationUnavailableReason -Application $app
+        if ($unavailableReason) {
+            Write-Host "[BLOCKED] $($app.Name): $unavailableReason No package command or helper process was started." -ForegroundColor Red
+            continue
+        }
+        $availableApps += $app
+    }
+    if ($availableApps.Count -eq 0) {
+        Write-Host '[BLOCKED] No selected application has an available installer action.' -ForegroundColor Red
+        return $false
+    }
+    $Apps = $availableApps
 
     # Reorder applications to install O&O ShutUp10 first if present
     $appsToInstall = $Apps
@@ -2667,6 +2799,12 @@ function Install-Application {
         [Parameter(Mandatory = $false)]
         [int]$TotalCount = 0
     )
+
+    $unavailableReason = AppInstallerCore\Get-ApplicationUnavailableReason -Application $App
+    if ($unavailableReason) {
+        Write-Host "[BLOCKED] $($App.Name): $unavailableReason No package command or helper process was started." -ForegroundColor Red
+        return $false
+    }
 
     $installTarget = if ($App.WingetId) {
         "{0} [{1}]" -f $App.Name, $App.WingetId

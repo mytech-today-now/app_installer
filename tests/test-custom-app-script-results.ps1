@@ -218,7 +218,19 @@ Write-Output 'This execution path declares no result.'
     Assert-Condition ($belarcResult.Status -eq 'Failure' -and $belarcResult.ExitCode -eq 1) 'Belarc with absent production pins returns a failed custom-app result'
     Assert-Condition ($belarcResult.ResultKind -eq 'NativeProcess') 'Belarc exposes its verified installer child result to the custom-app runner'
 
-    $mcafeeCatalogEntries = @(Get-ApplicationRegistry | Where-Object { $_.ScriptName -ceq 'uninstall-mcafee.ps1' })
+    $catalogApplications = @(Get-ApplicationRegistry)
+    $unavailableScriptNames = @('belarc.ps1', 'uninstall-mcafee.ps1', 'shutup10.ps1')
+    foreach ($scriptName in $unavailableScriptNames) {
+        $catalogEntry = @($catalogApplications | Where-Object { $_.ScriptName -ceq $scriptName })
+        Assert-Condition ($catalogEntry.Count -eq 1 -and -not $catalogEntry[0].Available -and $catalogEntry[0].AvailabilityStatus -ceq 'unavailable') "$scriptName is explicitly unavailable in the application catalog"
+        $unavailableReason = Get-ApplicationUnavailableReason -Application $catalogEntry[0]
+        Assert-Condition (-not [string]::IsNullOrWhiteSpace($unavailableReason) -and $unavailableReason -ceq $catalogEntry[0].AvailabilityReason) "$scriptName exposes its catalogued reason before selection"
+    }
+
+    $availableCatalogEntry = @($catalogApplications | Where-Object { $_.ScriptName -ceq '7zip.ps1' })
+    Assert-Condition ($availableCatalogEntry.Count -eq 1 -and $availableCatalogEntry[0].Available -and $null -eq (Get-ApplicationUnavailableReason -Application $availableCatalogEntry[0])) 'Applications without an unavailable catalog status remain selectable'
+
+    $mcafeeCatalogEntries = @($catalogApplications | Where-Object { $_.ScriptName -ceq 'uninstall-mcafee.ps1' })
     Assert-Condition ($mcafeeCatalogEntries.Count -eq 1 -and $mcafeeCatalogEntries[0].Platform -ceq 'Windows' -and -not $mcafeeCatalogEntries[0].WingetId) 'The McAfee manifest entry maps to one Windows custom script without a package-manager fallback'
     $mcafeeScriptPath = Join-Path $repositoryRoot ('apps\' + $mcafeeCatalogEntries[0].ScriptName)
     $mcafeeResult = Invoke-AppScript -ScriptPath $mcafeeScriptPath
@@ -346,6 +358,18 @@ function Write-Host {
 
     $guiSource = [System.IO.File]::ReadAllText((Join-Path $repositoryRoot 'app-installer.ps1'))
     $cliSource = [System.IO.File]::ReadAllText((Join-Path $repositoryRoot 'app-installer-cli.ps1'))
+    Assert-Condition ($guiSource.Contains("AppInstallerCore\Get-ApplicationUnavailableReason -Application `$app") -and $guiSource.Contains("AppInstallerCore\Get-ApplicationUnavailableReason -Application `$item.Tag") -and $guiSource.Contains("`$item.SubItems.Add('Unavailable')") -and $guiSource.Contains('$e.NewValue = $e.CurrentValue')) 'GUI displays unavailable catalog actions and prevents their checkbox selection'
+    Assert-Condition ($cliSource.Contains("AppInstallerCore\Get-ApplicationUnavailableReason -Application `$app") -and $cliSource.Contains('[UNAVAILABLE] $($app.Name)') -and $cliSource.Contains('[BLOCKED] $($App.Name)')) 'CLI omits unavailable actions from numbered selection and blocks direct install requests'
+    $guiInstallStart = $guiSource.IndexOf('function Install-Application {', [System.StringComparison]::Ordinal)
+    $guiAvailabilityGuardIndex = if ($guiInstallStart -ge 0) { $guiSource.IndexOf('Get-ApplicationUnavailableReason -Application $App', $guiInstallStart, [System.StringComparison]::Ordinal) } else { -1 }
+    $guiInstallActionIndex = if ($guiInstallStart -ge 0) { $guiSource.IndexOf('$script:LastAppScriptOutcome = $null', $guiInstallStart, [System.StringComparison]::Ordinal) } else { -1 }
+    Assert-Condition ($guiAvailabilityGuardIndex -ge 0 -and $guiInstallActionIndex -gt $guiAvailabilityGuardIndex) 'GUI direct install calls check availability before entering the install flow'
+    $cliInstallStart = $cliSource.IndexOf('function Install-Application {', [System.StringComparison]::Ordinal)
+    $cliInstallEnd = if ($cliInstallStart -ge 0) { $cliSource.IndexOf('function Uninstall-Application {', $cliInstallStart, [System.StringComparison]::Ordinal) } else { -1 }
+    $cliInstallFunction = if ($cliInstallStart -ge 0 -and $cliInstallEnd -gt $cliInstallStart) { $cliSource.Substring($cliInstallStart, $cliInstallEnd - $cliInstallStart) } else { '' }
+    $availabilityGuardIndex = $cliInstallFunction.IndexOf('Get-ApplicationUnavailableReason', [System.StringComparison]::Ordinal)
+    $shouldProcessIndex = $cliInstallFunction.IndexOf('Test-InstallerShouldProcess', [System.StringComparison]::Ordinal)
+    Assert-Condition ($availabilityGuardIndex -ge 0 -and $shouldProcessIndex -gt $availabilityGuardIndex) 'CLI availability guard runs before ShouldProcess or any install operation'
     $guiSuccessContract = 'if ($appScriptResult.Status -in @(''PowerShellSuccess'', ''NativeProcessSuccess'') -or $scriptExitCode -eq -1978335191)'
     $cliSuccessContract = 'if ($appScriptResult.Status -in @(''PowerShellSuccess'', ''NativeProcessSuccess''))'
     Assert-Condition ($guiSource.Contains($guiSuccessContract) -and $cliSource.Contains($cliSuccessContract)) 'GUI and CLI completion mapping accepts only declared success states; the blocked McAfee exit code remains a failure'

@@ -92,7 +92,7 @@ Assert-Condition -Condition (-not $unsupportedOs.IsSupported -and $unsupportedOs
 $unsupportedRelease = Test-InstallerGuiCapability -HostInfo (New-TestHostInfo -DisplayVersion '24H2' -BuildNumber 26100) -EngineInfo $coreEngine -Date $supportedDate -ProcessArchitecture X64 -ApartmentState STA -WindowsFormsLoader $formsLoader
 Assert-Condition -Condition (-not $unsupportedRelease.IsSupported -and $unsupportedRelease.ReasonCode -eq 'WINDOWS_RELEASE_UNSUPPORTED' -and $script:assemblyLoadCounter.Count -eq 0) -Message 'An unsupported Windows release is rejected before any GUI assembly probe.'
 
-$unsupportedEngine = Test-InstallerGuiCapability -HostInfo $validHost -EngineInfo (New-TestEngineInfo -Version '7.6.6') -Date $supportedDate -ProcessArchitecture X64 -ApartmentState STA -WindowsFormsLoader $formsLoader
+$unsupportedEngine = Test-InstallerGuiCapability -HostInfo $validHost -EngineInfo (New-TestEngineInfo -Version '7.1.9') -Date $supportedDate -ProcessArchitecture X64 -ApartmentState STA -WindowsFormsLoader $formsLoader
 Assert-Condition -Condition (-not $unsupportedEngine.IsSupported -and $unsupportedEngine.ReasonCode -eq 'ENGINE_UNSUPPORTED' -and $script:assemblyLoadCounter.Count -eq 0) -Message 'An unsupported PowerShell version is rejected before any GUI assembly probe.'
 
 $unsupportedProcess = Test-InstallerGuiCapability -HostInfo $validHost -EngineInfo $coreEngine -Date $supportedDate -ProcessArchitecture Arm64 -ApartmentState STA -WindowsFormsLoader $formsLoader
@@ -125,7 +125,7 @@ Assert-Condition -Condition ($guiFailureStartup.Action -eq 'RunCLI' -and $guiFai
 $forcedCli = Resolve-InstallerGuiStartup -GuiCapability $validCore -CliCapability $cliCapability -ForceCLI
 Assert-Condition -Condition ($forcedCli.Action -eq 'RunCLI' -and $forcedCli.ReasonCode -eq 'CLI_FORCED') -Message 'Forced CLI bypasses the GUI capability result.'
 
-$unsupportedCliCapability = Test-InstallerCompatibility -Component WindowsCli -HostInfo $validHost -EngineInfo (New-TestEngineInfo -Version '7.6.6') -Date $supportedDate
+$unsupportedCliCapability = Test-InstallerCompatibility -Component WindowsCli -HostInfo $validHost -EngineInfo (New-TestEngineInfo -Version '7.1.9') -Date $supportedDate
 $blockedStartup = Resolve-InstallerGuiStartup -GuiCapability $unavailableForms -CliCapability $unsupportedCliCapability
 Assert-Condition -Condition ($blockedStartup.Action -eq 'Failure' -and $blockedStartup.ReasonCode -eq 'ENGINE_UNSUPPORTED') -Message 'An unavailable CLI host stops startup with the compatibility error before installer work.'
 

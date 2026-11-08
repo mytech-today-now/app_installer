@@ -232,8 +232,9 @@ function Get-OOResponseBytes {
         [string]$Uri
     )
 
-    $request = [System.Net.WebRequest]::Create($Uri)
+    $request = [System.Net.HttpWebRequest]::Create($Uri)
     $request.Method = 'GET'
+    $request.AllowAutoRedirect = $false
     $request.Timeout = 30000
     $request.ReadWriteTimeout = 30000
     $response = $null
@@ -244,6 +245,13 @@ function Get-OOResponseBytes {
         $response = $request.GetResponse()
         if ($response -is [System.Net.HttpWebResponse] -and $response.StatusCode -ne [System.Net.HttpStatusCode]::OK) {
             throw 'http-status-failed'
+        }
+        if (-not [string]::Equals(
+                $response.ResponseUri.AbsoluteUri,
+                ([System.Uri]::new($Uri, [System.UriKind]::Absolute)).AbsoluteUri,
+                [System.StringComparison]::Ordinal
+            )) {
+            throw 'source-changed-during-download'
         }
 
         $responseStream = $response.GetResponseStream()
@@ -456,13 +464,42 @@ function Invoke-VerifiedOOShutUp10Script {
             $result.DownloadStatus = 'pending'
 
             if ($DownloadScript) {
-                $responseBytes = & $DownloadScript $Uri
+                $downloadResponse = & $DownloadScript $Uri
             }
             else {
-                $responseBytes = Get-OOResponseBytes -Uri $Uri
+                $downloadResponse = Get-OOResponseBytes -Uri $Uri
             }
 
-            if ($responseBytes -isnot [byte[]] -or $responseBytes.Length -eq 0) {
+            $responseBytes = $downloadResponse
+            $responseSourceChanged = $false
+            if ($downloadResponse -isnot [byte[]]) {
+                $bytesProperty = $null
+                $responseUriProperty = $null
+                if ($null -ne $downloadResponse) {
+                    $bytesProperty = $downloadResponse.PSObject.Properties['Bytes']
+                    $responseUriProperty = $downloadResponse.PSObject.Properties['ResponseUri']
+                }
+                if ($null -ne $bytesProperty -and $null -ne $responseUriProperty) {
+                    $responseBytes = $bytesProperty.Value
+                    $responseUri = [string]$responseUriProperty.Value
+                    $expectedResponseUri = ([System.Uri]::new($Uri, [System.UriKind]::Absolute)).AbsoluteUri
+                    $responseSourceChanged = -not [string]::Equals(
+                        $responseUri,
+                        $expectedResponseUri,
+                        [System.StringComparison]::Ordinal
+                    )
+                }
+                else {
+                    $responseBytes = $null
+                }
+            }
+
+            if ($responseSourceChanged) {
+                $result.DownloadStatus = 'redirect-rejected'
+                $result.VerificationStatus = 'rejected'
+                $result.FailureReason = 'source-changed-during-download'
+            }
+            elseif ($responseBytes -isnot [byte[]] -or $responseBytes.Length -eq 0) {
                 $result.DownloadStatus = 'invalid-output'
                 $result.VerificationStatus = 'rejected'
                 $result.FailureReason = 'invalid-download-output'

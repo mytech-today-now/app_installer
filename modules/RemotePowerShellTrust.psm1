@@ -108,6 +108,13 @@ function Get-RemoteHelperResponseBytes {
             $response.StatusCode -ne [System.Net.HttpStatusCode]::OK) {
             throw 'http-status-failed'
         }
+        if (-not [string]::Equals(
+                $response.ResponseUri.AbsoluteUri,
+                ([System.Uri]::new($Uri, [System.UriKind]::Absolute)).AbsoluteUri,
+                [System.StringComparison]::Ordinal
+            )) {
+            throw 'source-changed-during-download'
+        }
 
         $responseStream = $response.GetResponseStream()
         $memoryStream = New-Object System.IO.MemoryStream
@@ -348,13 +355,42 @@ function Invoke-VerifiedRemotePowerShellHelper {
             $result.RequestStatus = 'pending'
 
             if ($DownloadScript) {
-                $responseBytes = & $DownloadScript $Uri
+                $downloadResponse = & $DownloadScript $Uri
             }
             else {
-                $responseBytes = Get-RemoteHelperResponseBytes -Uri $Uri
+                $downloadResponse = Get-RemoteHelperResponseBytes -Uri $Uri
             }
 
-            if ($responseBytes -isnot [byte[]] -or $responseBytes.Length -eq 0) {
+            $responseBytes = $downloadResponse
+            $responseSourceChanged = $false
+            if ($downloadResponse -isnot [byte[]]) {
+                $bytesProperty = $null
+                $responseUriProperty = $null
+                if ($null -ne $downloadResponse) {
+                    $bytesProperty = $downloadResponse.PSObject.Properties['Bytes']
+                    $responseUriProperty = $downloadResponse.PSObject.Properties['ResponseUri']
+                }
+                if ($null -ne $bytesProperty -and $null -ne $responseUriProperty) {
+                    $responseBytes = $bytesProperty.Value
+                    $responseUri = [string]$responseUriProperty.Value
+                    $expectedResponseUri = ([System.Uri]::new($Uri, [System.UriKind]::Absolute)).AbsoluteUri
+                    $responseSourceChanged = -not [string]::Equals(
+                        $responseUri,
+                        $expectedResponseUri,
+                        [System.StringComparison]::Ordinal
+                    )
+                }
+                else {
+                    $responseBytes = $null
+                }
+            }
+
+            if ($responseSourceChanged) {
+                $result.RequestStatus = 'redirect-rejected'
+                $result.VerificationStatus = 'rejected'
+                $result.FailureReason = 'source-changed-during-download'
+            }
+            elseif ($responseBytes -isnot [byte[]] -or $responseBytes.Length -eq 0) {
                 $result.RequestStatus = 'invalid-output'
                 $result.VerificationStatus = 'rejected'
                 $result.FailureReason = 'invalid-download-output'
@@ -853,13 +889,42 @@ function Invoke-VerifiedRemoteExecutableHelper {
             $tempRootFull = [System.IO.Path]::GetFullPath($effectiveTempRoot)
             $result.RequestStatus = 'pending'
             if ($DownloadScript) {
-                $responseBytes = & $DownloadScript $Uri
+                $downloadResponse = & $DownloadScript $Uri
             }
             else {
-                $responseBytes = Get-RemoteHelperResponseBytes -Uri $Uri
+                $downloadResponse = Get-RemoteHelperResponseBytes -Uri $Uri
             }
 
-            if ($responseBytes -isnot [byte[]] -or $responseBytes.Length -eq 0) {
+            $responseBytes = $downloadResponse
+            $responseSourceChanged = $false
+            if ($downloadResponse -isnot [byte[]]) {
+                $bytesProperty = $null
+                $responseUriProperty = $null
+                if ($null -ne $downloadResponse) {
+                    $bytesProperty = $downloadResponse.PSObject.Properties['Bytes']
+                    $responseUriProperty = $downloadResponse.PSObject.Properties['ResponseUri']
+                }
+                if ($null -ne $bytesProperty -and $null -ne $responseUriProperty) {
+                    $responseBytes = $bytesProperty.Value
+                    $responseUri = [string]$responseUriProperty.Value
+                    $expectedResponseUri = ([System.Uri]::new($Uri, [System.UriKind]::Absolute)).AbsoluteUri
+                    $responseSourceChanged = -not [string]::Equals(
+                        $responseUri,
+                        $expectedResponseUri,
+                        [System.StringComparison]::Ordinal
+                    )
+                }
+                else {
+                    $responseBytes = $null
+                }
+            }
+
+            if ($responseSourceChanged) {
+                $result.RequestStatus = 'redirect-rejected'
+                $result.VerificationStatus = 'rejected'
+                $result.FailureReason = 'source-changed-during-download'
+            }
+            elseif ($responseBytes -isnot [byte[]] -or $responseBytes.Length -eq 0) {
                 $result.RequestStatus = 'invalid-output'
                 $result.VerificationStatus = 'rejected'
                 $result.FailureReason = 'invalid-download-output'

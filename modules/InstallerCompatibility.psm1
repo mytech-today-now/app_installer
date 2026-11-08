@@ -172,6 +172,27 @@ function Test-InstallerWindowsHost {
         return [PSCustomObject]@{ IsSupported = $false; ReasonCode = 'WINDOWS_EDITION_UNSUPPORTED'; Reason = "The detected Windows edition '$($HostInfo.EditionId)' is not in the verified Home and Pro matrix."; Release = $null }
     }
 
+    $windows10Target = $windows.windows10CompatibilityTarget
+    $windows10BuildInRange = $null -ne $windows10Target -and
+        [int]$HostInfo.BuildNumber -ge [int]$windows10Target.minimumBuildInclusive -and
+        [int]$HostInfo.BuildNumber -lt [int]$windows10Target.maximumBuildExclusive
+    $windows10ReleaseMatches = @($windows10Target.supportedReleases | Where-Object {
+        $releaseVersionMatches = ([string]$_.displayVersion -eq [string]$HostInfo.DisplayVersion) -or
+            (@($_.releaseIdAliases) -contains [string]$HostInfo.DisplayVersion)
+        $windows10BuildInRange -and $releaseVersionMatches -and [int]$_.build -eq [int]$HostInfo.BuildNumber
+    } | Select-Object -First 1)
+    if ($windows10BuildInRange -and $windows10ReleaseMatches.Count -gt 0) {
+        $matchingWindows10Release = $windows10ReleaseMatches[0]
+        $windows10Release = [PSCustomObject]@{
+            productName = 'Windows 10'
+            displayVersion = [string]$matchingWindows10Release.displayVersion
+            build = [int]$HostInfo.BuildNumber
+            consumerEndOfSupport = [string]$windows10Target.vendorEndOfSupportForHomeAndPro
+            vendorSupportEnded = $true
+        }
+        return [PSCustomObject]@{ IsSupported = $true; ReasonCode = 'WINDOWS_HOST_SUPPORTED'; Reason = ''; Release = $windows10Release }
+    }
+
     $release = @($windows.releases | Where-Object {
         [string]$_.displayVersion -eq [string]$HostInfo.DisplayVersion -and [int]$_.build -eq [int]$HostInfo.BuildNumber
     } | Select-Object -First 1)
@@ -279,9 +300,12 @@ function Test-InstallerPowerShellEngine {
     }
 
     $core = $Manifest.engines.powerShellCore
-    if ([string]$EngineInfo.PSEdition -eq [string]$core.edition -and
-        [string]$EngineInfo.PSVersion.ToString() -eq [string]$core.version) {
-        return [PSCustomObject]@{ IsSupported = $true; ReasonCode = 'ENGINE_SUPPORTED'; Engine = "PowerShell Core $($core.version)"; Reason = '' }
+    [version]$coreVersion = [version]'0.0'
+    $coreVersionParsed = [version]::TryParse([string]$EngineInfo.PSVersion, [ref]$coreVersion)
+    if ($coreVersionParsed -and [string]$EngineInfo.PSEdition -eq [string]$core.edition -and
+        $coreVersion -ge [version][string]$core.minimumVersion -and
+        $coreVersion -le [version][string]$core.maximumVersionInclusive) {
+        return [PSCustomObject]@{ IsSupported = $true; ReasonCode = 'ENGINE_SUPPORTED'; Engine = "PowerShell Core $($core.minimumVersion) through $($core.maximumVersionInclusive)"; Reason = '' }
     }
 
     $current = if ($EngineInfo.PSVersion) { [string]$EngineInfo.PSVersion } else { 'unknown' }
@@ -332,8 +356,11 @@ function Get-InstallerCompatibilityFailureMessage {
 
     if ($Component -eq 'CrossPlatformCli') {
         $coreVersion = [string]$Manifest.engines.powerShellCore.version
-        $recovery = "Install PowerShell Core $coreVersion while it remains within its published support lifecycle. After its end-of-support date, use a PowerShell version listed by a refreshed App Installer compatibility contract."
-        return "[ERROR] $Component is not supported: $Reason Supported engine: PowerShell Core $coreVersion on macOS or Linux. Recovery: $recovery Compatibility checks stop before package managers, downloads, elevation, or persistent changes."
+        $minimumCoreVersion = [string]$Manifest.engines.powerShellCore.minimumVersion
+        $maximumCoreVersion = [string]$Manifest.engines.powerShellCore.maximumVersionInclusive
+        $engineRange = "PowerShell Core $minimumCoreVersion through $maximumCoreVersion"
+        $recovery = "Install a compatible PowerShell Core version from $minimumCoreVersion through $($Manifest.engines.powerShellCore.maximumVersionInclusive). The consent-gated Windows runtime provisioner uses the pinned $coreVersion release while its publisher support lifecycle remains active."
+        return "[ERROR] $Component is not supported: $Reason Supported engine: $engineRange on macOS or Linux. Recovery: $recovery Compatibility checks stop before package managers, downloads, elevation, or persistent changes."
     }
 
     $releaseText = (@($Manifest.windowsClient.releases | ForEach-Object {
@@ -341,13 +368,15 @@ function Get-InstallerCompatibilityFailureMessage {
     }) -join ' or ')
     $engineRecovery = [string]$Manifest.recovery.engine
     if ($Reason -match '(?i)PowerShell Core .+ reached end of support') {
-        $engineRecovery = 'The pinned PowerShell Core version has reached end of support. Use Windows PowerShell 5.1 on a supported Windows host or use an App Installer release with a current compatibility contract.'
+        $engineRecovery = 'The provisioned PowerShell Core release has reached end of support. Use another compatible PowerShell Core release in the declared version range or Windows PowerShell 5.1 on a supported Windows host.'
     }
     $recovery = "$($Manifest.recovery.windows) $engineRecovery"
     if ($Component -eq 'WindowsGui') {
         $recovery += " $($Manifest.recovery.gui)"
     }
-    return "[ERROR] $Component is not supported: $Reason Supported Windows: $releaseText, Home or Pro, x64. Supported engines: Windows PowerShell 5.1 or PowerShell $($Manifest.engines.powerShellCore.version). Recovery: $recovery Compatibility checks stop before package managers, downloads, elevation, or persistent changes."
+    $windows10Target = $Manifest.windowsClient.windows10CompatibilityTarget
+    $windows10Text = 'Windows 10 {0} through {1} with exact release/build pairs listed in compatibility.json' -f $windows10Target.displayVersionMinimum, $windows10Target.displayVersionMaximum
+    return "[ERROR] $Component is not supported: $Reason Supported Windows: $windows10Text or $releaseText, Home or Pro, x64. Supported engines: Windows PowerShell 5.1 or PowerShell Core $($Manifest.engines.powerShellCore.minimumVersion) through $($Manifest.engines.powerShellCore.maximumVersionInclusive). Recovery: $recovery Compatibility checks stop before package managers, downloads, elevation, or persistent changes."
 }
 
 function Test-InstallerCompatibility {
@@ -428,18 +457,8 @@ function Test-InstallerCompatibility {
     }
 
     $engineResult = Test-InstallerPowerShellEngine -EngineInfo $EngineInfo -Manifest $manifest
-    if ($engineResult.IsSupported -and [string]$EngineInfo.PSEdition -eq [string]$manifest.engines.powerShellCore.edition) {
-        $engineEndOfSupport = [datetime]::ParseExact(
-            [string]$manifest.engines.powerShellCore.endOfSupport,
-            'yyyy-MM-dd',
-            [System.Globalization.CultureInfo]::InvariantCulture
-        )
-        if ($Date.Date -gt $engineEndOfSupport.Date) {
-            $engineResult.IsSupported = $false
-            $engineResult.ReasonCode = 'ENGINE_EOL'
-            $engineResult.Reason = "PowerShell Core $($manifest.engines.powerShellCore.version) reached end of support on $($engineEndOfSupport.ToString('yyyy-MM-dd')). Install the currently supported PowerShell release before running the installer."
-        }
-    }
+    # This is a technical compatibility gate. Publisher lifecycle dates are
+    # recorded separately and do not reject engines within the declared range.
     if (-not $engineResult.IsSupported) {
         $message = Get-InstallerCompatibilityFailureMessage -Component $Component -Reason $engineResult.Reason -Manifest $manifest
         return [PSCustomObject]@{ IsSupported = $false; Component = $Component; ReasonCode = [string]$engineResult.ReasonCode; Reason = $engineResult.Reason; RecoveryMessage = [string]$manifest.recovery.engine; Message = ('[{0}] {1}' -f $engineResult.ReasonCode, $message); Release = $null }
@@ -694,7 +713,7 @@ function Get-InstallerHostPreflight {
         ''
     }
     elseif ($Component -eq 'CrossPlatformCli') {
-        'Use PowerShell Core {0} on an operating system supported by that PowerShell release.' -f $Manifest.engines.powerShellCore.version
+        'Use PowerShell Core {0} through {1} on an operating system supported by that PowerShell release.' -f $Manifest.engines.powerShellCore.minimumVersion, $Manifest.engines.powerShellCore.maximumVersionInclusive
     }
     else {
         [string]$Manifest.recovery.windows
@@ -724,10 +743,12 @@ function Get-InstallerHostPreflight {
     }
 
     if ($isWindowsComponent) {
+        $windows10Target = $Manifest.windowsClient.windows10CompatibilityTarget
         $releaseRequirement = @($Manifest.windowsClient.releases | ForEach-Object {
             'Windows 11 {0} build {1}' -f $_.displayVersion, $_.build
         }) -join ' or '
-        $hostRequirement = '{0}, Home or Pro, x64.' -f $releaseRequirement
+        $windows10Requirement = 'Windows 10 versions {0} through {1} with exact release/build pairs listed in compatibility.json' -f $windows10Target.displayVersionMinimum, $windows10Target.displayVersionMaximum
+        $hostRequirement = '{0} or {1}, Home or Pro, x64.' -f $windows10Requirement, $releaseRequirement
     }
     else {
         $hostRequirement = '{0} on an operating system supported by that PowerShell release.' -f $Manifest.nonWindowsCli.engine
@@ -772,7 +793,7 @@ function Get-InstallerHostPreflight {
         RuntimeRequirements = [PSCustomObject]@{
             Cli = [PSCustomObject]@{
                 WindowsPowerShell = '{0}.{1}' -f $Manifest.engines.windowsPowerShell.major, $Manifest.engines.windowsPowerShell.minor
-                PowerShellCore = [string]$Manifest.engines.powerShellCore.version
+                PowerShellCore = ('{0} through {1}' -f [string]$Manifest.engines.powerShellCore.minimumVersion, [string]$Manifest.engines.powerShellCore.maximumVersionInclusive)
                 AdditionalRuntime = [string]$Manifest.runtimePrerequisites.cli
             }
             Gui = [PSCustomObject]@{

@@ -102,6 +102,9 @@ try {
     $signature = Get-AuthenticodeSignature -FilePath $exePath
     $contract = Get-Content -LiteralPath (Join-Path $repositoryRoot 'compatibility.json') -Raw | ConvertFrom-Json
     $releaseNames = @($contract.windowsClient.releases | ForEach-Object { 'Windows 11 {0} build {1}' -f $_.displayVersion, $_.build })
+    $windows10Target = $contract.windowsClient.windows10CompatibilityTarget
+    $windows10Text = 'Windows 10 {0} through {1} with exact release/build pairs in compatibility.json' -f $windows10Target.displayVersionMinimum, $windows10Target.displayVersionMaximum
+    $coreRange = 'PowerShell Core {0} through {1}' -f [string]$contract.engines.powerShellCore.minimumVersion, [string]$contract.engines.powerShellCore.maximumVersionInclusive
 
     if ($fileVersion.FileVersion -ne $expectedVersion -or $fileVersion.ProductVersion -ne $expectedVersion) {
         throw "Executable FileVersion '$($fileVersion.FileVersion)' or ProductVersion '$($fileVersion.ProductVersion)' did not match '$expectedVersion'."
@@ -109,10 +112,11 @@ try {
     if ($fileVersion.ProductName -ne 'myTech.Today App Installer') {
         throw "Unexpected executable ProductName '$($fileVersion.ProductName)'."
     }
-    if ($fileVersion.Comments -notmatch 'compatibility\.json' -or $fileVersion.Comments -notmatch ([regex]::Escape('PowerShell Core ' + [string]$contract.engines.powerShellCore.version))) {
+    if ($fileVersion.Comments -notmatch 'compatibility\.json' -or -not $fileVersion.Comments.Contains($coreRange)) {
         throw 'Executable comments do not match the current compatibility contract.'
     }
     $requiredComments = @(
+        $windows10Text,
         'Home or Pro',
         'x64',
         'Windows PowerShell 5.1',

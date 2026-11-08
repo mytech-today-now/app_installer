@@ -1,6 +1,6 @@
 {
   "contractVersion": 1,
-  "lastReviewed": "2026-11-01",
+  "lastReviewed": "2026-11-07",
   "reviewPolicy": {
     "maximumAgeDays": 180,
     "requiredBeforeRelease": true
@@ -25,9 +25,29 @@
         "consumerEndOfSupport": "2028-10-10"
       }
     ],
+    "windows10CompatibilityTarget": {
+      "displayVersionMinimum": "1809",
+      "displayVersionMaximum": "22H2",
+      "supportedReleases": [
+        { "displayVersion": "1809", "build": 17763 },
+        { "displayVersion": "1903", "build": 18362 },
+        { "displayVersion": "1909", "build": 18363 },
+        { "displayVersion": "2004", "build": 19041 },
+        { "displayVersion": "20H2", "build": 19042, "releaseIdAliases": ["2009"] },
+        { "displayVersion": "21H1", "build": 19043 },
+        { "displayVersion": "21H2", "build": 19044 },
+        { "displayVersion": "22H2", "build": 19045 }
+      ],
+      "minimumBuildInclusive": 17763,
+      "maximumBuildExclusive": 22000,
+      "status": "Targeted, not verified on a Windows 10 host",
+      "vendorEndOfSupportForHomeAndPro": "2025-10-14",
+      "supportNote": "This is an App Installer technical compatibility target. Only the exact supported release/build pairs listed here are accepted. It does not imply Microsoft security servicing for Windows 10 Home or Pro."
+    },
     "verification": {
       "boundaryTests": "tests/test-compatibility-contract.ps1",
       "currentWindowsRunner": "Windows 11 26H2 build 26300, Home, x64",
+      "windows10RuntimeEvidence": "NOT RUN; no Windows 10 host was available during this contract update.",
       "runtimeTests": "tests/test-compatibility-runtime-current-host.ps1",
       "lifecycleSource": "https://learn.microsoft.com/en-us/windows/release-health/supported-versions-windows-client",
       "dotNetFrameworkSource": "https://learn.microsoft.com/en-us/dotnet/framework/get-started/system-requirements",
@@ -38,8 +58,8 @@
     },
     "unsupportedFamilies": [
       {
-        "name": "Windows 10",
-        "reason": "Windows 10 client servicing ended on 2025-10-14."
+        "name": "Windows 10 before 1809 or build 17763",
+        "reason": "The declared Windows 10 compatibility target starts at version 1809, build 17763."
       },
       {
         "name": "Windows Server",
@@ -66,10 +86,17 @@
     "powerShellCore": {
       "edition": "Core",
       "version": "7.6.9",
+      "minimumVersion": "7.2.0",
+      "maximumVersionInclusive": "7.6.9",
+      "compatibilityPolicy": "PowerShell Core versions from 7.2.0 through 7.6.9 are compatibility targets. Versions above the current pinned release require a reviewed contract update. Microsoft servicing status is documented separately and does not change this technical compatibility gate.",
       "gui": true,
       "cli": true,
       "nonWindowsCli": true,
-      "endOfSupport": "2028-11-14"
+      "endOfSupport": "2028-11-14",
+      "endOfSupportAppliesTo": "The pinned 7.6.9 provisioning and release-evidence runtime, not every version in the compatibility range.",
+      "minimumVersionRuntimeEvidence": "NOT RUN; only boundary metadata was checked for the 7.2.0 floor.",
+      "minimumVersionPublisherEndOfSupport": "2024-11-08",
+      "minimumVersionPublisherSupportStatus": "Ended"
     }
   },
   "windowsExecutable": {
@@ -77,7 +104,7 @@
     "entryPoint": "install.bat",
     "bundledPowerShellRuntime": false,
     "engineSelectionOrder": [
-      "PowerShell Core 7.6.9",
+      "PowerShell Core 7.2.0 through 7.6.9",
       "Windows PowerShell Desktop 5.1"
     ],
     "runtimeDiscovery": {
@@ -99,7 +126,7 @@
       "pathSearch": false,
       "probeTimeoutSeconds": 12,
       "probeRequirements": [
-        "Exact PowerShell edition and version",
+        "Windows PowerShell Desktop 5.1 or PowerShell Core 7.2.0 through 7.6.9",
         "x64 process architecture",
         "Application syntax preflight",
         "Shared GUI capability gate for Windows Forms, System.Drawing, and System.Web assemblies",
@@ -157,7 +184,8 @@
   "optionalPackageManagers": {
     "winget": {
       "requiredForHostSupport": false,
-      "supportedSystems": "Windows 11 and Windows Server 2025 with Desktop Experience. Windows Server 2022 and earlier are not supported by WinGet.",
+      "supportedSystems": "Windows 10 x64 client version 1809 or later, Windows 11, and Windows Server 2025 with Desktop Experience. Windows Server 2022 and earlier are not supported by WinGet.",
+      "windows10PackageWorkflowVerified": false,
       "serverProductWorkflowVerified": false,
       "legacyBootstrap": {
         "productType": "WinNT",
@@ -165,22 +193,22 @@
         "minimumBuildInclusive": 17763,
         "maximumBuildExclusive": 22000,
         "architecture": "X64",
-        "currentMatrixReachable": false,
-        "reason": "The supported App Installer matrix excludes Windows 10, so startup must not bootstrap WinGet on the legacy Windows 10 path."
+        "currentMatrixReachable": true,
+        "reason": "The Windows 10 compatibility target includes x64 client builds 17763 through 21999. WinGet remains optional for host support."
       },
       "source": "https://learn.microsoft.com/en-us/windows/package-manager/winget/"
     }
   },
   "nonWindowsCli": {
     "platformScope": "Keep the OS and package-manager filters in platform-detect.ps1 unchanged.",
-    "engine": "PowerShell Core 7.6.9",
+    "engine": "PowerShell Core 7.2.0 through 7.6.9",
     "gui": false,
     "supportLifecycle": "https://learn.microsoft.com/en-us/powershell/scripting/install/powershell-support-lifecycle?view=powershell-7.6",
     "verification": "tests/test-compatibility-contract.ps1"
   },
   "recovery": {
-    "windows": "Use a Windows 11 Home or Pro x64 client release listed here and still within its end-of-servicing date. If none are both current and listed, update Windows and use an App Installer release with a refreshed compatibility contract.",
-    "engine": "Use Windows PowerShell 5.1 on a supported Windows host or install PowerShell Core 7.6.9 only while its published support lifecycle remains active. If the pinned version has reached end of support, use an App Installer release with a current compatibility contract.",
+    "windows": "Use Windows 10 x64 client version 1809 through 22H2 with an exact release/build pair listed here, or a listed Windows 11 Home or Pro x64 client release within its end-of-servicing date. Windows 10 Home and Pro reached Microsoft end of support on 2025-10-14; App Installer compatibility does not provide OS security updates.",
+    "engine": "Use Windows PowerShell 5.1 or PowerShell Core 7.2.0 through 7.6.9 on a supported host. PowerShell Core 7.2 and other retired releases may no longer receive Microsoft security updates. The consent-gated provisioning plan installs the pinned PowerShell Core 7.6.9 release while its published support lifecycle remains active.",
     "gui": "Use the CLI entry point when Windows Forms or the required desktop runtime is unavailable."
   }
 }

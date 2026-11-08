@@ -210,7 +210,7 @@ try {
     Assert-Condition -Condition ($unsupportedWhatIf.Status -eq 'Blocked') -Message 'GUI WhatIf preserves an unsupported-host block instead of reporting a successful preview.'
 
     $blockedOperationCases = @(
-        [PSCustomObject]@{ Name = 'Windows 10'; Host = ($hostInfo | ConvertTo-Json -Depth 5 | ConvertFrom-Json); ReasonCode = 'WINDOWS_RELEASE_UNSUPPORTED'; Manifest = $manifest },
+        [PSCustomObject]@{ Name = 'Windows 10 below compatibility floor'; Host = ($hostInfo | ConvertTo-Json -Depth 5 | ConvertFrom-Json); ReasonCode = 'WINDOWS_RELEASE_UNSUPPORTED'; Manifest = $manifest },
         [PSCustomObject]@{ Name = 'Windows Server'; Host = ($hostInfo | ConvertTo-Json -Depth 5 | ConvertFrom-Json); ReasonCode = 'WINDOWS_NOT_CLIENT'; Manifest = $manifest },
         [PSCustomObject]@{ Name = 'x86'; Host = ($hostInfo | ConvertTo-Json -Depth 5 | ConvertFrom-Json); ReasonCode = 'WINDOWS_ARCHITECTURE_UNSUPPORTED'; Manifest = $manifest },
         [PSCustomObject]@{ Name = 'ARM64'; Host = ($hostInfo | ConvertTo-Json -Depth 5 | ConvertFrom-Json); ReasonCode = 'WINDOWS_ARCHITECTURE_UNSUPPORTED'; Manifest = $manifest },
@@ -223,7 +223,7 @@ try {
 
     foreach ($case in $blockedOperationCases) {
         switch ($case.Name) {
-            'Windows 10' { $case.Host.DisplayVersion = '22H2'; $case.Host.BuildNumber = 19045 }
+            'Windows 10 below compatibility floor' { $case.Host.DisplayVersion = '1803'; $case.Host.BuildNumber = 17134 }
             'Windows Server' { $case.Host.ProductType = 'LanmanNT'; $case.Host.ProductFamily = 'WindowsServer'; $case.Host.InstallationType = 'Server'; $case.Host.EditionId = 'ServerDatacenter' }
             'x86' { $case.Host.Architecture = 'X86' }
             'ARM64' { $case.Host.Architecture = 'Arm64' }

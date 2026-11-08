@@ -82,8 +82,12 @@ try {
         [PSCustomObject]@{ Name = 'Windows 11 25H2 Home x64'; Host = (New-TestHostInfo -DisplayVersion '25H2' -BuildNumber 26200); Date = [datetime]'2026-10-17'; Expected = $true },
         [PSCustomObject]@{ Name = 'Windows 11 26H2 Pro x64'; Host = (New-TestHostInfo -EditionId 'Professional'); Date = [datetime]'2026-10-17'; Expected = $true },
         [PSCustomObject]@{ Name = 'Windows 11 24H2'; Host = (New-TestHostInfo -DisplayVersion '24H2' -BuildNumber 26100); Date = [datetime]'2026-10-17'; Expected = $false },
-        [PSCustomObject]@{ Name = 'Windows 10 22H2'; Host = (New-TestHostInfo -DisplayVersion '22H2' -BuildNumber 19045); Date = [datetime]'2026-10-17'; Expected = $false },
-        [PSCustomObject]@{ Name = 'Windows 10 1809 WinGet minimum'; Host = (New-TestHostInfo -DisplayVersion '1809' -BuildNumber 17763); Date = [datetime]'2026-10-17'; Expected = $false },
+        [PSCustomObject]@{ Name = 'Windows 10 22H2 after vendor end of support'; Host = (New-TestHostInfo -DisplayVersion '22H2' -BuildNumber 19045); Date = [datetime]'2026-10-17'; Expected = $true },
+        [PSCustomObject]@{ Name = 'Windows 10 1809 minimum build'; Host = (New-TestHostInfo -DisplayVersion '1809' -BuildNumber 17763); Date = [datetime]'2026-10-17'; Expected = $true },
+        [PSCustomObject]@{ Name = 'Windows 10 20H2'; Host = (New-TestHostInfo -DisplayVersion '20H2' -BuildNumber 19042); Date = [datetime]'2026-10-17'; Expected = $true },
+        [PSCustomObject]@{ Name = 'Windows 10 20H2 ReleaseId fallback'; Host = (New-TestHostInfo -DisplayVersion '2009' -BuildNumber 19042); Date = [datetime]'2026-10-17'; Expected = $true },
+        [PSCustomObject]@{ Name = 'Windows 10 mismatched release and build'; Host = (New-TestHostInfo -DisplayVersion '22H2' -BuildNumber 19042); Date = [datetime]'2026-10-17'; Expected = $false },
+        [PSCustomObject]@{ Name = 'Windows 10 build below compatibility minimum'; Host = (New-TestHostInfo -DisplayVersion '1803' -BuildNumber 17134); Date = [datetime]'2026-10-17'; Expected = $false },
         [PSCustomObject]@{ Name = 'Windows 10 build before WinGet minimum'; Host = (New-TestHostInfo -DisplayVersion '1803' -BuildNumber 17134); Date = [datetime]'2026-10-17'; Expected = $false },
         [PSCustomObject]@{ Name = 'Windows 11 x86'; Host = (New-TestHostInfo -DisplayVersion '25H2' -BuildNumber 26200 -Architecture 'X86'); Date = [datetime]'2026-10-17'; Expected = $false },
         [PSCustomObject]@{ Name = 'Windows 11 ARM64'; Host = (New-TestHostInfo -Architecture 'Arm64'); Date = [datetime]'2026-10-17'; Expected = $false },
@@ -113,8 +117,8 @@ try {
 
     $legacyWinGetHost = New-TestHostInfo -DisplayVersion '22H2' -BuildNumber 19045
     $legacyWinGetCapability = Test-InstallerWindows10WinGetBootstrapHost -HostInfo $legacyWinGetHost
-    $legacyHostPreflight = Get-InstallerHostPreflight -Component WindowsHost -HostInfo $legacyWinGetHost -Date ([datetime]'2026-10-17') -WingetAvailabilityProbe { throw 'Unsupported Windows 10 must not probe WinGet.' }
-    Assert-Condition -Condition ($legacyWinGetCapability.IsSupported -and -not $legacyHostPreflight.IsSupported -and $legacyHostPreflight.ReasonCode -eq 'WINDOWS_RELEASE_UNSUPPORTED') -Message 'WinGet bootstrap eligibility remains separate from App Installer OS support.'
+    $legacyHostPreflight = Get-InstallerHostPreflight -Component WindowsHost -HostInfo $legacyWinGetHost -Date ([datetime]'2026-10-17') -WingetAvailabilityProbe { $false }
+    Assert-Condition -Condition ($legacyWinGetCapability.IsSupported -and $legacyHostPreflight.IsSupported -and $legacyHostPreflight.SelectedPackageArchitecture -eq 'X64') -Message 'Windows 10 in the declared build range is eligible for App Installer and its optional WinGet bootstrap.'
     $legacyWinGetBelowMinimum = Test-InstallerWindows10WinGetBootstrapHost -HostInfo (New-TestHostInfo -DisplayVersion '1803' -BuildNumber 17134)
     Assert-Condition -Condition (-not $legacyWinGetBelowMinimum.IsSupported -and $legacyWinGetBelowMinimum.ReasonCode -eq 'WINDOWS10_WINGET_BOOTSTRAP_UNSUPPORTED') -Message 'The legacy WinGet bootstrap rejects Windows 10 builds before 17763.'
     $legacyWinGetArm64 = Test-InstallerWindows10WinGetBootstrapHost -HostInfo (New-TestHostInfo -DisplayVersion '22H2' -BuildNumber 19045 -Architecture 'Arm64')
@@ -138,7 +142,7 @@ try {
     Assert-Condition -Condition (-not $mismatchedPreflight.IsSupported -and $mismatchedPreflight.ReasonCode -eq 'PACKAGE_ARCHITECTURE_MISMATCH' -and $null -eq $mismatchedPreflight.SelectedPackageArchitecture -and $wingetProbeCount -eq 1) -Message 'A mismatched runtime artifact is rejected before optional package-manager discovery.'
 
     $preflightBlockCases = @(
-        [PSCustomObject]@{ Name = 'Windows 10'; Host = $legacyWinGetHost; ReasonCode = 'WINDOWS_RELEASE_UNSUPPORTED' },
+        [PSCustomObject]@{ Name = 'Windows 10 below the declared floor'; Host = (New-TestHostInfo -DisplayVersion '1803' -BuildNumber 17134); ReasonCode = 'WINDOWS_RELEASE_UNSUPPORTED' },
         [PSCustomObject]@{ Name = 'Windows Server'; Host = (New-TestHostInfo -ProductType 'LanmanNT' -InstallationType 'Server' -EditionId 'ServerDatacenter'); ReasonCode = 'WINDOWS_NOT_CLIENT' },
         [PSCustomObject]@{ Name = 'x86 host'; Host = (New-TestHostInfo -Architecture 'X86'); ReasonCode = 'WINDOWS_ARCHITECTURE_UNSUPPORTED' },
         [PSCustomObject]@{ Name = 'ARM64 host'; Host = (New-TestHostInfo -Architecture 'Arm64'); ReasonCode = 'WINDOWS_ARCHITECTURE_UNSUPPORTED' },
@@ -158,10 +162,11 @@ try {
         [PSCustomObject]@{ Name = 'Windows PowerShell 5.1 Desktop'; Engine = (New-TestEngineInfo -Edition 'Desktop' -Version '5.1.0'); Expected = $true },
         [PSCustomObject]@{ Name = 'Windows PowerShell below 5.1'; Engine = (New-TestEngineInfo -Edition 'Desktop' -Version '5.0.0'); Expected = $false },
         [PSCustomObject]@{ Name = 'PowerShell Core 7.6.9'; Engine = (New-TestEngineInfo -Edition 'Core' -Version '7.6.9'); Expected = $true },
-        [PSCustomObject]@{ Name = 'PowerShell Core below 7.6.9'; Engine = (New-TestEngineInfo -Edition 'Core' -Version '7.6.6'); Expected = $false },
-        [PSCustomObject]@{ Name = 'PowerShell Core previous patch 7.6.8'; Engine = (New-TestEngineInfo -Edition 'Core' -Version '7.6.8'); Expected = $false },
-        [PSCustomObject]@{ Name = 'PowerShell Core above pinned version'; Engine = (New-TestEngineInfo -Edition 'Core' -Version '7.6.10'); Expected = $false },
-        [PSCustomObject]@{ Name = 'PowerShell Core retired 7.5 line'; Engine = (New-TestEngineInfo -Edition 'Core' -Version '7.5.12'); Expected = $false }
+        [PSCustomObject]@{ Name = 'PowerShell Core 7.2.0 minimum'; Engine = (New-TestEngineInfo -Edition 'Core' -Version '7.2.0'); Expected = $true },
+        [PSCustomObject]@{ Name = 'PowerShell Core earlier compatible patch'; Engine = (New-TestEngineInfo -Edition 'Core' -Version '7.6.6'); Expected = $true },
+        [PSCustomObject]@{ Name = 'PowerShell Core above current maximum'; Engine = (New-TestEngineInfo -Edition 'Core' -Version '7.6.10'); Expected = $false },
+        [PSCustomObject]@{ Name = 'PowerShell Core 7.1 below the minimum'; Engine = (New-TestEngineInfo -Edition 'Core' -Version '7.1.9'); Expected = $false },
+        [PSCustomObject]@{ Name = 'PowerShell Core 8 outside the declared maximum'; Engine = (New-TestEngineInfo -Edition 'Core' -Version '8.0.0'); Expected = $false }
     )
 
     foreach ($case in $engineCases) {
@@ -175,10 +180,10 @@ try {
     $windowsHost = New-TestHostInfo
     $desktopEngine = New-TestEngineInfo -Edition 'Desktop' -Version '5.1.0'
     $coreEngine = New-TestEngineInfo -Edition 'Core' -Version '7.6.9'
-    $oldCoreEngine = New-TestEngineInfo -Edition 'Core' -Version '7.6.6'
+    $minimumCoreEngine = New-TestEngineInfo -Edition 'Core' -Version '7.2.0'
 
     $linuxPreflight = Get-InstallerHostPreflight -Component CrossPlatformCli -HostInfo (New-TestHostInfo -Platform 'Linux') -EngineInfo $coreEngine -Date ([datetime]'2026-10-17')
-    Assert-Condition -Condition ($linuxPreflight.IsSupported -and $linuxPreflight.Requirement -eq 'PowerShell Core 7.6.9 on an operating system supported by that PowerShell release.' -and $null -eq $linuxPreflight.SelectedPackageArchitecture -and $null -eq $linuxPreflight.RuntimeArtifactArchitecture -and $linuxPreflight.WinGet.Status -eq 'NotApplicable') -Message 'The cross-platform CLI preflight reports its PowerShell requirement without Windows artifact or WinGet fields.'
+    Assert-Condition -Condition ($linuxPreflight.IsSupported -and $linuxPreflight.Requirement -eq 'PowerShell Core 7.2.0 through 7.6.9 on an operating system supported by that PowerShell release.' -and $null -eq $linuxPreflight.SelectedPackageArchitecture -and $null -eq $linuxPreflight.RuntimeArtifactArchitecture -and $linuxPreflight.WinGet.Status -eq 'NotApplicable') -Message 'The cross-platform CLI preflight reports the declared PowerShell range without Windows artifact or WinGet fields.'
 
     $desktopGui = Test-InstallerCompatibility -Component WindowsGui -HostInfo $windowsHost -EngineInfo $desktopEngine -Date ([datetime]'2026-10-17') -WindowsFormsAvailable $true -ProcessArchitecture X64 -ApartmentState STA
     Assert-Condition -Condition ($desktopGui.IsSupported -and $desktopGui.ReasonCode -eq 'COMPATIBILITY_SUPPORTED') -Message 'Windows PowerShell 5.1 enables the GUI only after its full capability contract passes.'
@@ -199,10 +204,10 @@ try {
     Assert-Condition -Condition (-not $coreWrongRuntime.IsSupported -and $coreWrongRuntime.ReasonCode -eq 'GUI_DESKTOP_RUNTIME_VERSION_UNSUPPORTED') -Message 'PowerShell Core rejects a loaded Forms assembly from a different Windows Desktop runtime major.'
     $coreNoGui = Test-InstallerCompatibility -Component WindowsGui -HostInfo $windowsHost -EngineInfo $coreEngine -WindowsFormsAvailable $false -ProcessArchitecture X64 -ApartmentState STA -Date ([datetime]'2026-10-17')
     Assert-Condition -Condition (-not $coreNoGui.IsSupported -and $coreNoGui.ReasonCode -eq 'GUI_ASSEMBLY_LOAD_FAILED' -and $coreNoGui.Message.Contains($manifest.recovery.gui)) -Message 'PowerShell Core without Windows Forms reports a stable reason and CLI recovery path.'
-    $oldCoreCli = Test-InstallerCompatibility -Component WindowsCli -HostInfo $windowsHost -EngineInfo $oldCoreEngine -Date ([datetime]'2026-10-17')
-    Assert-Condition -Condition (-not $oldCoreCli.IsSupported) -Message 'PowerShell Core 7.6.6 is rejected before Windows CLI setup.'
+    $minimumCoreCli = Test-InstallerCompatibility -Component WindowsCli -HostInfo $windowsHost -EngineInfo $minimumCoreEngine -Date ([datetime]'2026-10-17')
+    Assert-Condition -Condition $minimumCoreCli.IsSupported -Message 'PowerShell Core 7.2.0 enables the Windows CLI at the declared minimum.'
     $expiredCore = Test-InstallerCompatibility -Component CrossPlatformCli -HostInfo (New-TestHostInfo -Platform 'Linux') -EngineInfo $coreEngine -Date ([datetime]'2028-11-15')
-    Assert-Condition -Condition (-not $expiredCore.IsSupported -and $expiredCore.Reason.Contains('end of support') -and $expiredCore.Message.Contains('refreshed App Installer compatibility contract')) -Message 'PowerShell Core is rejected after its end-of-support date with a current-contract recovery path.'
+    Assert-Condition -Condition $expiredCore.IsSupported -Message 'The technical compatibility gate remains separate from the pinned provisioning release lifecycle.'
 
     $linuxCli = Test-InstallerCompatibility -Component CrossPlatformCli -HostInfo (New-TestHostInfo -Platform 'Linux') -EngineInfo $coreEngine -Date ([datetime]'2026-10-17')
     Assert-Condition -Condition $linuxCli.IsSupported -Message 'The cross-platform CLI keeps the detected Linux package-manager path.'
@@ -218,7 +223,7 @@ try {
         Assert-Condition -Condition $readme.Contains($releaseText) -Message ("README publishes manifest release: {0}" -f $releaseText)
     }
     $coreVersionText = 'PowerShell Core {0}' -f $manifest.engines.powerShellCore.version
-    foreach ($requiredText in @('compatibility.json', 'Home or Pro', 'x64', 'Windows PowerShell 5.1', $coreVersionText, '.NET Framework 4.7.2')) {
+    foreach ($requiredText in @('compatibility.json', 'Windows 10', '1809', 'Home or Pro', 'x64', 'Windows PowerShell 5.1', $coreVersionText, '7.2.0 through 7.6.9', '.NET Framework 4.7.2')) {
         Assert-Condition -Condition $readme.Contains($requiredText) -Message ("README publishes manifest value: {0}" -f $requiredText)
     }
     foreach ($guiPrerequisite in @($manifest.runtimePrerequisites.windowsPowerShellGui, $manifest.runtimePrerequisites.powerShellCoreGui)) {
@@ -229,8 +234,8 @@ try {
     }
     Assert-Condition -Condition ($readme.Contains('original CLI arguments') -and $readme.Contains('explicit consent') -and $readme.Contains('does not change PATH')) -Message 'README documents the CLI fallback and the consent-gated current-user runtime plan.'
     Assert-Condition -Condition ($readme.Contains('Optional for host support') -and $readme.Contains('every Server SKU remains outside the support matrix') -and $readme.Contains('If WinGet is missing')) -Message 'README separates optional WinGet availability from Windows host support and documents unverified Server package workflows.'
-    foreach ($obsoleteClaim in @('Windows 10 (1809+)', 'Windows Server 2016+', 'PowerShell 7.2+')) {
-        Assert-Condition -Condition (-not $readme.Contains($obsoleteClaim)) -Message ("README no longer claims unbounded or retired support: {0}" -f $obsoleteClaim)
+    foreach ($obsoleteClaim in @('Windows Server 2016+', 'PowerShell 7.2+')) {
+        Assert-Condition -Condition (-not $readme.Contains($obsoleteClaim)) -Message ("README no longer claims unbounded support: {0}" -f $obsoleteClaim)
     }
     Assert-Condition -Condition (-not $manifest.windowsExecutable.bundledPowerShellRuntime -and $manifest.windowsExecutable.entryPoint -eq 'install.bat') -Message 'The EXE contract records its launcher and confirms it does not bundle a PowerShell runtime.'
     Assert-Condition -Condition ($manifest.windowsExecutable.engineSelectionOrder.Count -eq 2 -and $manifest.windowsExecutable.runtimeDiscovery.automaticProvisioning -eq $false -and $manifest.windowsExecutable.runtimeDiscovery.consentRequiredProvisioning -eq $true -and $manifest.windowsExecutable.runtimeDiscovery.pathSearch -eq $false) -Message 'The EXE candidate order, fixed-path policy, and consent-gated provisioning behavior are sourced from the contract.'
@@ -239,7 +244,7 @@ try {
     $runtimeProvisioning = $manifest.windowsExecutable.runtimeDiscovery.provisioning
     Assert-Condition -Condition ($runtimeProvisioning.version -eq $manifest.engines.powerShellCore.version -and $runtimeProvisioning.architecture -eq $manifest.windowsClient.architecture -and $runtimeProvisioning.artifactName -eq 'PowerShell-7.6.9-win-x64.zip' -and $runtimeProvisioning.source -eq 'https://github.com/PowerShell/PowerShell/releases/download/v7.6.9/PowerShell-7.6.9-win-x64.zip' -and $runtimeProvisioning.sha256 -eq 'CE7484804C0F0AD4DDA10C958E71ACDAF7EEBFB22505C1B480F89E0E9F1DA94D') -Message 'Runtime provisioning selects the matching contract x64 artifact and published SHA-256 digest.'
     Assert-Condition -Condition ($runtimeProvisioning.installScope -eq 'current-user' -and $runtimeProvisioning.requiresAdministrator -eq $false -and $runtimeProvisioning.modifiesPath -eq $false -and $runtimeProvisioning.modifiesDefaultEngine -eq $false -and $runtimeProvisioning.signer -eq 'Microsoft Corporation') -Message 'The runtime plan uses a signed current-user install without changing PATH or the default engine.'
-    Assert-Condition -Condition (-not $manifest.optionalPackageManagers.winget.requiredForHostSupport -and $manifest.optionalPackageManagers.winget.legacyBootstrap.currentMatrixReachable -eq $false -and $manifest.optionalPackageManagers.winget.legacyBootstrap.architecture -eq 'X64') -Message 'WinGet remains optional, and the legacy bootstrap target cannot bypass the current Windows support matrix.'
+    Assert-Condition -Condition (-not $manifest.optionalPackageManagers.winget.requiredForHostSupport -and $manifest.optionalPackageManagers.winget.legacyBootstrap.currentMatrixReachable -eq $true -and $manifest.optionalPackageManagers.winget.legacyBootstrap.architecture -eq 'X64') -Message 'WinGet remains optional and its Windows 10 bootstrap range is inside the declared compatibility matrix.'
     foreach ($sourceName in @('lifecycleSource', 'dotNetFrameworkSource', 'windowsPowerShellSource', 'powerShellSource', 'powerShellReleaseSource', 'winGetSource')) {
         Assert-Condition -Condition (-not [string]::IsNullOrWhiteSpace([string]$manifest.windowsClient.verification.$sourceName)) -Message ("The compatibility contract records an official source for {0}." -f $sourceName)
     }

@@ -363,14 +363,44 @@ function Invoke-VerifiedBelarcInstaller {
             $stagedFilePath = Join-Path $tempDirectory 'BelarcAdvisorInstaller.exe'
             $result.StagedFilePath = $stagedFilePath
 
-            $responseBytes = if ($DownloadScript) {
+            $downloadResponse = if ($DownloadScript) {
                 & $DownloadScript $Uri
             }
             else {
                 Get-BelarcResponseBytes -Uri $Uri
             }
 
-            if ($responseBytes -isnot [byte[]] -or $responseBytes.Length -eq 0) {
+            $responseBytes = $downloadResponse
+            $responseSourceChanged = $false
+            if ($downloadResponse -isnot [byte[]]) {
+                $bytesProperty = $null
+                $responseUriProperty = $null
+                if ($null -ne $downloadResponse) {
+                    $bytesProperty = $downloadResponse.PSObject.Properties['Bytes']
+                    $responseUriProperty = $downloadResponse.PSObject.Properties['ResponseUri']
+                }
+                if ($null -ne $bytesProperty -and $null -ne $responseUriProperty) {
+                    $responseBytes = $bytesProperty.Value
+                    $responseUri = [string]$responseUriProperty.Value
+                    $expectedResponseUri = ([System.Uri]::new($Uri, [System.UriKind]::Absolute)).AbsoluteUri
+                    $responseSourceChanged = -not [string]::Equals(
+                        $responseUri,
+                        $expectedResponseUri,
+                        [System.StringComparison]::Ordinal
+                    )
+                }
+                else {
+                    $responseBytes = $null
+                }
+            }
+
+            if ($responseSourceChanged) {
+                $result.DownloadStatus = 'redirect-rejected'
+                $result.VerificationStatus = 'rejected'
+                $result.FailureReason = 'source-changed-during-download'
+                $result.Message = 'Belarc installer response came from an unapproved source. No installer was launched.'
+            }
+            elseif ($responseBytes -isnot [byte[]] -or $responseBytes.Length -eq 0) {
                 $result.DownloadStatus = 'invalid-output'
                 $result.VerificationStatus = 'rejected'
                 $result.FailureReason = 'invalid-download-output'

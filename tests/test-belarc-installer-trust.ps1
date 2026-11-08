@@ -160,6 +160,31 @@ try {
     }
     Assert-Condition -Condition ($state.DownloadCalls -eq 0 -and $state.ProcessCalls -eq 0) -Message 'Rejected sources reach neither downloader nor executor.'
 
+    $redirectProcessState = $state
+    $redirectDownload = {
+        param($RequestedUri)
+        $state.DownloadCalls++
+        return [PSCustomObject]@{
+            Bytes = $testBytes
+            ResponseUri = 'https://redirect.invalid/advisorinstaller.exe'
+        }
+    }.GetNewClosure()
+    $redirectExecutor = {
+        param($LiteralPath, $Arguments)
+        $redirectProcessState.ProcessCalls++
+        return [PSCustomObject]@{ ExitCode = 0 }
+    }.GetNewClosure()
+    $redirectResult = Invoke-VerifiedBelarcInstaller `
+        -Uri $testUri `
+        -ExpectedSha256 $testDigest `
+        -ExpectedSignerThumbprint $testSigner `
+        -TempRoot $testRoot `
+        -DownloadScript $redirectDownload `
+        -SignatureVerifier (New-FakeSignatureVerifier -Valid $true) `
+        -ExecutorScript $redirectExecutor
+    Assert-Condition -Condition ($redirectResult.FailureReason -eq 'source-changed-during-download' -and $redirectResult.DownloadStatus -eq 'redirect-rejected') -Message 'A redirected Belarc response is rejected at the fake transport boundary.'
+    Assert-Condition -Condition ($state.ProcessCalls -eq 0) -Message 'A redirected Belarc response never reaches the process executor.'
+
     $executorState = $state
     $fakeExecutor = {
         param($LiteralPath, $Arguments)

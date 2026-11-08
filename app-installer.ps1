@@ -27,10 +27,10 @@
     File Name      : app-installer.ps1
     Author         : myTech.Today
     Prerequisite   : See compatibility.json for the authoritative support contract
-                     Windows: 25H2 or 26H2, Home or Pro, x64
-                     GUI: Windows PowerShell 5.1 with .NET Framework 4.7.2+, or PowerShell Core 7.6.9 with Windows Desktop runtime 10
-                     CLI: Windows PowerShell 5.1 or PowerShell Core 7.6.9
-                     macOS/Linux: PowerShell Core 7.6.9 (redirects to CLI mode)
+                     Windows: Windows 10 1809 through 22H2, or listed Windows 11 releases, Home or Pro, x64
+                     GUI: Windows PowerShell 5.1 with .NET Framework 4.7.2+, or PowerShell Core 7.2.0 through 7.6.9 with Windows Desktop runtime 10
+                     CLI: Windows PowerShell 5.1 or PowerShell Core 7.2.0 through 7.6.9
+                     macOS/Linux: PowerShell Core 7.2.0 through 7.6.9 on a supported platform (redirects to CLI mode)
     Copyright      : (c) 2025 myTech.Today. All rights reserved.
     Version        : 2.0.6
 
@@ -3032,6 +3032,18 @@ function Install-Application {
         [PSCustomObject]$App
     )
 
+    $unavailableReason = AppInstallerCore\Get-ApplicationUnavailableReason -Application $App
+    if ($unavailableReason) {
+        $blockedMessage = "[BLOCKED] $($App.Name): $unavailableReason No download or helper process was started."
+        Write-Log $blockedMessage -Level WARNING
+        Write-Output $blockedMessage -Color ([System.Drawing.Color]::DarkGray)
+        if ($script:StatusLabel) {
+            $script:StatusLabel.Text = $blockedMessage
+            $script:StatusLabel.ForeColor = [System.Drawing.Color]::DarkGray
+        }
+        return $false
+    }
+
     $script:LastAppScriptOutcome = $null
     Write-Log "Installing $($App.Name)..." -Level INFO
     Write-Output "`r`nInstalling $($App.Name)..." -Color ([System.Drawing.Color]::Blue)
@@ -4005,6 +4017,7 @@ function Create-MainForm {
     $script:ListView.FullRowSelect = $true
     $script:ListView.GridLines = $true
     $script:ListView.CheckBoxes = $true
+    $script:ListView.ShowItemToolTips = $true
     $script:ListView.Sorting = [System.Windows.Forms.SortOrder]::None
     $script:ListView.Font = New-Object System.Drawing.Font("Segoe UI", $tableFontSize)
 
@@ -4103,6 +4116,17 @@ function Create-MainForm {
 
         # Prevent execution during form closing
         if ($script:IsClosing) {
+            return
+        }
+
+        $item = $sender.Items[$e.Index]
+        $unavailableReason = AppInstallerCore\Get-ApplicationUnavailableReason -Application $item.Tag
+        if ($unavailableReason) {
+            $e.NewValue = $e.CurrentValue
+            if ($script:ResultCountLabel) {
+                $script:ResultCountLabel.Text = "Unavailable: $($item.Text). $unavailableReason"
+            }
+            Write-Log "Selection blocked for '$($item.Text)': $unavailableReason" -Level WARNING
             return
         }
 
@@ -5068,10 +5092,15 @@ function Filter-Applications {
         foreach ($app in $category.Group | Sort-Object Name) {
             $item = New-Object System.Windows.Forms.ListViewItem($app.Name)
             $item.SubItems.Add($app.Category) | Out-Null
+            $unavailableReason = AppInstallerCore\Get-ApplicationUnavailableReason -Application $app
 
-            # Check if installed
-            $isInstalled = $script:InstalledApps.ContainsKey($app.Name)
-            if ($isInstalled) {
+            if ($unavailableReason) {
+                $item.SubItems.Add('Unavailable') | Out-Null
+                $item.SubItems.Add('') | Out-Null
+                $item.ForeColor = [System.Drawing.Color]::DarkGray
+                $item.ToolTipText = $unavailableReason
+            }
+            elseif ($script:InstalledApps.ContainsKey($app.Name)) {
                 $item.SubItems.Add("Installed") | Out-Null
                 $item.SubItems.Add($script:InstalledApps[$app.Name]) | Out-Null
                 $item.ForeColor = [System.Drawing.Color]::Green
@@ -5083,7 +5112,11 @@ function Filter-Applications {
             }
 
             # Add description
-            $item.SubItems.Add($app.Description) | Out-Null
+            $displayDescription = [string]$app.Description
+            if ($unavailableReason) {
+                $displayDescription = "Unavailable: $unavailableReason"
+            }
+            $item.SubItems.Add($displayDescription) | Out-Null
 
             # Store app object in Tag
             $item.Tag = $app
@@ -5095,7 +5128,10 @@ function Filter-Applications {
                 $ignoreProfileInstall = $true
             }
 
-            if ($ignoreProfileInstall) {
+            if ($unavailableReason) {
+                # Disabled catalog actions remain visibly unchecked.
+            }
+            elseif ($ignoreProfileInstall) {
                 $item.Checked = $true
                 $item.ForeColor = [System.Drawing.Color]::DarkGray
             }
@@ -6602,6 +6638,55 @@ function Install-SelectedApplications {
     else {
         # Get checked items (including ones that may be ignored because they are already installed)
         $allCheckedItems = @($script:ListView.Items | Where-Object { $_.Checked })
+    }
+
+    # Resolve restored queue entries against the current catalog before allowing an action.
+    $availableCheckedItems = @()
+    $blockedItems = @()
+    foreach ($item in $allCheckedItems) {
+        $availabilityApp = $item.Tag
+        $availabilityReason = $null
+        if ($null -eq $availabilityApp) {
+            $availabilityReason = 'The selected application could not be resolved in the current catalog.'
+        }
+        elseif ($null -eq $availabilityApp.PSObject.Properties['Available']) {
+            $catalogMatches = @($script:Applications | Where-Object { [string]$_.Name -ceq [string]$availabilityApp.Name })
+            if ($catalogMatches.Count -eq 1) {
+                $availabilityApp = $catalogMatches[0]
+            }
+            else {
+                $availabilityReason = 'The saved application entry could not be matched to the current catalog.'
+            }
+        }
+
+        if (-not $availabilityReason) {
+            $availabilityReason = AppInstallerCore\Get-ApplicationUnavailableReason -Application $availabilityApp
+        }
+
+        if ($availabilityReason) {
+            $blockedItems += [PSCustomObject]@{
+                Name = [string]$item.Text
+                Reason = $availabilityReason
+            }
+        }
+        else {
+            $availableCheckedItems += $item
+        }
+    }
+
+    if ($blockedItems.Count -gt 0) {
+        $blockedMessage = ($blockedItems | ForEach-Object { "{0}: {1}" -f $_.Name, $_.Reason }) -join "`r`n"
+        Write-Log "Blocked unavailable installer selection(s): $blockedMessage" -Level WARNING
+        [System.Windows.Forms.MessageBox]::Show(
+            $blockedMessage,
+            'Installer Action Unavailable',
+            [System.Windows.Forms.MessageBoxButtons]::OK,
+            [System.Windows.Forms.MessageBoxIcon]::Warning
+        ) | Out-Null
+    }
+    $allCheckedItems = $availableCheckedItems
+    if ($allCheckedItems.Count -eq 0 -and $blockedItems.Count -gt 0) {
+        return
     }
 
     if ($allCheckedItems.Count -eq 0) {

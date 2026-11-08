@@ -265,6 +265,10 @@
       "description": "System inventory and security analysis",
       "category": "System-Windows",
       "platform": "Windows",
+      "availability": {
+        "status": "unavailable",
+        "reason": "No immutable Belarc installer source, SHA-256 digest, and Authenticode signer thumbprint have been independently reviewed and configured. No download or process will be started."
+      },
       "packages": {}
     },
     {
@@ -3918,6 +3922,10 @@
       "description": "Windows privacy tool",
       "category": "System-Windows",
       "platform": "Windows",
+      "availability": {
+        "status": "unavailable",
+        "reason": "O&O's official download is a current-version link, and no immutable release source, SHA-256 digest, and Authenticode signer thumbprint have been independently reviewed and configured. No download or process will be started."
+      },
       "packages": {
         "winget": "OOSoftware.ShutUp10",
         "wingetSource": "winget"
@@ -4188,6 +4196,10 @@
       "description": "Remove McAfee products",
       "category": "Utilities",
       "platform": "Windows",
+      "availability": {
+        "status": "unavailable",
+        "reason": "McAfee's official MCPR download is a fresh-copy locator, and no independently reviewed SHA-256 digest or Authenticode signer thumbprint is configured. No download or process will be started."
+      },
       "packages": {}
     },
     {

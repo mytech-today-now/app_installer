@@ -50,7 +50,8 @@ $editionName = switch ([string]$hostInfo.EditionId) {
     'Professional' { 'Pro' }
     default { [string]$hostInfo.EditionId }
 }
-Write-Host ("[HOST] Windows 11 {0}, build {1}, {2}, {3}; product type {4}; installation type {5}." -f $hostDecision.Release.displayVersion, $hostDecision.Release.build, $editionName, $hostInfo.Architecture, $hostInfo.ProductType, $hostInfo.InstallationType) -ForegroundColor Cyan
+$productName = if (-not [string]::IsNullOrWhiteSpace([string]$hostDecision.Release.productName)) { [string]$hostDecision.Release.productName } else { 'Windows 11' }
+Write-Host ("[HOST] {0} {1}, build {2}, {3}, {4}; product type {5}; installation type {6}." -f $productName, $hostDecision.Release.displayVersion, $hostDecision.Release.build, $editionName, $hostInfo.Architecture, $hostInfo.ProductType, $hostInfo.InstallationType) -ForegroundColor Cyan
 Write-Host ("[ENGINE] {0} {1}; process architecture {2}; apartment {3}." -f $PSVersionTable.PSEdition, $PSVersionTable.PSVersion, (Get-InstallerProcessArchitecture), [Threading.Thread]::CurrentThread.GetApartmentState()) -ForegroundColor Cyan
 Write-Host ("[RUNTIME] {0}; .NET Framework release {1}." -f $runtimeDescription, $hostInfo.DotNetFrameworkRelease) -ForegroundColor Cyan
 Write-Host ("[ASSEMBLIES] System.Windows.Forms={0}; System.Drawing={1}; System.Web={2}." -f $formsAssembly, $drawingAssembly, $webAssembly) -ForegroundColor Cyan

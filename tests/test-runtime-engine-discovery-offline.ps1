@@ -150,20 +150,27 @@ try {
     }
     Assert-Condition -Condition ($failedPreferred.IsSupported -and $failedPreferred.Selected.Engine -eq 'Desktop' -and $failedPreferred.Attempts.Count -eq 2) -Message 'A failed preferred candidate falls back to the next compatible engine before application work.'
 
-    $oldVersion = New-EngineProbe -Version '7.6.6' -Edition 'Core'
+    $oldVersion = New-EngineProbe -Version '7.1.9' -Edition 'Core'
     $oldEngine = Resolve-InstallerRuntime -Component WindowsCli -ApplicationPath $applicationPath -CandidateRecords @($core) -AllowTestCandidates -ProbeInvoker {
         param($candidate, $component, $target, $timeout)
         New-SuccessfulProbeResult -Probe $oldVersion
     }
     Assert-Condition -Condition (-not $oldEngine.IsSupported -and $oldEngine.Attempts[0].Reason -match 'outside the supported engine matrix') -Message 'A too-old PowerShell Core version is rejected.'
 
-    $newerUnsupportedCore = New-EngineProbe -Version '7.6.10' -Edition 'Core'
+    $minimumVersionProbe = New-EngineProbe -Version '7.2.0' -Edition 'Core'
+    $minimumVersionEngine = Resolve-InstallerRuntime -Component WindowsCli -ApplicationPath $applicationPath -CandidateRecords @($core) -AllowTestCandidates -ProbeInvoker {
+        param($candidate, $component, $target, $timeout)
+        New-SuccessfulProbeResult -Probe $minimumVersionProbe
+    }
+    Assert-Condition -Condition ($minimumVersionEngine.IsSupported -and $minimumVersionEngine.Selected.Engine -eq 'Core') -Message 'The minimum declared PowerShell Core version passes the runtime probe and is selected.'
+
+    $newerUnsupportedCore = New-EngineProbe -Version '8.0.0' -Edition 'Core'
     $unsupportedCoreFallback = Resolve-InstallerRuntime -Component WindowsCli -ApplicationPath $applicationPath -CandidateRecords @($core, $desktop) -AllowTestCandidates -ProbeInvoker {
         param($candidate, $component, $target, $timeout)
         if ($candidate.Engine -eq 'Core') { New-SuccessfulProbeResult -Probe $newerUnsupportedCore }
         else { New-SuccessfulProbeResult -Probe $desktopProbe }
     }
-    Assert-Condition -Condition ($unsupportedCoreFallback.IsSupported -and $unsupportedCoreFallback.Selected.Engine -eq 'Desktop' -and $unsupportedCoreFallback.Attempts.Count -eq 2 -and -not $unsupportedCoreFallback.Attempts[0].IsCompatible -and $unsupportedCoreFallback.Attempts[0].Probe.Version -eq '7.6.10' -and $unsupportedCoreFallback.Attempts[0].Reason -match 'outside the supported engine matrix') -Message 'Core 7.6.10 is rejected before compatible Desktop 5.1 is selected under the exact pinned engine matrix.'
+    Assert-Condition -Condition ($unsupportedCoreFallback.IsSupported -and $unsupportedCoreFallback.Selected.Engine -eq 'Desktop' -and $unsupportedCoreFallback.Attempts.Count -eq 2 -and -not $unsupportedCoreFallback.Attempts[0].IsCompatible -and $unsupportedCoreFallback.Attempts[0].Probe.Version -eq '8.0.0' -and $unsupportedCoreFallback.Attempts[0].Reason -match 'outside the supported engine matrix') -Message 'Core 8.0.0 is rejected before compatible Desktop 5.1 is selected outside the declared range.'
 
     $wrongEdition = New-EngineProbe -Version '5.1.0' -Edition 'Desktop'
     $wrongEditionResult = Resolve-InstallerRuntime -Component WindowsCli -ApplicationPath $applicationPath -CandidateRecords @($core) -AllowTestCandidates -ProbeInvoker {
@@ -329,7 +336,7 @@ try {
 
     $manifest = Get-InstallerCompatibilityManifest
     $assertedOrder = @($manifest.windowsExecutable.engineSelectionOrder)
-    Assert-Condition -Condition ($assertedOrder[0] -eq 'PowerShell Core 7.6.9' -and $assertedOrder[1] -eq 'Windows PowerShell Desktop 5.1' -and $manifest.windowsExecutable.runtimeDiscovery.automaticProvisioning -eq $false -and $manifest.windowsExecutable.runtimeDiscovery.consentRequiredProvisioning -eq $true) -Message 'The manifest publishes Core-first selection and consent-gated runtime provisioning.'
+    Assert-Condition -Condition ($assertedOrder[0] -eq 'PowerShell Core 7.2.0 through 7.6.9' -and $assertedOrder[1] -eq 'Windows PowerShell Desktop 5.1' -and $manifest.windowsExecutable.runtimeDiscovery.automaticProvisioning -eq $false -and $manifest.windowsExecutable.runtimeDiscovery.consentRequiredProvisioning -eq $true) -Message 'The manifest publishes Core-first selection across the declared range and consent-gated runtime provisioning.'
 
     Write-Host "[OK] Runtime discovery tests passed ($assertionCount assertions)." -ForegroundColor Green
 }
