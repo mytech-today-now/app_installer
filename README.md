@@ -952,23 +952,47 @@ Copyright (c) 2026 myTech.Today. All rights reserved.
 
 This software is proprietary and confidential. Unauthorized copying, distribution, or use is strictly prohibited.
 
-## Author
+## About myTech.Today
 
-**myTech.Today**
-Professional IT Services - Serving the Midwest
-https://github.com/mytech-today-now/PowerShellScripts
+myTech.Today provides professional IT services in Omaha and Lincoln, Nebraska.
 
-**Service Area:**
+### 🛠️ Our Services
+
+- IT Consulting and Support
+- Custom PowerShell Automation and Scripting
+- Infrastructure Optimization and System Administration
+- Cloud Integration (Azure, AWS, GCS, Microsoft 365)
+- Network Design and Management
+- Cybersecurity and Compliance Solutions
+- Database Management and Custom Development
+- System Setup, Upgrades, and Troubleshooting
+- Virus and Spyware Removal
+- Hardware Procurement, Installation, and Configuration
+
+### 📍 Service Area
+
 - Omaha, NE
+- Lincoln, NE
 
-**Expertise:**
-- 20+ years of IT experience
-- Windows automation and deployment
-- PowerShell scripting and development
-- System administration and support
+### ⭐ Why Choose myTech.Today?
+
+- 20+ years of IT consulting and software development experience
+- Personalized service to 190+ satisfied clients
+- 5-star review rating with consistent 24-hour solution delivery
+- Payment-upon-success terms available
+- Expertise in Windows automation, PowerShell scripting, and system optimization
+
+### 📬 Contact Information
+
+- Email: [sales@mytech.today](mailto:sales@mytech.today)
+- Website: [mytech.today](https://mytech.today)
+- GitHub: [@mytech-today-now](https://github.com/mytech-today-now)
+- LinkedIn: [linkedin.com/in/kylerode](https://linkedin.com/in/kylerode)
+
+**myTech.Today** · Professional IT Services · Serving Omaha and Lincoln · [mytech.today](https://mytech.today)
 
 ---
 
-**Last Updated:** 2026-11-06
+**Last Updated:** 2026-11-11
 **Version:** 2.0.6 (GUI) / 2.0.2 (CLI)
 **Maintained by:** [myTech.Today](https://mytech.today)

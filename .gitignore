@@ -38,6 +38,7 @@ desktop.ini
 # Test and coverage outputs (if generated locally)
 TestResults/
 coverage/
+node_modules/
 
 # Archives / packaged artifacts
 *.zip

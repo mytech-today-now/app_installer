@@ -4641,25 +4641,39 @@ Write-Host "+===================================================================
 Write-Host ""
 Write-Host "  Need IT Support? We're Here to Help!" -ForegroundColor Yellow
 Write-Host ""
-Write-Host "  myTech.Today is a full-service Managed Service Provider (MSP)" -ForegroundColor White
-Write-Host "  serving businesses and individuals in the Barrington, IL area" -ForegroundColor White
-Write-Host "  and throughout Chicagoland." -ForegroundColor White
+Write-Host "  myTech.Today provides professional IT services in Omaha and Lincoln, Nebraska." -ForegroundColor White
 Write-Host ""
-Write-Host "  We specialize in:" -ForegroundColor Green
+Write-Host "  Our Services:" -ForegroundColor Green
 Write-Host "    - IT Consulting and Support" -ForegroundColor Gray
-Write-Host "    - Custom PowerShell Automation" -ForegroundColor Gray
-Write-Host "    - Infrastructure Optimization" -ForegroundColor Gray
-Write-Host "    - Cloud Integration (Azure, AWS, Microsoft 365)" -ForegroundColor Gray
-Write-Host "    - System Administration and Security" -ForegroundColor Gray
+Write-Host "    - Custom PowerShell Automation and Scripting" -ForegroundColor Gray
+Write-Host "    - Infrastructure Optimization and System Administration" -ForegroundColor Gray
+Write-Host "    - Cloud Integration (Azure, AWS, GCS, Microsoft 365)" -ForegroundColor Gray
+Write-Host "    - Network Design and Management" -ForegroundColor Gray
+Write-Host "    - Cybersecurity and Compliance Solutions" -ForegroundColor Gray
 Write-Host "    - Database Management and Custom Development" -ForegroundColor Gray
+Write-Host "    - System Setup, Upgrades, and Troubleshooting" -ForegroundColor Gray
+Write-Host "    - Virus and Spyware Removal" -ForegroundColor Gray
+Write-Host "    - Hardware Procurement, Installation, and Configuration" -ForegroundColor Gray
 Write-Host ""
-Write-Host "  Contact Us:" -ForegroundColor Yellow
+Write-Host "  Service Area:" -ForegroundColor Green
+Write-Host "    - Omaha, NE" -ForegroundColor Gray
+Write-Host "    - Lincoln, NE" -ForegroundColor Gray
+Write-Host ""
+Write-Host "  Why Choose myTech.Today?" -ForegroundColor Green
+Write-Host "    - 20+ years of IT consulting and software development experience" -ForegroundColor Gray
+Write-Host "    - Personalized service to 190+ satisfied clients" -ForegroundColor Gray
+Write-Host "    - 5-star review rating with consistent 24-hour solution delivery" -ForegroundColor Gray
+Write-Host "    - Payment-upon-success terms available" -ForegroundColor Gray
+Write-Host "    - Expertise in Windows automation, PowerShell scripting, and system optimization" -ForegroundColor Gray
+Write-Host ""
+Write-Host "  Contact Information:" -ForegroundColor Yellow
 Write-Host "    Email:   sales@mytech.today" -ForegroundColor White
-Write-Host "    Phone:   (847) 767-4914" -ForegroundColor White
-Write-Host "    Web:     https://mytech.today" -ForegroundColor Cyan
+Write-Host "    Website: https://mytech.today" -ForegroundColor Cyan
+Write-Host "    GitHub:  https://github.com/mytech-today-now" -ForegroundColor White
+Write-Host "    LinkedIn: https://linkedin.com/in/kylerode" -ForegroundColor White
 
 Write-Host ""
-Write-Host "  Serving Chicagoland with 20+ years of IT expertise!" -ForegroundColor Green
+Write-Host "  myTech.Today - Professional IT Services - Serving Omaha and Lincoln - https://mytech.today" -ForegroundColor Green
 Write-Host ""
 Write-Host "+===================================================================+" -ForegroundColor Cyan
 Write-Host ""

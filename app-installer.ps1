@@ -4433,57 +4433,52 @@ function Create-MainForm {
 <body>
     <div id="content">
         <div class="logo">myTech.Today</div>
-        <div class="tagline">Professional IT Solutions for Your Business</div>
-
-        <div class="box">
-            <h2>Contact Information</h2>
-            <p class="info">&#9679; Website: <a href="https://mytech.today">https://mytech.today</a></p>
-            <p class="info">&#9679; Phone: <a href="tel:8477674914">(847) 767-4914</a></p>
-            <p class="info">&#9679; GitHub: <a href="https://github.com/mytech-today-now">@mytech-today-now</a></p>
-            <p class="info">&#9679; Location: Barrington, IL</p>
-        </div>
-
-        <div class="box">
-            <h2>Service Area</h2>
-            <p class="success">&#10003; Serving the Chicagoland area</p>
-            <p class="success">&#10003; Northern Illinois</p>
-            <p class="success">&#10003; Southern Wisconsin</p>
-            <p class="success">&#10003; Northern Indiana</p>
-            <p class="success">&#10003; Southern Michigan</p>
-        </div>
-
-        <div class="box">
-            <h2>Experience</h2>
-            <p class="warning">&#9733; Serving customers for 9 years</p>
-            <p class="warning">&#9733; Trusted by businesses across the region</p>
-        </div>
+        <div class="tagline">Professional IT Services</div>
 
         <div class="box">
             <h2>Our Services</h2>
             <div class="service-grid">
-                <div class="service-item">WordPress Web Development</div>
-                <div class="service-item">Cloud Services</div>
-                <div class="service-item">PowerShell Automation</div>
-                <div class="service-item">Database Solutions</div>
-                <div class="service-item">Email Services</div>
-                <div class="service-item">Networking Solutions</div>
-                <div class="service-item">Hardware Procurement</div>
-                <div class="service-item">QuickBooks Solutions</div>
-                <div class="service-item">OS Solutions</div>
-                <div class="service-item">Printer Solutions</div>
-                <div class="service-item">App Development</div>
-                <div class="service-item">WordPress Plugin Development</div>
-                <div class="service-item">AI Prompt Development</div>
-                <div class="service-item">Disaster Recovery</div>
-                <div class="service-item">Workflow Development</div>
-                <div class="service-item">System Architecture</div>
+                <div class="service-item">IT Consulting and Support</div>
+                <div class="service-item">Custom PowerShell Automation and Scripting</div>
+                <div class="service-item">Infrastructure Optimization and System Administration</div>
+                <div class="service-item">Cloud Integration (Azure, AWS, GCS, Microsoft 365)</div>
+                <div class="service-item">Network Design and Management</div>
+                <div class="service-item">Cybersecurity and Compliance Solutions</div>
+                <div class="service-item">Database Management and Custom Development</div>
+                <div class="service-item">System Setup, Upgrades, and Troubleshooting</div>
+                <div class="service-item">Virus and Spyware Removal</div>
+                <div class="service-item">Hardware Procurement, Installation, and Configuration</div>
             </div>
+        </div>
+
+        <div class="box">
+            <h2>Service Area</h2>
+            <p class="success">&#10003; Omaha, NE</p>
+            <p class="success">&#10003; Lincoln, NE</p>
+        </div>
+
+        <div class="box">
+            <h2>Why Choose myTech.Today?</h2>
+            <p class="warning">&#9733; 20+ years of IT consulting and software development experience</p>
+            <p class="warning">&#9733; Personalized service to 190+ satisfied clients</p>
+            <p class="warning">&#9733; 5-star review rating with consistent 24-hour solution delivery</p>
+            <p class="warning">&#9733; Payment-upon-success terms available</p>
+            <p class="warning">&#9733; Expertise in Windows automation, PowerShell scripting, and system optimization</p>
+        </div>
+
+        <div class="box">
+            <h2>Contact Information</h2>
+            <p class="info">&#9679; Email: <a href="mailto:sales@mytech.today">sales@mytech.today</a></p>
+            <p class="info">&#9679; Website: <a href="https://mytech.today">mytech.today</a></p>
+            <p class="info">&#9679; GitHub: <a href="https://github.com/mytech-today-now">@mytech-today-now</a></p>
+            <p class="info">&#9679; LinkedIn: <a href="https://linkedin.com/in/kylerode">linkedin.com/in/kylerode</a></p>
         </div>
 
         <div class="contact">
             <p style="text-align: center; margin: 0;">
                 <strong>Ready to get started?</strong><br>
-                Select applications from the list and click 'Install Selected' to begin!
+                Select applications from the list and click 'Install Selected' to begin!<br>
+                myTech.Today · Professional IT Services · Serving Omaha and Lincoln · <a href="https://mytech.today">mytech.today</a>
             </p>
         </div>
     </div>
@@ -7446,36 +7441,52 @@ function Show-MarketingInformation {
 <div class="box">
     <h1>Thank you for using myTech.Today App Installer!</h1>
 
-    <h2 class="warning">Need IT Support? We are Here to Help!</h2>
-
-    <p>
-        <strong>myTech.Today</strong> is a full-service Managed Service Provider (MSP)
-        based in Barrington, IL, proudly serving businesses and individuals throughout
-        <strong>Chicagoland, IL</strong>, <strong>Southern Wisconsin</strong>,
-        <strong>Northern Indiana</strong>, and <strong>Southern Michigan</strong>.
-    </p>
-
-    <h2 class="success">We specialize in:</h2>
-    <ul>
-        <li>IT Consulting and Support</li>
-        <li>Network Design and Management</li>
-        <li>Cybersecurity and Compliance</li>
-        <li>Cloud Integration (Azure, AWS, Microsoft 365)</li>
-        <li>System Administration and Security</li>
-        <li>Database Management and Custom Development</li>
-    </ul>
-
-    <div class="contact">
-        <h2 class="warning">Contact Us:</h2>
-        <p>
-            <strong>Email:</strong> <a href="mailto:sales@mytech.today" style="color: #4fc1ff;">sales@mytech.today</a><br>
-            <strong>Phone:</strong> (847) 767-4914<br>
-            <strong>Web:</strong> <a href="https://mytech.today" style="color: #4fc1ff;">https://mytech.today</a>
-        </p>
-    </div>
-
+    <h2 class="warning">About myTech.Today</h2>
+    <table class="company-info-cards">
+        <tr>
+            <td width="50%" valign="top">
+                <h3>🛠️ Our Services</h3>
+                <ul>
+                    <li>IT Consulting and Support</li>
+                    <li>Custom PowerShell Automation and Scripting</li>
+                    <li>Infrastructure Optimization and System Administration</li>
+                    <li>Cloud Integration (Azure, AWS, GCS, Microsoft 365)</li>
+                    <li>Network Design and Management</li>
+                    <li>Cybersecurity and Compliance Solutions</li>
+                    <li>Database Management and Custom Development</li>
+                    <li>System Setup, Upgrades, and Troubleshooting</li>
+                    <li>Virus and Spyware Removal</li>
+                    <li>Hardware Procurement, Installation, and Configuration</li>
+                </ul>
+                <h3>📍 Service Area</h3>
+                <ul>
+                    <li>Omaha, NE</li>
+                    <li>Lincoln, NE</li>
+                </ul>
+            </td>
+            <td width="50%" valign="top">
+                <h3>⭐ Why Choose myTech.Today?</h3>
+                <ul>
+                    <li>20+ years of IT consulting and software development experience</li>
+                    <li>Personalized service to 190+ satisfied clients</li>
+                    <li>5-star review rating with consistent 24-hour solution delivery</li>
+                    <li>Payment-upon-success terms available</li>
+                    <li>Expertise in Windows automation, PowerShell scripting, and system optimization</li>
+                </ul>
+                <div class="contact">
+                    <h3>📬 Contact Information</h3>
+                    <p>
+                        <strong>Email:</strong> <a href="mailto:sales@mytech.today" style="color: #4fc1ff;">sales@mytech.today</a><br>
+                        <strong>Website:</strong> <a href="https://mytech.today" style="color: #4fc1ff;">mytech.today</a><br>
+                        <strong>GitHub:</strong> <a href="https://github.com/mytech-today-now" style="color: #4fc1ff;">@mytech-today-now</a><br>
+                        <strong>LinkedIn:</strong> <a href="https://linkedin.com/in/kylerode" style="color: #4fc1ff;">linkedin.com/in/kylerode</a>
+                    </p>
+                </div>
+            </td>
+        </tr>
+    </table>
     <p class="success" style="text-align: center; margin-top: 15px; font-size: 22px;">
-        <strong>Serving the Midwest with 20+ years of IT expertise!</strong>
+        <strong>myTech.Today · Professional IT Services · Serving Omaha and Lincoln · <a href="https://mytech.today" style="color: #4fc1ff;">mytech.today</a></strong>
     </p>
 </div>
 "@

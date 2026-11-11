@@ -10,6 +10,7 @@ ai_prompts/
 other_files/
 tools/
 tests/
+node_modules/
 builds/
 coverage/
 TestResults/

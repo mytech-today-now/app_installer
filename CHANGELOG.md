@@ -8,6 +8,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), wit
 
 ### Changed
 
+- Synchronized the myTech.Today services, Omaha and Lincoln service area, differentiators, and contact details across the README, GUI and CLI About content, user instructions, and maintainer guidance. Refreshed the approved digest for the updated bundled instructions.
 - Declared exact Windows 10 compatibility pairs from version 1809 through 22H2 and PowerShell Core 7.2.0 through 7.6.9. The contract separates technical targets from vendor servicing, and records that native Windows 10 and PowerShell 7.2.0 runtime evidence was not run.
 - Catalog entries for Belarc Advisor, O&O ShutUp10, and McAfee are unavailable while required source identities and trust pins are unset; selection and direct install paths stop before download or process launch.
 - Verified helper downloads reject redirects or changed response sources before execution.
@@ -24,6 +25,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), wit
 
 ### Added
 
+- Added a root npm dependency manifest and lockfile for the Augment Extensions CLI used by maintainer guidance.
 - Added offline fake transport, signature, and process coverage for a verified executable helper, including McAfee fail-closed behavior while its production trust identity remains unset.
 - Added install ownership manifests and offline install, upgrade, repair, rollback, and retained-data uninstall coverage for the user-scoped EXE payload.
 - Added an executable lifecycle management command with dry-run support and explicit keep-data and remove-owned-files options.

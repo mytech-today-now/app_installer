@@ -12,6 +12,10 @@ This repository provides a PowerShell application installer. `app-installer.ps1`
 - Preserve the CLI's `ShouldProcess` and `-WhatIf` behavior when changing operations that modify the system. Prefer the existing offline regression checks before any live package-manager or system operation.
 - Do not run live install, uninstall, elevation, scheduled-task, bootstrap, or operating-system configuration workflows as routine code validation. Only perform those workflows when the task explicitly requires a live exercise.
 
+## myTech.Today company profile
+
+Use the `About myTech.Today` section in `README.md` as the canonical source for company services, service area, differentiators, and contact links. Keep maintained app About screens, user documentation, Augment guidance, and report company-profile cards aligned with that information. Preserve the supplied service claims and contact destinations; do not reintroduce older service-area or phone details from historical material.
+
 ## Validation
 
 Tests are standalone PowerShell scripts under `tests/`; select the script that covers the behavior being changed and check its host or platform prerequisites. The focused syntax check is:

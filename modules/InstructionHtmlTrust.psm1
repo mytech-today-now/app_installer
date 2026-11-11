@@ -1,5 +1,5 @@
 # Pin the reviewed UTF-8 guide after normalizing CRLF and CR to LF.
-$script:ApprovedInstructionContentSha256 = '2eab59fe032ebae3d1a1fafa6490cdce232cf8b32d9e4b078f759ec3509cab65'
+$script:ApprovedInstructionContentSha256 = '3f84c0894b5969369acde4691ad9874f6aa14ad45a8d60890780ad794e14ff3f'
 $script:MaximumInstructionContentLength = 524288
 $script:SafeInstructionCss = @'
 body { font-family: Segoe UI, Arial, sans-serif; line-height: 1.55; margin: 20px; color: #252525; background: #ffffff; }
